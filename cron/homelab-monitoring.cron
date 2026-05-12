@@ -1,0 +1,11 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Check updates daily
+0 10 * * * root /opt/homelab-monitoring/scripts/check-updates.sh
+
+# Check reboot required
+15 10 * * * root /opt/homelab-monitoring/scripts/check-reboot.sh
+
+# Check critical services every 15 min
+*/15 * * * * root /opt/homelab-monitoring/scripts/check-services.sh
