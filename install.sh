@@ -1,8 +1,13 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 INSTALL_DIR="/opt/homelab-monitoring"
 CRON_FILE="/etc/cron.d/homelab-monitoring"
+
+if [ "$EUID" -ne 0 ]; then
+	echo "Run as root: sudo ./install.sh" >&2
+	exit 1
+fi
 
 echo "[1/6] Creating install directory..."
 mkdir -p "$INSTALL_DIR"
@@ -16,10 +21,10 @@ chmod +x "$INSTALL_DIR"/scripts/*.sh
 echo "[3/6] Installing env config..."
 
 if [ ! -f "$INSTALL_DIR/.env" ]; then
-    cp .env.example "$INSTALL_DIR/.env"
-    echo "Created default .env"
+	cp .env.example "$INSTALL_DIR/.env"
+	echo "Created default .env"
 else
-    echo ".env already exists, keeping existing config"
+	echo ".env already exists, keeping existing config"
 fi
 
 echo "[4/6] Installing dependencies..."
@@ -32,7 +37,9 @@ cp cron/homelab-monitoring.cron "$CRON_FILE"
 chmod 644 "$CRON_FILE"
 
 echo "[6/6] Reloading cron..."
-systemctl reload cron || true
+if ! systemctl reload cron; then
+	systemctl restart cron
+fi
 
 echo ""
 echo "=================================="

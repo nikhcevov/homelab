@@ -1,24 +1,19 @@
 #!/bin/bash
+set -euo pipefail
 
-source /opt/homelab-monitoring/.env
+source /opt/homelab-monitoring/scripts/notify.sh
 
 HOSTNAME=$(hostname)
 
-check_service () {
+: "${CHECK_SERVICES:?CHECK_SERVICES is required}"
 
-SERVICE=$1
-
-if ! systemctl is-active --quiet "$SERVICE"; then
-
-curl -s \
-  -H "Title: Service Down" \
-  -H "Priority: urgent" \
-  -H "Tags: rotating_light,server" \
-  -d "❌ Service '$SERVICE' is DOWN on $HOSTNAME" \
-  https://ntfy.sh/$TOPIC >/dev/null
-
-fi
+check_service() {
+	local SERVICE=$1
+	if ! systemctl is-active --quiet "$SERVICE"; then
+		send_ntfy "Service Down" "urgent" "rotating_light,server" "❌ Service '$SERVICE' is DOWN on $HOSTNAME"
+	fi
 }
 
-check_service nginx
-check_service tailscaled
+for SERVICE in $CHECK_SERVICES; do
+	check_service "$SERVICE"
+done

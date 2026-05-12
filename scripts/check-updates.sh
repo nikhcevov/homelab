@@ -1,24 +1,29 @@
 #!/bin/bash
+set -euo pipefail
 
-source /opt/homelab-monitoring/.env
+source /opt/homelab-monitoring/scripts/notify.sh
 
 HOSTNAME=$(hostname)
 
-apt update -qq >/dev/null 2>&1
+if ! apt update -qq >/dev/null 2>&1; then
+	send_ntfy "APT Update Failed" "high" "warning,package" "❌ apt update failed on $HOSTNAME"
+	exit 1
+fi
 
-TOTAL=$(apt list --upgradable 2>/dev/null | tail -n +2 | wc -l)
-SECURITY=$(apt list --upgradable 2>/dev/null | grep -i security | wc -l)
+UPGRADABLE=$(apt list --upgradable 2>/dev/null | tail -n +2)
+TOTAL=$(printf "%s\n" "$UPGRADABLE" | sed '/^$/d' | wc -l | tr -d ' ')
+SECURITY=$(printf "%s\n" "$UPGRADABLE" | grep -ci security || true)
 
 if [ "$TOTAL" -eq 0 ]; then
-    exit 0
+	exit 0
 fi
 
 if [ "$SECURITY" -gt 0 ]; then
-    PRIORITY="high"
-    EMOJI="🚨"
+	PRIORITY="high"
+	EMOJI="🚨"
 else
-    PRIORITY="default"
-    EMOJI="📦"
+	PRIORITY="default"
+	EMOJI="📦"
 fi
 
 MESSAGE="$EMOJI VPS updates available
@@ -27,9 +32,4 @@ Host: $HOSTNAME
 Packages: $TOTAL
 Security: $SECURITY"
 
-curl -s \
-  -H "Title: VPS Updates" \
-  -H "Priority: $PRIORITY" \
-  -H "Tags: warning,update" \
-  -d "$MESSAGE" \
-  https://ntfy.sh/$TOPIC >/dev/null
+send_ntfy "VPS Updates" "$PRIORITY" "warning,update" "$MESSAGE"
