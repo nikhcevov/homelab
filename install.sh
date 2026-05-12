@@ -28,18 +28,16 @@ else
 fi
 
 echo "[4/6] Installing dependencies..."
-apt update -qq
-apt install -y curl >/dev/null
+apt-get update -qq
+apt-get install -y curl >/dev/null
 
 echo "[5/6] Installing cron jobs..."
 cp cron/homelab-monitoring.cron "$CRON_FILE"
 
 chmod 644 "$CRON_FILE"
 
-echo "[6/6] Reloading cron..."
-if ! systemctl reload cron; then
-	systemctl restart cron
-fi
+echo "[6/6] Restarting cron..."
+systemctl restart cron
 
 echo ""
 echo "=================================="
