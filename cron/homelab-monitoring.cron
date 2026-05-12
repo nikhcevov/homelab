@@ -1,11 +1,17 @@
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# Check updates daily
+# Critical services every 15 min
+*/15 * * * * root /opt/homelab-monitoring/scripts/check-services.sh
+
+# HTTPS endpoints every 15 min
+*/15 * * * * root /opt/homelab-monitoring/scripts/check-https.sh
+
+# Disk usage every hour
+30 * * * * root /opt/homelab-monitoring/scripts/check-disk.sh
+
+# Updates daily
 0 10 * * * root /opt/homelab-monitoring/scripts/check-updates.sh
 
-# Check reboot required
+# Reboot required daily
 15 10 * * * root /opt/homelab-monitoring/scripts/check-reboot.sh
-
-# Check critical services every 15 min
-*/15 * * * * root /opt/homelab-monitoring/scripts/check-services.sh
