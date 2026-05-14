@@ -4,6 +4,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # Critical services every 15 min
 */15 * * * * root /opt/homelab-monitoring/scripts/check-services.sh
 
+# Docker containers every 15 min
+*/15 * * * * root /opt/homelab-monitoring/scripts/check-containers.sh
+
 # HTTPS endpoints every 15 min
 */15 * * * * root /opt/homelab-monitoring/scripts/check-https.sh
 
