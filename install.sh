@@ -4,24 +4,33 @@ set -euo pipefail
 INSTALL_DIR="/opt/homelab-monitoring"
 STATE_DIR="/var/lib/homelab-monitoring"
 CRON_FILE="/etc/cron.d/homelab-monitoring"
+NGINX_CONF="/etc/nginx/nginx.conf"
+NGINX_STREAM_DIR="/etc/nginx/stream.d"
 
 if [ "$EUID" -ne 0 ]; then
 	echo "Run as root: sudo ./install.sh" >&2
 	exit 1
 fi
 
-echo "[1/7] Creating install directory..."
+step() {
+	echo ""
+	echo "[$1] $2"
+}
+
+step 1/9 "Creating install directory..."
 mkdir -p "$INSTALL_DIR"
 
-echo "[2/7] Creating state directory..."
+step 2/9 "Creating state directory..."
 mkdir -p "$STATE_DIR"
 
-echo "[3/7] Copying scripts..."
+step 3/9 "Copying scripts and configs..."
 cp -r scripts "$INSTALL_DIR/"
 cp -r cron "$INSTALL_DIR/" || true
+cp -r nginx "$INSTALL_DIR/"
 chmod +x "$INSTALL_DIR"/scripts/*.sh
+chmod +x "$INSTALL_DIR"/nginx/render-stream.sh
 
-echo "[4/7] Installing env config..."
+step 4/9 "Installing env config..."
 if [ ! -f "$INSTALL_DIR/.env" ]; then
 	cp .env.example "$INSTALL_DIR/.env"
 	echo "Created default .env"
@@ -31,25 +40,36 @@ fi
 
 if grep -q CHANGEME "$INSTALL_DIR/.env"; then
 	echo "WARNING: $INSTALL_DIR/.env still contains CHANGEME placeholders." >&2
-	echo "         Edit it before relying on notifications." >&2
+	echo "         Edit it before relying on the deployment." >&2
 fi
 
-echo "[5/7] Installing dependencies..."
+step 5/9 "Installing system packages..."
+export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y curl >/dev/null
+apt-get install -y curl nginx >/dev/null
 
-echo "[6/7] Installing cron jobs..."
-cp cron/homelab-monitoring.cron "$CRON_FILE"
-chmod 644 "$CRON_FILE"
+step 6/9 "Deploying nginx config..."
+install -m 0644 "$INSTALL_DIR/nginx/nginx.conf" "$NGINX_CONF"
+mkdir -p "$NGINX_STREAM_DIR"
+ENV_FILE="$INSTALL_DIR/.env" OUT_DIR="$NGINX_STREAM_DIR" \
+	"$INSTALL_DIR/nginx/render-stream.sh"
 
-echo "[7/7] Restarting cron..."
+step 7/9 "Validating and reloading nginx..."
+nginx -t
+systemctl enable nginx >/dev/null 2>&1 || true
+systemctl reload nginx 2>/dev/null || systemctl restart nginx
+
+step 8/9 "Installing cron jobs..."
+install -m 0644 cron/homelab-monitoring.cron "$CRON_FILE"
+
+step 9/9 "Restarting cron..."
 systemctl restart cron
 
 echo ""
 echo "=================================="
-echo "Homelab monitoring installed"
-echo "Config file:"
-echo "$INSTALL_DIR/.env"
-echo "State dir:"
-echo "$STATE_DIR"
+echo "homelab-vps-proxy installed"
+echo "Config:     $INSTALL_DIR/.env"
+echo "Nginx:      $NGINX_CONF"
+echo "Streams:    $NGINX_STREAM_DIR"
+echo "State:      $STATE_DIR"
 echo "=================================="
