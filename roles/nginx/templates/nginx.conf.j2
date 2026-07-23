@@ -37,5 +37,5 @@ stream {
 	access_log off;
 	error_log /var/log/nginx/stream-error.log warn;
 
-	include /etc/nginx/stream.d/*.conf;
+	include {{ nginx_stream_dir }}/*.conf;
 }

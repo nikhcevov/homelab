@@ -1,0 +1,55 @@
+# Managed by Ansible — do not edit. Source of truth: vars/proxy.yml
+{% for name, svc in services_norm.items() %}
+# {{ name }}: listens on {{ svc.listen }}/{{ svc.protocol }}
+upstream {{ name }} {
+{% for s in svc.upstream %}
+    server {{ s.host }}:{{ s.port }}{% if s.backup | default(false) %} backup{% endif %}{% if s.weight is defined %} weight={{ s.weight }}{% endif %}{% if s.max_fails is defined %} max_fails={{ s.max_fails }}{% endif %};
+{% endfor %}
+}
+
+{% endfor %}
+{% set ns = namespace(seen=[]) %}
+{% for name, svc in services_norm.items() %}
+{% set key = svc.listen | string ~ '/' ~ svc.protocol %}
+{% if key not in ns.seen %}
+{% set _ = ns.seen.append(key) %}
+{% set group = services_norm | dict2items | selectattr('value.listen', 'equalto', svc.listen) | selectattr('value.protocol', 'equalto', svc.protocol) | list %}
+{% set sni_group = group | selectattr('value.sni', 'defined') | list %}
+{% if sni_group | length > 0 %}
+{% set marked = sni_group | selectattr('value.default', 'defined') | selectattr('value.default', 'equalto', true) | list %}
+{% set default_backend = marked[0].key if marked | length > 0 else sni_group[0].key %}
+map $ssl_preread_server_name $backend_{{ svc.protocol }}_{{ svc.listen }} {
+{% for g in sni_group %}
+{% for domain in g.value.sni %}
+    {{ domain }}  {{ g.key }};
+{% endfor %}
+{% endfor %}
+    default  {{ default_backend }};
+}
+
+{% endif %}
+server {
+{% if svc.protocol == 'udp' %}
+    listen {{ svc.listen }} udp reuseport;
+    listen [::]:{{ svc.listen }} udp reuseport;
+{% else %}
+    listen {{ svc.listen }};
+    listen [::]:{{ svc.listen }};
+{% endif %}
+{% if sni_group | length > 0 %}
+    ssl_preread on;
+    proxy_pass $backend_{{ svc.protocol }}_{{ svc.listen }};
+{% else %}
+    proxy_pass {{ name }};
+{% endif %}
+{% if svc.protocol == 'udp' %}
+    proxy_timeout 30s;
+    proxy_responses 0;
+{% else %}
+    proxy_connect_timeout 5s;
+    proxy_timeout 1h;
+{% endif %}
+}
+
+{% endif %}
+{% endfor %}

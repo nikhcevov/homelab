@@ -1,0 +1,56 @@
+---
+- name: Validate proxy definition
+  ansible.builtin.import_tasks: validate.yml
+
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: true
+
+- name: Create stream config directory
+  ansible.builtin.file:
+    path: "{{ nginx_stream_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Find existing stream configs
+  ansible.builtin.find:
+    paths: "{{ nginx_stream_dir }}"
+    patterns: "*.conf"
+  register: _stream_files
+
+- name: Remove stale stream configs
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ _stream_files.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when: item.path != nginx_stream_file
+  notify: Reload nginx
+
+- name: Deploy nginx.conf
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: "{{ nginx_conf_path }}"
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Deploy generated stream proxy config
+  ansible.builtin.template:
+    src: stream.conf.j2
+    dest: "{{ nginx_stream_file }}"
+    mode: "0644"
+  notify: Reload nginx
+
+- name: Validate nginx configuration
+  ansible.builtin.command: nginx -t
+  changed_when: false
+  when: nginx_validate | bool
+
+- name: Ensure nginx is running and enabled
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true

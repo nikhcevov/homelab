@@ -1,0 +1,5 @@
+---
+nginx_conf_path: /etc/nginx/nginx.conf
+nginx_stream_dir: /etc/nginx/stream.d
+nginx_stream_file: "{{ nginx_stream_dir }}/proxy.conf"
+nginx_validate: true

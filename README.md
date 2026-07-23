@@ -1,18 +1,18 @@
 # homelab-vps-proxy
 
-Reproducible VPS reverse-proxy + lightweight monitoring for a self-hosted homelab.
+Reproducible VPS stream proxy + lightweight monitoring for a self-hosted homelab, managed entirely by Ansible.
 
-The VPS is a thin, replaceable edge node. It terminates inbound traffic and forwards it to the home server over a private network (Tailscale / WireGuard / LAN). It holds no application data and never decrypts user traffic.
+The VPS is a thin, replaceable edge node. It accepts inbound TCP/UDP traffic and forwards it to home servers over Tailscale. It holds no application data and never decrypts TLS — routing is done via SNI (`ssl_preread`) at L4.
 
 ---
 
 ## Principles
 
-1. **Zero-trust oriented.** VPS stores no private data and has no access to home service content. It forwards encrypted traffic only (L4 TCP/UDP pass-through, no TLS termination).
-2. **Single responsibility.** Reverse proxy + minimal monitoring. Nothing else runs here.
-3. **Fully replaceable.** Rebuild any time from `git clone`, `.env`, one install command.
-4. **Minimal resources.** Runs on 1 vCPU / 500 MB RAM. Plain nginx + cron + bash. No Docker, no Prometheus, no agent runtime.
-5. **Operational simplicity.** No service mesh, no observability stack, no dashboards.
+1. **Zero-trust oriented.** VPS stores no private data and forwards encrypted traffic only (L4 pass-through, no TLS termination).
+2. **Declarative configuration.** You describe the infrastructure (services, domains, backends) in one YAML file. Nginx config is a generated artifact.
+3. **Single responsibility.** Stream proxy + minimal monitoring. Nothing else runs here.
+4. **Fully replaceable.** Rebuild any time from `git clone` + one `ansible-playbook` run.
+5. **Minimal resources.** Runs on 1 vCPU / 500 MB RAM. Plain nginx + cron + bash. No Docker, no Prometheus.
 6. **Signal over noise.** Alerts only when action is needed. Severity-based channels, state-based deduping.
 
 ---
@@ -22,21 +22,21 @@ The VPS is a thin, replaceable edge node. It terminates inbound traffic and forw
 ```
                 Internet
                    |
-                   v
+             Public IP (VPS)
+                   |
             +-------------+
-            |     VPS     |   nginx stream{}: L4 TCP/UDP forwarder
-            | (this repo) |   cron: bash health checks → ntfy
+            | nginx stream|   ssl_preread: route by SNI, no TLS termination
+            | (this repo) |   cron: bash health checks -> ntfy
             +-------------+
                    |
-            Tailscale / WG / LAN
+        Tailscale (MagicDNS names)
                    |
-                   v
-            +-------------+
-            | Home server |   real services live here
-            +-------------+
+        +----------+-----------+
+        |          |           |
+     Unraid   Home Assistant  future hosts
 ```
 
-The VPS sees only ciphertext for HTTPS and game traffic. Certificates, application logic and data all live on the home server.
+The VPS sees only ciphertext. Certificates live on the home services (Caddy, Home Assistant, etc. issue their own).
 
 ---
 
@@ -44,100 +44,187 @@ The VPS sees only ciphertext for HTTPS and game traffic. Certificates, applicati
 
 ```
 .
-├── install.sh                       one-command installer (idempotent)
-├── .env.example                     all configuration
-├── nginx/
-│   ├── nginx.conf                   main nginx config, deployed verbatim
-│   └── render-stream.sh             generates per-port stream snippets from .env
-├── scripts/                         monitoring checks (bash)
-│   ├── notify.sh                    ntfy transport + state-based dedup
-│   ├── check-services.sh            systemd units
-│   ├── check-containers.sh          docker containers (optional)
-│   ├── check-disk.sh                disk usage
-│   ├── check-https.sh               HTTPS endpoint reachability
-│   ├── check-reboot.sh              reboot-required flag
-│   └── check-updates.sh             apt security updates
+├── site.yml                        playbook (nginx + monitoring roles)
+├── ansible.cfg
+├── inventory/
+│   └── hosts.ini                   your VPS
+├── group_vars/
+│   └── vps/
+│       ├── vps.yml                 monitoring settings (checks, thresholds)
+│       └── vault.yml               SECRETS: ntfy topics (ansible-vault encrypted)
+├── vars/
+│   └── proxy.yml                   THE single source of truth for the proxy
+├── roles/
+│   ├── nginx/
+│   │   ├── tasks/validate.yml      declarative checks on proxy.yml
+│   │   ├── tasks/main.yml          install, deploy, validate, reload
+│   │   └── templates/
+│   │       ├── nginx.conf.j2       main config
+│   │       └── stream.conf.j2      upstreams + SNI map + servers (generated)
+│   └── monitoring/                 bash checks + cron + .env (from group_vars)
+├── scripts/                        monitoring checks (bash)
 └── cron/
-    └── homelab-monitoring.cron      schedules all checks
+    └── homelab-monitoring.cron
 ```
 
 ---
 
 ## Requirements
 
-- VPS running Debian / Ubuntu (tested on 22.04+).
-- Outbound network to the home server over a private network. **Use [Tailscale](https://tailscale.com) or WireGuard**, do not expose home LAN directly.
-- A reachable [ntfy.sh](https://ntfy.sh) topic for notifications (public ntfy.sh is fine; pick long random topic names).
-- Root access on the VPS.
-
----
-
-## Install
-
-```bash
-git clone https://github.com/<you>/homelab-vps-proxy.git
-cd homelab-vps-proxy
-
-cp .env.example .env
-nano .env                 # set HOMELAB_BACKEND + topics
-
-sudo ./install.sh
-```
-
-That is the full setup. The installer is idempotent — re-run it whenever you change `.env` or pull updates.
-
-What `install.sh` does:
-
-1. Creates `/opt/homelab-monitoring/` (scripts, nginx config, env).
-2. Creates `/var/lib/homelab-monitoring/` (state files for dedup).
-3. Installs `nginx` + `curl` via apt.
-4. Deploys `nginx/nginx.conf` to `/etc/nginx/nginx.conf`.
-5. Renders one stream snippet per `NGINX_TCP_PORTS` / `NGINX_UDP_PORTS` entry into `/etc/nginx/stream.d/`.
-6. Validates with `nginx -t` and reloads nginx.
-7. Installs `/etc/cron.d/homelab-monitoring` and restarts cron.
+- Control machine with Ansible (`pip install ansible-core`).
+- VPS running Debian / Ubuntu (tested on 22.04+), reachable over SSH as root.
+- Tailscale (or WireGuard) on the VPS with MagicDNS enabled.
+- A reachable [ntfy.sh](https://ntfy.sh) topic for notifications.
 
 ---
 
 ## Configuration
 
-All settings live in `/opt/homelab-monitoring/.env`. The installer copies `.env.example` on first run and leaves an existing `.env` untouched on re-runs.
+### `vars/proxy.yml` — the only file you edit for routing
 
-### Reverse proxy
+```yaml
+services:
+  unraid:
+    listen: 443
+    default: true # catch-all for unknown SNI on this port
+    sni:
+      - immich.example.com
+      - jellyfin.example.com
+      - paperless.example.com
+      - nextcloud.example.com
+    upstream:
+      host: great-hornbill.tailnet-name.ts.net
+      port: 443
 
-| Variable          | Purpose                                                             | Example       |
-| ----------------- | ------------------------------------------------------------------- | ------------- |
-| `HOMELAB_BACKEND` | IP of the home server. **Prefer the Tailscale IP** (`100.x.x.x`).   | `100.64.0.2`  |
-| `NGINX_TCP_PORTS` | Space-separated TCP ports to forward. `listen` or `listen:backend`. | `"443 25565"` |
-| `NGINX_UDP_PORTS` | Space-separated UDP ports to forward.                               | `"24454"`     |
+  homeassistant:
+    listen: 443
+    sni:
+      - ha.example.com
+    upstream:
+      host: ha-krm.tailnet.ts.net
+      port: 443
+```
 
-Port mapping syntax:
+Service schema:
 
-- `443` — listen on VPS:443, forward to `HOMELAB_BACKEND:443`.
-- `8443:443` — listen on VPS:8443, forward to `HOMELAB_BACKEND:443`.
+| Field      | Required | Purpose                                                                          |
+| ---------- | -------- | -------------------------------------------------------------------------------- |
+| `listen`   | yes      | Port nginx listens on.                                                           |
+| `protocol` | no       | `tcp` (default) or `udp`.                                                        |
+| `sni`      | no       | TLS SNI hostnames routed here (tcp only, via `ssl_preread`).                     |
+| `default`  | no       | `true` = fallback backend for unknown SNI on this listener.                      |
+| `upstream` | yes      | One backend or a list: `host`, `port`, optional `backup`, `weight`, `max_fails`. |
 
-Each entry produces one file in `/etc/nginx/stream.d/` (e.g. `tcp_443.conf`, `udp_24454.conf`). The renderer wipes that directory on each install run, so removing a port from `.env` and re-running `install.sh` removes the listener.
+Rules (enforced by `roles/nginx/tasks/validate.yml` before anything is deployed):
 
-The proxy operates at L4 — nginx never reads payloads. TLS certificates live on the home server (typically via Caddy / nginx / Traefik behind this VPS).
+- SNI hostnames must be unique across all services.
+- Services sharing a listen port must **all** use SNI — or be a single plain forward.
+- SNI requires `protocol: tcp` (`ssl_preread` reads the TLS ClientHello).
+- Every service needs `listen` and a non-empty `upstream`; every upstream entry needs `host` and `port`.
+- At most one service per listener may set `default: true`. If none does, the first service on the port is the fallback.
 
-### Monitoring
+Always use **MagicDNS names** (`host.tailnet.ts.net`), never raw `100.x` IPs.
 
-| Variable              | Purpose                                          |
-| --------------------- | ------------------------------------------------ |
-| `NTFY_URL`            | ntfy base URL (default `https://ntfy.sh`).       |
-| `NTFY_TOPIC_CRITICAL` | Topic for critical alerts (action required now). |
-| `NTFY_TOPIC_ALERTS`   | Topic for non-emergency alerts (action soon).    |
-| `NTFY_TOPIC_INFO`     | Topic for informational events.                  |
-| `HOST_PREFIX`         | Tag prepended to messages, e.g. `[VPS]`.         |
-| `CHECK_SERVICES`      | systemd units to check (`nginx tailscaled`).     |
-| `CHECK_CONTAINERS`    | Docker container names to check (usually empty). |
-| `DISK_THRESHOLD`      | Disk usage % triggering alert (default `85`).    |
-| `DISK_MOUNTS`         | Mount points to inspect (`"/"`).                 |
-| `HTTPS_ENDPOINTS`     | HTTPS URLs to ping (usually empty — see below).  |
+#### Examples
 
-Notes:
+Plain TCP forward (no SNI):
 
-- `HTTPS_ENDPOINTS` checks that an endpoint returns 2xx/3xx. Useful for testing the full edge → home path. Leave empty to skip.
-- All checks dedupe via state files in `/var/lib/homelab-monitoring/`. You get one DOWN message and one RECOVERED message, not a flood.
+```yaml
+minecraft:
+  listen: 25565
+  upstream:
+    host: game.tailnet.ts.net
+    port: 25565
+```
+
+UDP forward:
+
+```yaml
+voicechat:
+  listen: 24454
+  protocol: udp
+  upstream:
+    host: game.tailnet.ts.net
+    port: 24454
+```
+
+Load balancing / backup (list upstream — no template changes needed):
+
+```yaml
+app:
+  listen: 8443
+  sni: [app.example.com]
+  upstream:
+    - host: server1.tailnet.ts.net
+      port: 443
+    - host: server2.tailnet.ts.net
+      port: 443
+      backup: true
+```
+
+### `group_vars/vps/` — monitoring + secrets
+
+`vps.yml` holds plaintext settings: checked systemd units, disk threshold/mounts, HTTPS endpoints, host prefix. Deployed to `/opt/homelab-monitoring/.env`; the bash checks are unchanged.
+
+`vault.yml` holds everything a public repo must not show:
+
+| Vault var            | Used in                  | Why                                             |
+| -------------------- | ------------------------ | ----------------------------------------------- |
+| `vault_ntfy_topic_*` | `group_vars/vps/vps.yml` | ntfy topic name = password (read + post access) |
+| `vault_vps_ip`       | `inventory/hosts.ini`    | keeps the VPS off scanner radars                |
+
+Tailscale MagicDNS names and SNI domains stay plaintext in `vars/proxy.yml` — they are unreachable without tailnet auth and reveal nothing an attacker can use.
+
+It must be encrypted with ansible-vault before committing:
+
+```bash
+# one-time setup
+openssl rand -hex 16   # generate one value per topic
+ansible-vault edit group_vars/vps/vault.yml
+
+# store the vault password OUTSIDE the repo
+echo 'your-vault-password' > ~/.vault_pass_homelab
+chmod 600 ~/.vault_pass_homelab
+# then uncomment vault_password_file in ansible.cfg
+```
+
+`vps.yml` references the secrets as `{{ vault_ntfy_topic_* }}`, so playbooks run transparently once the vault password is configured. The monitoring `.env` template uses `no_log`, so topics never appear in Ansible output.
+
+Sanity check before pushing: `head -1 group_vars/vps/vault.yml` must start with `$ANSIBLE_VAULT;`.
+
+### `inventory/hosts.ini`
+
+```ini
+[vps]
+edge ansible_host="{{ vault_vps_ip }}" ansible_user=root
+```
+
+The VPS IP comes from the vault, so a public repo never reveals it.
+
+---
+
+## Usage
+
+```bash
+# first time / after any change to vars/proxy.yml or group_vars/vps.yml
+ansible-playbook site.yml
+```
+
+What a run does:
+
+1. Validates `vars/proxy.yml` declaratively (fails fast, VPS untouched).
+2. Installs nginx, deploys `nginx.conf` and the generated `stream.d/proxy.conf`.
+3. Removes stale stream configs, runs `nginx -t`, reloads nginx only on changes.
+4. Deploys monitoring scripts, `.env`, cron jobs.
+
+Add a new service = add a block to `vars/proxy.yml` + re-run. Everything else regenerates.
+
+### Local render test (no VPS needed)
+
+```bash
+ansible-playbook test-render.yml
+cat /tmp/rendered-stream.conf
+```
 
 ---
 
@@ -150,99 +237,58 @@ Each check runs from cron and pushes to ntfy only on state transitions.
 | systemd services  | 15 min   | unit not active                   | critical → DOWN / RECOVERED |
 | docker containers | 15 min   | container not running             | critical                    |
 | HTTPS endpoints   | 15 min   | non-2xx/3xx response or timeout   | critical                    |
-| disk usage        | 1 h      | usage > `DISK_THRESHOLD`          | alert                       |
+| disk usage        | 1 h      | usage > threshold                 | alert                       |
 | security updates  | daily    | apt security updates available    | alert                       |
 | reboot required   | daily    | `/var/run/reboot-required` exists | alert                       |
 
-What is intentionally **not** monitored: CPU graphs, memory graphs, network throughput, per-process metrics, container logs. Add them yourself if you really need them; the philosophy here is operational calmness.
-
----
-
-## Notification channels
-
-Severity-first, not service-first. Three topics total, regardless of how many services you run:
-
-- `homelab-critical` — drop-everything events (proxy down, VPS unreachable, backups failed).
-- `homelab-alerts` — non-urgent but actionable (updates available, disk high, reboot required).
-- `homelab-info` — informational only (backup completed, monthly report).
-
-Per-service topics get muted. Severity topics stay readable.
+Notification channels are severity-first: `*-critical`, `*-alerts`, `*-info`. Three topics regardless of service count.
 
 ---
 
 ## Operations
 
-### Update from git
-
 ```bash
-cd homelab-vps-proxy
-git pull
-sudo ./install.sh
-```
-
-Same command. Idempotent. Re-runs the renderer, validates with `nginx -t`, reloads nginx, refreshes cron.
-
-### Add or remove a forwarded port
-
-1. Edit `NGINX_TCP_PORTS` / `NGINX_UDP_PORTS` in `/opt/homelab-monitoring/.env`.
-2. `sudo /opt/homelab-monitoring/nginx/render-stream.sh`
-3. `sudo nginx -t && sudo systemctl reload nginx`
-
-Or just re-run `sudo ./install.sh` from the repo.
-
-### Change the home server IP
-
-Update `HOMELAB_BACKEND` in `.env` and re-run `install.sh` (or the render script + reload).
-
-### Quick health checks
-
-```bash
+# health checks on the VPS
 sudo systemctl status nginx
 sudo nginx -t
 sudo ss -tlnp | grep nginx
-ls /etc/nginx/stream.d/
+cat /etc/nginx/stream.d/proxy.conf
 journalctl -u nginx -n 50
-```
 
-### Trigger a check manually
-
-```bash
+# trigger a monitor manually
 sudo bash /opt/homelab-monitoring/scripts/check-services.sh
-sudo bash /opt/homelab-monitoring/scripts/check-https.sh
 ```
 
 ### Migrate to a new VPS
 
-1. Provision new VPS, install Tailscale (or your tunnel).
-2. `git clone` this repo, copy your existing `.env`.
-3. `sudo ./install.sh`.
-4. Switch DNS A/AAAA records to the new VPS.
+1. Provision VPS, install Tailscale, update `inventory/hosts.ini`.
+2. `ansible-playbook site.yml`.
+3. Switch DNS A/AAAA records to the new VPS.
 
-Done. The home server is untouched.
+The home servers are untouched.
 
 ---
 
 ## Security notes
 
-- **No TLS termination on the VPS.** Certificates and private keys live only on the home server.
-- **Outbound to home only over a private network.** Do not point `HOMELAB_BACKEND` at a public WAN IP; use Tailscale, WireGuard or a private interconnect.
-- **Port 80 returns 444.** No HTTP service is exposed; redirect to HTTPS at the application layer behind the proxy.
-- **server_tokens off.** No nginx version advertised.
-- **No logging of stream payloads.** Stream access log is disabled; only nginx errors are kept.
+- **No TLS termination on the VPS.** Certificates and private keys live only on home servers.
+- **Outbound to home only over Tailscale/WireGuard** — upstreams are MagicDNS names, never public IPs.
+- **Port 80 returns 444.** No HTTP service is exposed.
+- **server_tokens off**, stream access log disabled (no payload logging).
 - Lock down SSH separately (key-only, fail2ban, non-default port). This repo does not manage SSH.
 
 ---
 
 ## Troubleshooting
 
-| Symptom                                | Look at                                                                  |
-| -------------------------------------- | ------------------------------------------------------------------------ |
-| `nginx -t` fails after install         | `/etc/nginx/stream.d/` — bad port number or unset `HOMELAB_BACKEND`.     |
-| Connection refused on a forwarded port | `ss -tlnp \| grep <port>`, `journalctl -u nginx`.                        |
-| Forwarded service unreachable          | Test `nc -vz $HOMELAB_BACKEND <port>` from the VPS.                      |
-| No ntfy messages arrive                | Check topic names in `.env`, run a script manually, check `curl` output. |
-| Alert never clears                     | Inspect `/var/lib/homelab-monitoring/*.state` and remove stale files.    |
-| Repeated DOWN/RECOVERED flapping       | Underlying service is unstable — fix it, not the monitor.                |
+| Symptom                                | Look at                                                               |
+| -------------------------------------- | --------------------------------------------------------------------- |
+| Playbook fails in validation tasks     | `vars/proxy.yml` — the assert message names the offending service.    |
+| `nginx -t` task fails                  | Rendered `/etc/nginx/stream.d/proxy.conf` on the VPS.                 |
+| Connection refused on a forwarded port | `ss -tlnp \| grep <port>`, `journalctl -u nginx`.                     |
+| Wrong backend for a domain             | SNI hostname missing/duplicated in `vars/proxy.yml`; check the `map`. |
+| Backend unreachable                    | `nc -vz <host>.ts.net <port>` from the VPS; check Tailscale.          |
+| No ntfy messages arrive                | Topics in `group_vars/vps.yml`, run a check script manually.          |
 
 ---
 
@@ -250,9 +296,7 @@ Done. The home server is untouched.
 
 - Prometheus / Grafana / Loki / ELK / SIEM.
 - Kubernetes, Docker Swarm, Nomad.
-- Centralized log aggregation.
 - TLS termination on the VPS.
 - Hosting applications on the VPS.
-- Self-hosted ntfy unless there is a specific reason.
 
 Stay boring. Replace the VPS in 5 minutes. Sleep at night.

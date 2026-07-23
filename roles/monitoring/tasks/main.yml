@@ -1,0 +1,42 @@
+---
+- name: Install curl
+  ansible.builtin.apt:
+    name: curl
+    state: present
+    update_cache: true
+
+- name: Create monitoring directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /opt/homelab-monitoring
+    - /opt/homelab-monitoring/scripts
+    - /var/lib/homelab-monitoring
+
+- name: Deploy monitoring scripts
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/scripts/"
+    dest: /opt/homelab-monitoring/scripts/
+    mode: "0755"
+
+- name: Deploy monitoring env file
+  ansible.builtin.template:
+    src: env.j2
+    dest: /opt/homelab-monitoring/.env
+    mode: "0600"
+  no_log: true
+
+- name: Deploy cron jobs
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/cron/homelab-monitoring.cron"
+    dest: /etc/cron.d/homelab-monitoring
+    mode: "0644"
+  notify: Restart cron
+
+- name: Ensure cron is running and enabled
+  ansible.builtin.service:
+    name: cron
+    state: started
+    enabled: true

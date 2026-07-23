@@ -1,0 +1,9 @@
+---
+- name: Configure VPS edge proxy and monitoring
+  hosts: vps
+  become: true
+  vars_files:
+    - vars/proxy.yml
+  roles:
+    - nginx
+    - monitoring

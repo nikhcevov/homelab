@@ -1,0 +1,86 @@
+---
+# Declarative checks for the proxy definition (vars/proxy.yml).
+# Runs before anything is deployed; any failure aborts the playbook
+# without touching the VPS.
+
+- name: Normalize service definitions
+  ansible.builtin.set_fact:
+    services_norm: "{{ services_norm | default({}) | combine({ item.key: _normalized }) }}"
+  vars:
+    _normalized: >-
+      {%- set svc = item.value -%}
+      {%- set ups = svc.upstream | default([]) -%}
+      {%- set ups = [ups] if ups is mapping else ups -%}
+      {{ svc | combine({'protocol': svc.protocol | default('tcp'), 'upstream': ups}) }}
+  loop: "{{ services | dict2items }}"
+
+- name: Check services have listen and upstream
+  ansible.builtin.assert:
+    that:
+      - item.value.listen is defined
+      - item.value.upstream | length > 0
+    fail_msg: "service '{{ item.key }}': 'listen' and a non-empty 'upstream' are required"
+    success_msg: "service '{{ item.key }}': listen/upstream OK"
+  loop: "{{ services_norm | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Check upstream entries have host and port
+  ansible.builtin.assert:
+    that:
+      - item.1.host is defined
+      - item.1.port is defined
+    fail_msg: "service '{{ item.0.key }}': every upstream entry needs 'host' and 'port'"
+  loop: "{{ services_norm | dict2items | subelements('value.upstream', skip_missing=True) }}"
+  loop_control:
+    label: "{{ item.0.key }} -> {{ item.1 }}"
+
+- name: Check SNI services use TCP
+  ansible.builtin.assert:
+    that:
+      - item.value.protocol == 'tcp'
+    fail_msg: "service '{{ item.key }}': SNI routing (ssl_preread) only works over TCP"
+  loop: "{{ services_norm | dict2items | selectattr('value.sni', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Check SNI hostnames are unique across services
+  vars:
+    _all_sni: >-
+      {{ services_norm | dict2items
+         | selectattr('value.sni', 'defined')
+         | map(attribute='value.sni') | flatten }}
+  ansible.builtin.assert:
+    that:
+      - _all_sni | length == (_all_sni | unique | list) | length
+    fail_msg: "duplicate SNI hostname(s) in services: {{ _all_sni | sort }}"
+    success_msg: "{{ _all_sni | length }} SNI hostnames, all unique"
+
+- name: Build listener list
+  ansible.builtin.set_fact:
+    _listener_keys: "{{ _listener_keys | default([]) + [item.value.listen | string ~ '/' ~ item.value.protocol] }}"
+  loop: "{{ services_norm | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Check listener groups are routable
+  ansible.builtin.assert:
+    that:
+      - (_sni | length == 0) or (_sni | length == _group | length)
+      - (_sni | length > 0) or (_group | length == 1)
+      - _defaults | length <= 1
+    fail_msg: >-
+      listener {{ item }}: services sharing a listen port must either ALL use SNI
+      (ssl_preread routing) or be a single plain forward;
+      at most one service per listener may set 'default: true'
+    success_msg: "listener {{ item }} OK"
+  vars:
+    _lp: "{{ item.split('/') | first }}"
+    _proto: "{{ item.split('/') | last }}"
+    _group: >-
+      {{ services_norm | dict2items
+         | selectattr('value.listen', 'equalto', _lp | int)
+         | selectattr('value.protocol', 'equalto', _proto) | list }}
+    _sni: "{{ _group | selectattr('value.sni', 'defined') | list }}"
+    _defaults: "{{ _sni | selectattr('value.default', 'defined') | selectattr('value.default', 'equalto', true) | list }}"
+  loop: "{{ _listener_keys | unique }}"
