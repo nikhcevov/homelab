@@ -1,0 +1,22 @@
+---
+# Firewall + intrusion prevention (layer: security).
+
+# --- UFW ---
+ufw_default_incoming: deny
+ufw_default_outgoing: allow
+ufw_logging: low
+
+# Base rules. SSH is opened automatically from sshd_port (group_vars/vps/ssh.yml),
+# so it is always in sync with the sshd config.
+ufw_rules:
+  - { port: 80, proto: tcp, comment: HTTP }
+  - { port: 443, proto: tcp, comment: HTTPS }
+
+# Automatically open listen ports of every service in vars/proxy.yml.
+# Adding a service there opens its port here — no second edit needed.
+ufw_open_service_ports: true
+
+# --- Fail2Ban ---
+fail2ban_bantime: 1h
+fail2ban_findtime: 10m
+fail2ban_maxretry: 5

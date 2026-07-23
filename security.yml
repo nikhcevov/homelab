@@ -1,0 +1,8 @@
+---
+# Layer 2 — security: UFW firewall and fail2ban.
+- name: Configure firewall and intrusion prevention
+  hosts: vps
+  become: true
+  roles:
+    - ufw
+    - fail2ban

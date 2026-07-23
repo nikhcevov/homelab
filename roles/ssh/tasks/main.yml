@@ -1,0 +1,25 @@
+---
+# Harden sshd via a drop-in. Debian 12 ships an Include of
+# /etc/ssh/sshd_config.d/*.conf at the top of sshd_config, and for most
+# options the first obtained value wins — so the 00- prefix takes
+# precedence over cloud-init and package defaults.
+
+- name: Ensure sshd drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config.d
+    state: directory
+    mode: "0755"
+
+- name: Deploy sshd hardening drop-in
+  ansible.builtin.template:
+    src: sshd_hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/00-ansible-hardening.conf
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Restart ssh
+
+- name: Ensure ssh is running and enabled
+  ansible.builtin.service:
+    name: ssh
+    state: started
+    enabled: true

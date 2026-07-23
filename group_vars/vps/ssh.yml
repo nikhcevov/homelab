@@ -1,0 +1,12 @@
+---
+# SSH daemon configuration (layer: bootstrap, role: ssh).
+# Deployed as /etc/ssh/sshd_config.d/00-ansible-hardening.conf.
+# The 00- prefix wins over cloud-init drop-ins (first occurrence wins in sshd).
+
+sshd_port: 22
+sshd_password_authentication: "no"
+sshd_permit_root_login: prohibit-password
+sshd_pubkey_authentication: "yes"
+
+# Optional: restrict who may log in at all (empty = no restriction).
+sshd_allow_users: []

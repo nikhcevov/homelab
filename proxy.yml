@@ -1,0 +1,9 @@
+---
+# Layer 4 — proxy: nginx L4 stream proxy (ssl_preread, no TLS termination).
+- name: Configure stream reverse proxy
+  hosts: vps
+  become: true
+  vars_files:
+    - vars/proxy.yml
+  roles:
+    - nginx

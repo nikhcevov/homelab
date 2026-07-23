@@ -1,0 +1,7 @@
+---
+# Layer 3 — network: Tailscale mesh VPN.
+- name: Configure tailnet connectivity
+  hosts: vps
+  become: true
+  roles:
+    - tailscale

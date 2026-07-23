@@ -1,0 +1,8 @@
+# Managed by Ansible (role: ssh). Source: group_vars/vps/ssh.yml
+Port {{ sshd_port }}
+PasswordAuthentication {{ sshd_password_authentication }}
+PermitRootLogin {{ sshd_permit_root_login }}
+PubkeyAuthentication {{ sshd_pubkey_authentication }}
+{% if sshd_allow_users | length > 0 %}
+AllowUsers {{ sshd_allow_users | join(' ') }}
+{% endif %}

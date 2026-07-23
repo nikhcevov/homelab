@@ -1,0 +1,11 @@
+---
+# Tailscale mesh VPN (layer: network).
+# All proxy upstreams use MagicDNS names, so this node must be on the tailnet.
+
+# Hostname shown in the tailnet (becomes <hostname>.<tailnet>.ts.net).
+tailscale_hostname: vps-proxy
+
+# Auth key from the vault. Add to group_vars/vps/vault.yml:
+#   vault_tailscale_auth_key: "tskey-auth-..."
+# Leave empty to skip authentication (e.g. node already authenticated manually).
+tailscale_auth_key: "{{ vault_tailscale_auth_key | default('') }}"

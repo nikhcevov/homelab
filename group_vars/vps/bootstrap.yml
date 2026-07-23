@@ -1,0 +1,37 @@
+---
+# Base system configuration (layer: bootstrap).
+# Target: Debian 12 (bookworm), x86_64. Only Python 3 is preinstalled.
+
+# apt upgrade mode on bootstrap: dist | safe | yes | no
+bootstrap_apt_upgrade: dist
+
+bootstrap_timezone: UTC
+bootstrap_locale: en_US.UTF-8
+
+# Base packages every node should have.
+bootstrap_packages:
+  - sudo
+  - curl
+  - wget
+  - git
+  - ca-certificates
+  - vim
+  - htop
+  - jq
+  - rsync
+  - unzip
+  - gnupg
+  - python3-apt
+
+# Automatic security updates.
+bootstrap_unattended_upgrades: true
+# Reboot automatically after kernel updates (at the time below)?
+bootstrap_unattended_reboot: false
+bootstrap_unattended_reboot_time: "04:00"
+
+# Optional non-root admin user (empty = manage root only).
+# After creating one, switch inventory to ansible_user=<name> and set
+# sshd_permit_root_login: "no" in group_vars/vps/ssh.yml.
+bootstrap_admin_user: ""
+# Public keys (inline) or URLs (https://github.com/<user>.keys).
+bootstrap_admin_user_ssh_keys: []

@@ -1,0 +1,9 @@
+---
+# Layer 1 — bootstrap: base packages, timezone, locale,
+# unattended-upgrades, admin user, SSH hardening.
+- name: Bootstrap base system
+  hosts: vps
+  become: true
+  roles:
+    - common
+    - ssh

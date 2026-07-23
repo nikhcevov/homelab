@@ -1,9 +1,9 @@
 ---
-- name: Configure VPS edge proxy and monitoring
-  hosts: vps
-  become: true
-  vars_files:
-    - vars/proxy.yml
-  roles:
-    - nginx
-    - monitoring
+# Full deployment: run every layer in order.
+# For partial runs use the per-layer playbooks instead:
+#   bootstrap.yml -> security.yml -> network.yml -> proxy.yml -> services.yml
+- ansible.builtin.import_playbook: bootstrap.yml
+- ansible.builtin.import_playbook: security.yml
+- ansible.builtin.import_playbook: network.yml
+- ansible.builtin.import_playbook: proxy.yml
+- ansible.builtin.import_playbook: services.yml

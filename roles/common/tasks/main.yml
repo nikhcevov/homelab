@@ -1,0 +1,70 @@
+---
+# Bootstrap a fresh Debian 12 node: updates, base packages, timezone,
+# locale, unattended-upgrades, optional admin user.
+
+- name: Update apt cache and upgrade installed packages
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: "{{ bootstrap_apt_upgrade }}"
+    cache_valid_time: 3600
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name: "{{ bootstrap_packages }}"
+    state: present
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ bootstrap_timezone }}"
+
+- name: Generate locale
+  community.general.locale_gen:
+    name: "{{ bootstrap_locale }}"
+    state: present
+
+- name: Set default locale
+  ansible.builtin.lineinfile:
+    path: /etc/default/locale
+    regexp: ^LANG=
+    line: "LANG={{ bootstrap_locale }}"
+    create: true
+    mode: "0644"
+
+- name: Install unattended-upgrades
+  ansible.builtin.apt:
+    name: unattended-upgrades
+    state: present
+  when: bootstrap_unattended_upgrades | bool
+
+- name: Enable automatic updates
+  ansible.builtin.template:
+    src: 20auto-upgrades.j2
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    mode: "0644"
+  when: bootstrap_unattended_upgrades | bool
+
+- name: Configure unattended-upgrades
+  ansible.builtin.template:
+    src: 50unattended-upgrades.j2
+    dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    mode: "0644"
+  when: bootstrap_unattended_upgrades | bool
+
+- name: Create admin user
+  ansible.builtin.user:
+    name: "{{ bootstrap_admin_user }}"
+    shell: /bin/bash
+    groups: sudo
+    append: true
+    create_home: true
+  when: bootstrap_admin_user | length > 0
+
+- name: Authorize admin user SSH keys
+  ansible.posix.authorized_key:
+    user: "{{ bootstrap_admin_user }}"
+    key: "{{ item }}"
+    exclusive: true
+  loop: "{{ bootstrap_admin_user_ssh_keys }}"
+  when:
+    - bootstrap_admin_user | length > 0
+    - bootstrap_admin_user_ssh_keys | length > 0

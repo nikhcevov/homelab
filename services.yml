@@ -1,0 +1,9 @@
+---
+# Layer 5 — services: everything else running on the node.
+# Currently: lightweight monitoring (bash checks + ntfy).
+# Future services get their own roles and are added here.
+- name: Configure additional services
+  hosts: vps
+  become: true
+  roles:
+    - monitoring

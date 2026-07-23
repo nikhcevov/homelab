@@ -1,0 +1,62 @@
+---
+# Declarative firewall. Rules come from three sources, merged:
+#   1. sshd_port (group_vars/vps/ssh.yml)      — SSH, always open
+#   2. ufw_rules (group_vars/vps/security.yml) — static base rules
+#   3. vars/proxy.yml listen ports             — auto-opened per service
+# Order matters: all allow rules are in place BEFORE ufw is enabled,
+# so a first run never cuts the management connection.
+
+- name: Install ufw
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+    update_cache: true
+
+- name: Load proxy services to derive firewall rules
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/vars/proxy.yml"
+  when: ufw_open_service_ports | bool
+
+- name: Set default policies
+  community.general.ufw:
+    direction: "{{ item.direction }}"
+    policy: "{{ item.policy }}"
+  loop:
+    - { direction: incoming, policy: "{{ ufw_default_incoming }}" }
+    - { direction: outgoing, policy: "{{ ufw_default_outgoing }}" }
+
+- name: Set logging level
+  community.general.ufw:
+    logging: "{{ ufw_logging }}"
+
+- name: Allow SSH (from sshd_port)
+  community.general.ufw:
+    rule: allow
+    port: "{{ sshd_port }}"
+    proto: tcp
+    comment: SSH
+
+- name: Allow base rules
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto | default('tcp') }}"
+    comment: "{{ item.comment | default(omit) }}"
+  loop: "{{ ufw_rules }}"
+  loop_control:
+    label: "{{ item.comment | default(item.port ~ '/' ~ (item.proto | default('tcp'))) }}"
+
+- name: Allow proxy service listen ports (from vars/proxy.yml)
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.value.listen }}"
+    proto: "{{ item.value.protocol | default('tcp') }}"
+    comment: "proxy: {{ item.key }}"
+  loop: "{{ services | default({}) | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}: {{ item.value.listen }}/{{ item.value.protocol | default('tcp') }}"
+  when: ufw_open_service_ports | bool
+
+- name: Enable ufw
+  community.general.ufw:
+    state: enabled
