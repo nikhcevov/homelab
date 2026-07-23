@@ -145,6 +145,13 @@ ansible-vault edit group_vars/vps/vault.yml
 ansible-playbook site.yml
 ```
 
+**SSH key on a brand-new VPS.** If the provider injected your public key at provisioning, nothing to do. If you only have a root password, put your public key into `bootstrap_root_ssh_keys` in `group_vars/vps/bootstrap.yml` (public keys are not secrets — they belong in Git), then run the first pass with password auth:
+
+```bash
+ansible-playbook bootstrap.yml -k   # asks for the root SSH password once
+ansible-playbook site.yml           # key-only from here on
+```
+
 What a full run does:
 
 1. **bootstrap** — upgrades apt, installs base packages, sets timezone/locale, enables unattended security upgrades, hardens sshd (validated by `sshd -t` before apply).

@@ -5,7 +5,7 @@
 # apt upgrade mode on bootstrap: dist | safe | yes | no
 bootstrap_apt_upgrade: dist
 
-bootstrap_timezone: UTC
+bootstrap_timezone: Europe/Moscow
 bootstrap_locale: en_US.UTF-8
 
 # Base packages every node should have.
@@ -22,12 +22,18 @@ bootstrap_packages:
   - unzip
   - gnupg
   - python3-apt
+  - python3-debian # required by deb822_repository (tailscale role)
 
 # Automatic security updates.
 bootstrap_unattended_upgrades: true
 # Reboot automatically after kernel updates (at the time below)?
 bootstrap_unattended_reboot: false
 bootstrap_unattended_reboot_time: "04:00"
+
+# Public SSH keys for the root login (public keys are NOT secrets,
+# they belong in Git). Needed only if the VPS provider did not inject
+# your key at provisioning; empty = leave root's authorized_keys as is.
+bootstrap_root_ssh_keys: []
 
 # Optional non-root admin user (empty = manage root only).
 # After creating one, switch inventory to ansible_user=<name> and set

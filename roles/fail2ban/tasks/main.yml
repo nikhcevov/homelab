@@ -14,8 +14,11 @@
     mode: "0644"
   notify: Restart fail2ban
 
+# In check mode the package above is not actually installed,
+# so the unit does not exist yet and this task would fail.
 - name: Ensure fail2ban is running and enabled
   ansible.builtin.service:
     name: fail2ban
     state: started
     enabled: true
+  when: not ansible_check_mode

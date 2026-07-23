@@ -3,3 +3,5 @@
   ansible.builtin.service:
     name: fail2ban
     state: restarted
+  # In check mode the package may not be installed yet (fresh node).
+  when: not ansible_check_mode
