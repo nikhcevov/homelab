@@ -1,0 +1,27 @@
+---
+# Monitoring configuration for the edge VPS (deployed to
+# /opt/homelab-monitoring/.env).
+# Secrets (ntfy topic names) live in vault.yml — edit with:
+#   ansible-vault edit group_vars/vps/vault.yml
+ntfy_url: "https://ntfy.sh"
+ntfy_topic_critical: "{{ vault_ntfy_topic_critical }}"
+ntfy_topic_alerts: "{{ vault_ntfy_topic_alerts }}"
+ntfy_topic_info: "{{ vault_ntfy_topic_info }}"
+host_prefix: "[VPS]"
+
+check_services: "nginx tailscaled fail2ban cron ssh"
+check_containers: ""
+disk_threshold: 85
+disk_mounts: "/"
+
+# nginx listeners locally; VPN VPS cross-checked from here.
+# "host:port" = remote TCP check, bare "port" = localhost.
+check_ports: "443 25565 panel.example.com:2053"
+
+# Caddy /healthz on the VPN VPS: strict 200, validates the full
+# DNS -> cert -> TLS -> Caddy chain from the outside.
+https_endpoints: "https://panel.example.com/healthz"
+
+# Optional checks (empty = disabled):
+# backup_dir: "/opt/vpn-backup/archives"  # archive freshness
+# backup_max_age_hours: 25

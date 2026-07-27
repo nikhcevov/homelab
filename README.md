@@ -94,7 +94,7 @@ Layers depend on each other left to right (proxy needs tailnet DNS; monitoring e
 │       ├── ssh.yml                 sshd settings (port, auth modes)
 │       ├── security.yml            ufw rules, fail2ban policy
 │       ├── tailscale.yml           tailscale hostname, auth key ref
-│       ├── vps.yml                 monitoring settings (checks, thresholds)
+│       ├── monitoring.yml          monitoring settings (checks, thresholds)
 │       └── vault.yml               SECRETS (ansible-vault encrypted)
 ├── vars/
 │   └── proxy.yml                   THE single source of truth for routing
@@ -254,13 +254,13 @@ app:
 
 ### `group_vars/vps/` — one file per concern
 
-| File            | Configures    | Highlights                                                                                                              |
-| --------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `bootstrap.yml` | common        | apt upgrade mode, package list, timezone, locale, unattended-upgrades, optional sudo admin user                         |
-| `ssh.yml`       | ssh           | `sshd_port`, `sshd_password_authentication`, `sshd_permit_root_login`, `sshd_pubkey_authentication`, `sshd_allow_users` |
-| `security.yml`  | ufw, fail2ban | default policies, static rules, `ufw_open_service_ports`, ban policy                                                    |
-| `tailscale.yml` | tailscale     | `tailscale_hostname`, auth key (from vault)                                                                             |
-| `vps.yml`       | monitoring    | checked units, disk threshold/mounts, HTTPS endpoints, host prefix                                                      |
+| File             | Configures    | Highlights                                                                                                              |
+| ---------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `bootstrap.yml`  | common        | apt upgrade mode, package list, timezone, locale, unattended-upgrades, optional sudo admin user                         |
+| `ssh.yml`        | ssh           | `sshd_port`, `sshd_password_authentication`, `sshd_permit_root_login`, `sshd_pubkey_authentication`, `sshd_allow_users` |
+| `security.yml`   | ufw, fail2ban | default policies, static rules, `ufw_open_service_ports`, ban policy                                                    |
+| `tailscale.yml`  | tailscale     | `tailscale_hostname`, auth key (from vault)                                                                             |
+| `monitoring.yml` | monitoring    | checked units, disk threshold/mounts, HTTPS endpoints, host prefix                                                      |
 
 The SSH port is defined once in `ssh.yml` and consumed by sshd, ufw and fail2ban — they can never drift apart.
 
@@ -297,7 +297,7 @@ In Git: templates, roles, inventory, playbooks, service/domain lists.
 
 | Vault var                  | Used in                        | Why                                             |
 | -------------------------- | ------------------------------ | ----------------------------------------------- |
-| `vault_ntfy_topic_*`       | `group_vars/vps/vps.yml`       | ntfy topic name = password (read + post access) |
+| `vault_ntfy_topic_*`       | `group_vars/*/monitoring.yml`  | ntfy topic name = password (read + post access) |
 | `vault_vps_ip`             | `inventory/hosts.ini`          | keeps the VPS off scanner radars                |
 | `vault_tailscale_auth_key` | `group_vars/vps/tailscale.yml` | tailnet join credential                         |
 
@@ -397,7 +397,7 @@ The home servers are untouched.
 | Connection refused on a forwarded port | `ss -tlnp \| grep <port>`, `journalctl -u nginx`, `ufw status`.                          |
 | Wrong backend for a domain             | SNI hostname missing/duplicated in `vars/proxy.yml`; check the `map`.                    |
 | Backend unreachable                    | `nc -vz <host>.ts.net <port>` from the VPS; check Tailscale.                             |
-| No ntfy messages arrive                | Topics in `group_vars/vps/vps.yml`, run a check script manually.                         |
+| No ntfy messages arrive                | Topics in `group_vars/*/monitoring.yml`, run a check script manually.                    |
 
 ---
 

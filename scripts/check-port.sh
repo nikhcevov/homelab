@@ -12,20 +12,31 @@ if [ -z "$CHECK_PORTS" ]; then
 fi
 
 check_port() {
-    local port=$1
-    local key="port-$port"
+    local target=$1
+    local host port
 
-    if timeout 5 bash -c "exec 3<>/dev/tcp/127.0.0.1/$port" 2>/dev/null; then
+    # "host:port" = remote check, bare "port" = localhost
+    if [[ "$target" == *:* ]]; then
+        host="${target%:*}"
+        port="${target##*:}"
+    else
+        host="127.0.0.1"
+        port="$target"
+    fi
+
+    local key="port-$host-$port"
+
+    if timeout 5 bash -c "exec 3<>/dev/tcp/$host/$port" 2>/dev/null; then
         notify_transition "$key" "up" "info" \
             "Port recovered" "white_check_mark,dart" \
-            "✅ Port $port is OPEN again on $HOSTNAME"
+            "✅ $host:$port is OPEN again (checked from $HOSTNAME)"
     else
         notify_transition "$key" "down" "critical" \
             "Port closed" "rotating_light,dart" \
-            "❌ Port $port is CLOSED on $HOSTNAME (service down or not listening)"
+            "❌ $host:$port is CLOSED (checked from $HOSTNAME)"
     fi
 }
 
-for PORT in $CHECK_PORTS; do
-    check_port "$PORT"
+for TARGET in $CHECK_PORTS; do
+    check_port "$TARGET"
 done

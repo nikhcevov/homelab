@@ -6,6 +6,9 @@
 
 {% endif %}
 {{ caddy_panel_domain }} {
+	# Health endpoint for external monitoring (no backend involved).
+	respond /healthz 200
+
 	reverse_proxy 127.0.0.1:{{ xui_panel_port }}
 
 	log {
