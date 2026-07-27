@@ -324,16 +324,20 @@ cat /tmp/rendered-stream.conf
 
 ## What gets monitored
 
-Each check runs from cron and pushes to ntfy only on state transitions.
+Both hosts (`vps` and `vpn` groups) run the same monitoring role; each group has its own env config. Each check runs from cron and pushes to ntfy only on state transitions.
 
 | Check             | Interval | Alerts on                         | Severity                    |
 | ----------------- | -------- | --------------------------------- | --------------------------- |
 | systemd services  | 15 min   | unit not active                   | critical → DOWN / RECOVERED |
 | docker containers | 15 min   | container not running             | critical                    |
 | HTTPS endpoints   | 15 min   | non-2xx/3xx response or timeout   | critical                    |
+| TCP ports         | 15 min   | port closed (e.g. Reality :2053)  | critical                    |
 | disk usage        | 1 h      | usage > threshold                 | alert                       |
 | security updates  | daily    | apt security updates available    | alert                       |
 | reboot required   | daily    | `/var/run/reboot-required` exists | alert                       |
+| backup freshness  | daily    | no archive / newest > 25 h old    | alert                       |
+
+Empty lists disable a check (e.g. no docker on the VPN host). The VPN host monitors `x-ui caddy fail2ban cron ssh`, the panel/subscription HTTPS endpoints (secret base paths live in the vault), the Reality TCP port, and `/opt/vpn-backup/archives` freshness.
 
 Notification channels are severity-first: `*-critical`, `*-alerts`, `*-info`. Three topics regardless of service count.
 

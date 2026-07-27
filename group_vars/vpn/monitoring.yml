@@ -1,0 +1,27 @@
+---
+# Monitoring configuration for the VPN VPS (deployed to
+# /opt/homelab-monitoring/.env). Secrets live in vault.yml.
+ntfy_url: "https://ntfy.sh"
+ntfy_topic_critical: "{{ vault_ntfy_topic_critical }}"
+ntfy_topic_alerts: "{{ vault_ntfy_topic_alerts }}"
+ntfy_topic_info: "{{ vault_ntfy_topic_info }}"
+host_prefix: "[VPN]"
+
+check_services: "x-ui caddy fail2ban cron ssh"
+check_containers: ""
+disk_threshold: 85
+disk_mounts: "/"
+
+# Panel + subscription endpoints: full chain DNS -> cert -> Caddy -> x-ui.
+# Base paths are secrets and live in the vault. The sub path returns 404
+# without a subId, so it uses the "any:" prefix (any HTTP status = up).
+https_endpoints: >-
+  https://{{ caddy_panel_domain }}{{ vault_xui_web_base_path }}
+  any:https://{{ caddy_sub_domain }}{{ vault_xui_sub_path }}
+
+# Reality port: panel alive != VPN data path alive.
+check_ports: "{{ xui_reality_port }}"
+
+# Backup freshness (cron runs nightly at 03:30).
+backup_dir: "{{ vpn_backup_dir }}/archives"
+backup_max_age_hours: 25

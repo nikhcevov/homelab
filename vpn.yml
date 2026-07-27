@@ -34,3 +34,9 @@
   become: true
   roles:
     - vpn_backup
+
+- name: Configure monitoring
+  hosts: vpn
+  become: true
+  roles:
+    - monitoring

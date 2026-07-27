@@ -10,6 +10,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # HTTPS endpoints every 15 min
 */15 * * * * root /opt/homelab-monitoring/scripts/check-https.sh
 
+# TCP ports every 15 min
+*/15 * * * * root /opt/homelab-monitoring/scripts/check-port.sh
+
 # Disk usage every hour
 30 * * * * root /opt/homelab-monitoring/scripts/check-disk.sh
 
@@ -18,3 +21,6 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Reboot required daily
 15 10 * * * root /opt/homelab-monitoring/scripts/check-reboot.sh
+
+# Backup freshness daily
+30 10 * * * root /opt/homelab-monitoring/scripts/check-backup.sh
