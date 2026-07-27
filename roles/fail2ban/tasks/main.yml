@@ -14,6 +14,14 @@
     mode: "0644"
   notify: Restart fail2ban
 
+- name: Deploy Caddy filter
+  ansible.builtin.template:
+    src: caddy-4xx.conf.j2
+    dest: /etc/fail2ban/filter.d/caddy-4xx.conf
+    mode: "0644"
+  notify: Restart fail2ban
+  when: fail2ban_caddy_jail | bool
+
 # In check mode the package above is not actually installed,
 # so the unit does not exist yet and this task would fail.
 - name: Ensure fail2ban is running and enabled

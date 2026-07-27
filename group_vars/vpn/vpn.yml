@@ -1,0 +1,33 @@
+---
+# VPN service configuration (roles: xui, caddy, vpn_backup).
+
+# --- 3x-ui (native, no Docker) ---
+# present = install if missing | latest = (re)install/upgrade |
+# absent = uninstall | reinstalled = uninstall + install
+xui_state: present
+# Pin a version ("v2.8.11") or leave empty for latest.
+xui_version: ""
+# absent: also remove /etc/x-ui (THE DATABASE — clients, keys, stats).
+xui_purge: false
+
+# Panel and subscription ports are proxied by Caddy via localhost;
+# they are NOT exposed through UFW. Values must match the database
+# settings (webPort / subPort) — the backup is authoritative.
+xui_panel_port: 54321
+xui_sub_port: 2096
+xui_reality_port: 2053
+
+# Built-in 3x-ui fail2ban integration stays disabled (it is a DB
+# setting); the system fail2ban service is used instead.
+
+# --- Caddy ---
+# HTTPS + Let's Encrypt + reverse proxy only. No Reality traffic here.
+caddy_acme_email: ""      # optional but recommended (expiry notices)
+caddy_panel_domain: panel.example.com
+caddy_sub_domain: sub.example.com
+
+# --- Backups (stay on the VPS; another machine collects them) ---
+vpn_backup_dir: /opt/vpn-backup
+vpn_backup_retention_days: 14
+vpn_backup_cron_hour: "3"
+vpn_backup_cron_minute: "30"

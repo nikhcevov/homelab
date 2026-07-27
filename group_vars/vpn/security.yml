@@ -1,0 +1,26 @@
+---
+# Firewall + intrusion prevention for the VPN VPS.
+
+# --- UFW ---
+ufw_default_incoming: deny
+ufw_default_outgoing: allow
+ufw_logging: low
+
+# No stream proxy on this host — ports are listed explicitly.
+ufw_open_service_ports: false
+
+# SSH is opened automatically from sshd_port.
+# Reality (VLESS) listens directly on its own TCP port — it is NOT
+# proxied through Caddy, so it must be exposed here. Port comes from
+# xui_reality_port (group_vars/vpn/vpn.yml) — single definition.
+ufw_rules:
+  - { port: 80, proto: tcp, comment: HTTP }
+  - { port: 443, proto: tcp, comment: HTTPS }
+  - { port: "{{ xui_reality_port }}", proto: tcp, comment: Reality }
+
+# --- Fail2Ban ---
+fail2ban_bantime: 1h
+fail2ban_findtime: 10m
+fail2ban_maxretry: 5
+# Watch Caddy access log for repeated 401/403/404 (panel probing).
+fail2ban_caddy_jail: true

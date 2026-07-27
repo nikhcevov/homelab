@@ -1,0 +1,36 @@
+---
+# Full deployment for the VPN VPS, in layer order:
+# bootstrap -> security -> vpn (x-ui) -> proxy (caddy) -> backup.
+# The VPN server is fully independent: no Docker, no Tailscale,
+# no dependency on the home lab.
+- name: Bootstrap base system
+  hosts: vpn
+  become: true
+  roles:
+    - common
+    - ssh
+
+- name: Configure firewall and intrusion prevention
+  hosts: vpn
+  become: true
+  roles:
+    - ufw
+    - fail2ban
+
+- name: Install 3x-ui VPN panel (native)
+  hosts: vpn
+  become: true
+  roles:
+    - xui
+
+- name: Configure Caddy reverse proxy
+  hosts: vpn
+  become: true
+  roles:
+    - caddy
+
+- name: Configure backups
+  hosts: vpn
+  become: true
+  roles:
+    - vpn_backup

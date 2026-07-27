@@ -1,4 +1,4 @@
-# Managed by Ansible (role: fail2ban). Source: group_vars/vps/security.yml
+# Managed by Ansible (role: fail2ban). Source: group_vars/<group>/security.yml
 [DEFAULT]
 bantime  = {{ fail2ban_bantime }}
 findtime = {{ fail2ban_findtime }}
@@ -8,3 +8,11 @@ backend  = systemd
 [sshd]
 enabled = true
 port    = {{ sshd_port }}
+{% if fail2ban_caddy_jail | bool %}
+
+[caddy-4xx]
+enabled = true
+port    = http,https
+filter  = caddy-4xx
+logpath = /var/log/caddy/access.log
+{% endif %}

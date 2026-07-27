@@ -2,11 +2,12 @@
 # Bootstrap a fresh Debian 12 node: updates, base packages, timezone,
 # locale, unattended-upgrades, optional admin user.
 
+# No cache_valid_time: fresh provider images may ship empty lists
+# with a fresh timestamp, which makes every package "not available".
 - name: Update apt cache and upgrade installed packages
   ansible.builtin.apt:
     update_cache: true
     upgrade: "{{ bootstrap_apt_upgrade }}"
-    cache_valid_time: 3600
 
 - name: Install base packages
   ansible.builtin.apt:

@@ -4,6 +4,8 @@ Reproducible VPS edge node for a self-hosted homelab, managed entirely by Ansibl
 
 The VPS is a thin, replaceable edge node. It accepts inbound TCP/UDP traffic and forwards it to home servers over Tailscale. It holds no application data and never decrypts TLS — routing is done via SNI (`ssl_preread`) at L4.
 
+The repository also manages a second, fully independent host: a **VPN VPS** (`vpn.yml`, hosts group `vpn`) running native 3x-ui + Caddy. See [VPN VPS](#vpn-vps).
+
 A fresh VPS becomes fully operational with three steps:
 
 1. Install Debian 12 (Bookworm), x86_64.
@@ -392,6 +394,84 @@ The home servers are untouched.
 | Wrong backend for a domain             | SNI hostname missing/duplicated in `vars/proxy.yml`; check the `map`.                    |
 | Backend unreachable                    | `nc -vz <host>.ts.net <port>` from the VPS; check Tailscale.                             |
 | No ntfy messages arrive                | Topics in `group_vars/vps/vps.yml`, run a check script manually.                         |
+
+---
+
+## VPN VPS
+
+A second, fully independent host (`vpn` inventory group): a VPN gateway running **native 3x-ui + Caddy**. No Docker, no Tailscale, no dependency on the home lab — it works even when the homelab is offline. Target OS: Debian 13 / Ubuntu 24.04+.
+
+```
+Internet
+   |
+ VPN VPS (vpn-1)
+   |-- Caddy        HTTPS + Let's Encrypt + reverse proxy (panel, subscriptions)
+   |-- 3x-ui (native)  VPN panel + Xray; VLESS Reality listens directly on :2053
+   |-- ufw + fail2ban  firewall, sshd + caddy jails
+   |-- vpn-backup   nightly archive, stays on the VPS
+```
+
+Responsibilities are split: 3x-ui = VPN/clients/subscriptions, Caddy = HTTPS/proxy only (Reality traffic is **not** proxied), UFW = firewall, fail2ban = intrusion prevention, `vpn_backup` = backups, `vpn-restore.yml` = restores.
+
+### Playbooks
+
+```bash
+ansible-playbook vpn.yml                                                       # full deployment
+ansible-playbook vpn-restore.yml -e vpn_restore_archive=/path/to/archive.tar.gz # restore
+```
+
+### Configuration
+
+All in `group_vars/vpn/`: `bootstrap.yml`, `ssh.yml`, `security.yml` mirror the `vps` group; `vpn.yml` holds the service config:
+
+| Var                  | Purpose                                                                 |
+| -------------------- | ----------------------------------------------------------------------- |
+| `xui_state`          | `present` / `latest` (upgrade) / `absent` / `reinstalled`               |
+| `xui_version`        | pin e.g. `v2.8.11`, empty = latest                                      |
+| `xui_purge`          | `absent` also removes `/etc/x-ui` (the database!)                       |
+| `xui_panel_port`     | panel port (54321) — proxied by Caddy via localhost, not exposed in UFW |
+| `xui_sub_port`       | subscription port (2096) — same                                         |
+| `caddy_panel_domain` | panel hostname                                                          |
+| `caddy_sub_domain`   | subscription hostname                                                   |
+| `vpn_backup_*`       | backup dir, retention, cron time                                        |
+
+UFW exposes only SSH, 80, 443 and the Reality port (2053). Fail2ban runs the sshd jail plus a `caddy-4xx` jail over the Caddy access log. The built-in 3x-ui fail2ban integration stays disabled.
+
+### The database is authoritative
+
+3x-ui config (clients, UUIDs, Reality keys, subscriptions, stats) lives only in the SQLite database. Ansible never rewrites it: it is snapshotted into backups (`sqlite3 .backup`, safe on a live DB) and restored byte-for-byte. Panel/sub ports in `group_vars/vpn/vpn.yml` must match the DB settings (`webPort`/`subPort`) because Caddy proxies to them.
+
+### Backups
+
+Nightly cron runs `/opt/vpn-backup/backup.sh`, producing `vpn-backup-YYYYMMDD-HHMMSS.tar.gz` in `/opt/vpn-backup/archives/` with retention (`vpn_backup_retention_days`). Contents:
+
+- `etc/x-ui/x-ui.db` — safe SQLite snapshot
+- `etc/caddy/` — Caddyfile
+- `var/lib/caddy/` — certificates (avoids Let's Encrypt re-issue after restore)
+
+Backups stay on the VPS; another machine collects them.
+
+### Restore (fresh VPS)
+
+1. Provision VPS, put its IP into `vault_vpn_ip` (`ansible-vault edit group_vars/vpn/vault.yml`).
+2. `ansible-playbook vpn.yml`
+3. `ansible-playbook vpn-restore.yml -e vpn_restore_archive=/path/to/vpn-backup-*.tar.gz`
+
+Restore stops the services, extracts the archive into `/`, fixes ownership/permissions (`root` for the DB, `caddy` for Caddy data) and starts everything again.
+
+### Migrating from the old Docker-based server
+
+The old server kept its DB at `/opt/x-ui/db/x-ui.db` (Docker volume). Build a seed archive from it, then restore:
+
+```bash
+# on the old server (or anywhere with the DB file)
+apt install -y sqlite3
+mkdir -p /tmp/seed/etc/x-ui
+sqlite3 /opt/x-ui/db/x-ui.db ".backup '/tmp/seed/etc/x-ui/x-ui.db'"
+tar -czf vpn-backup-seed.tar.gz -C /tmp/seed etc
+```
+
+Then steps 1–3 from the restore section with `vpn_restore_archive=vpn-backup-seed.tar.gz`. Native 3x-ui reads the same schema — nothing is regenerated. After cutover, Docker/Traefik on the old host can be decommissioned (not managed by this repo).
 
 ---
 

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Managed by Ansible (role: vpn_backup). Source: group_vars/vpn/vpn.yml
+#
+# Archive layout (relative paths, restore extracts into /):
+#   etc/x-ui/x-ui.db      safe sqlite3 .backup snapshot
+#   etc/caddy/            Caddyfile
+#   var/lib/caddy/        certificates (avoids LE re-issue on restore)
+set -euo pipefail
+
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+
+DEST="{{ vpn_backup_dir }}/archives/vpn-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
+
+if [[ -f /etc/x-ui/x-ui.db ]]; then
+    mkdir -p "$STAGE/etc/x-ui"
+    sqlite3 /etc/x-ui/x-ui.db ".backup '$STAGE/etc/x-ui/x-ui.db'"
+    tar -czf "$DEST" -C "$STAGE" etc/x-ui -C / etc/caddy var/lib/caddy
+else
+    tar -czf "$DEST" -C / etc/caddy var/lib/caddy
+fi
+
+find "{{ vpn_backup_dir }}/archives" -name 'vpn-backup-*.tar.gz' \
+    -mtime +{{ vpn_backup_retention_days }} -delete

@@ -1,0 +1,34 @@
+---
+# Base system configuration for the VPN VPS.
+# Target: Debian 13 / Ubuntu 24.04+, x86_64. Only Python 3 is preinstalled.
+
+bootstrap_apt_upgrade: dist
+
+bootstrap_timezone: Europe/Amsterdam
+bootstrap_locale: en_US.UTF-8
+
+bootstrap_packages:
+  - sudo
+  - curl
+  - wget
+  - git
+  - ca-certificates
+  - vim
+  - htop
+  - jq
+  - rsync
+  - unzip
+  - gnupg
+  - python3-apt
+  - python3-debian  # required by deb822_repository (caddy role)
+
+bootstrap_unattended_upgrades: true
+bootstrap_unattended_reboot: true
+bootstrap_unattended_reboot_time: "04:00"
+
+# Public SSH keys for the root login (public keys are NOT secrets).
+bootstrap_root_ssh_keys: []
+
+# Optional non-root admin user.
+bootstrap_admin_user: ""
+bootstrap_admin_user_ssh_keys: []

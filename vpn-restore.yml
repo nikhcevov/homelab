@@ -1,0 +1,82 @@
+---
+# Restore the VPN server from a backup archive.
+# Run AFTER vpn.yml on a fresh VPS:
+#   ansible-playbook vpn-restore.yml -e vpn_restore_archive=/path/to/vpn-backup-YYYYMMDD-HHMMSS.tar.gz
+#
+# The archive is the authoritative source for the 3x-ui database
+# (clients, UUIDs, Reality keys, subscriptions). Nothing is
+# regenerated or rewritten.
+- name: Restore VPN configuration from backup
+  hosts: vpn
+  become: true
+  vars:
+    vpn_restore_archive: ""
+  pre_tasks:
+    - name: Check backup archive path is provided
+      ansible.builtin.assert:
+        that: vpn_restore_archive | length > 0
+        fail_msg: "pass -e vpn_restore_archive=/path/to/vpn-backup-*.tar.gz"
+
+    - name: Check backup archive exists locally
+      ansible.builtin.stat:
+        path: "{{ vpn_restore_archive }}"
+      register: _restore_archive
+      delegate_to: localhost
+      become: false
+
+    - name: Check backup archive is a file
+      ansible.builtin.assert:
+        that: _restore_archive.stat.exists
+        fail_msg: "archive not found on the control machine: {{ vpn_restore_archive }}"
+
+  tasks:
+    - name: Upload backup archive
+      ansible.builtin.copy:
+        src: "{{ vpn_restore_archive }}"
+        dest: /tmp/vpn-restore.tar.gz
+        mode: "0600"
+
+    - name: Stop services before restore
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: stopped
+      loop:
+        - x-ui
+        - caddy
+
+    - name: Extract backup into place
+      ansible.builtin.unarchive:
+        src: /tmp/vpn-restore.tar.gz
+        dest: /
+        remote_src: true
+
+    - name: Fix 3x-ui database permissions
+      ansible.builtin.file:
+        path: /etc/x-ui/x-ui.db
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Fix Caddy data permissions
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        owner: caddy
+        group: caddy
+        recurse: "{{ item.recurse }}"
+      loop:
+        - { path: /etc/caddy, recurse: false }
+        - { path: /var/lib/caddy, recurse: true }
+
+    - name: Start services after restore
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: started
+        enabled: true
+      loop:
+        - x-ui
+        - caddy
+
+    - name: Remove uploaded archive
+      ansible.builtin.file:
+        path: /tmp/vpn-restore.tar.gz
+        state: absent

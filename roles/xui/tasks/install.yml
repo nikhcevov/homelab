@@ -1,0 +1,46 @@
+---
+# Install via the official installer. No suitable apt module exists
+# (3x-ui is distributed as a binary + systemd unit), so the script is
+# pinned by checksum of effect: it only runs when the state requires it.
+
+- name: Download 3x-ui installer
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/MHSanaei/3x-ui/master/install.sh
+    dest: /tmp/x-ui-install.sh
+    mode: "0755"
+
+- name: Check for existing 3x-ui installation
+  ansible.builtin.stat:
+    path: /usr/local/x-ui/x-ui
+  register: _xui_binary
+
+# Gate on the systemd unit, not the binary: a killed run may leave
+# /usr/local/x-ui downloaded without registering the service.
+# XUI_NONINTERACTIVE=1: the installer is interactive by default and
+# would hang forever waiting for answers on stdin.
+- name: Install 3x-ui
+  ansible.builtin.command: bash /tmp/x-ui-install.sh {{ xui_version }}
+  args:
+    creates: /etc/systemd/system/x-ui.service
+  environment:
+    XUI_NONINTERACTIVE: "1"
+  when: xui_state in ['present', 'latest', 'reinstalled']
+
+# The installer is convergent (detects the existing install and updates
+# it), but reports changes unconditionally — run only on explicit request.
+- name: Upgrade 3x-ui
+  ansible.builtin.command: bash /tmp/x-ui-install.sh {{ xui_version }}
+  environment:
+    XUI_NONINTERACTIVE: "1"
+  when:
+    - _xui_binary.stat.exists
+    - xui_state == 'latest'
+  register: _xui_upgrade
+  changed_when: true
+
+- name: Ensure x-ui service is running and enabled
+  ansible.builtin.service:
+    name: x-ui
+    state: started
+    enabled: true
+  when: not ansible_check_mode

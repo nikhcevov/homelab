@@ -1,0 +1,27 @@
+---
+# Uninstall 3x-ui. The database (/etc/x-ui) is kept unless xui_purge.
+
+- name: Stop and disable x-ui service
+  ansible.builtin.service:
+    name: x-ui
+    state: stopped
+    enabled: false
+  failed_when: false
+
+- name: Remove 3x-ui binaries and systemd unit
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /usr/local/x-ui
+    - /etc/systemd/system/x-ui.service
+
+- name: Remove 3x-ui database (xui_purge)
+  ansible.builtin.file:
+    path: /etc/x-ui
+    state: absent
+  when: xui_purge | bool
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true

@@ -1,0 +1,8 @@
+---
+# SSH daemon configuration for the VPN VPS (role: ssh).
+
+sshd_port: 22
+sshd_password_authentication: "no"
+sshd_permit_root_login: prohibit-password
+sshd_pubkey_authentication: "yes"
+sshd_allow_users: []

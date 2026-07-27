@@ -1,0 +1,20 @@
+---
+# Native 3x-ui lifecycle, driven by xui_state:
+#   present      install if missing
+#   latest       install/upgrade via the official installer
+#   absent       uninstall (keeps /etc/x-ui unless xui_purge)
+#   reinstalled  uninstall + install
+# The SQLite database is NEVER touched here — backups are authoritative.
+
+- name: Validate xui_state
+  ansible.builtin.assert:
+    that: xui_state in ['present', 'latest', 'absent', 'reinstalled']
+    fail_msg: "xui_state must be one of: present, latest, absent, reinstalled (got '{{ xui_state }}')"
+
+- name: Uninstall 3x-ui
+  ansible.builtin.import_tasks: uninstall.yml
+  when: xui_state in ['absent', 'reinstalled']
+
+- name: Install or upgrade 3x-ui
+  ansible.builtin.import_tasks: install.yml
+  when: xui_state in ['present', 'latest', 'reinstalled']

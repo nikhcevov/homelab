@@ -1,0 +1,5 @@
+# Managed by Ansible (role: fail2ban)
+# Matches repeated auth failures / probing in Caddy JSON access logs.
+[Definition]
+failregex = ^.*"remote_ip":"<HOST>".*"status":(?:401|403|404).*$
+ignoreregex =

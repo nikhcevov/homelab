@@ -1,8 +1,14 @@
 // Managed by Ansible (role: common). Source: group_vars/vps/bootstrap.yml
+{% if ansible_distribution == 'Ubuntu' %}
+Unattended-Upgrade::Allowed-Origins {
+    "${distro_id}:${distro_codename}-security";
+};
+{% else %}
 Unattended-Upgrade::Origins-Pattern {
     "origin=Debian,codename=${distro_codename},label=Debian-Security";
     "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
 };
+{% endif %}
 
 Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
 Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
