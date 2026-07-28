@@ -1,0 +1,65 @@
+---
+# Native Uptime Kuma (no Docker): Node.js + git checkout pinned by
+# kuma_version + systemd unit. Listens on localhost only — Caddy
+# proxies to it. Kuma's own config (monitors, notifications) lives in
+# its SQLite DB (kuma_dir/data) and is managed via the UI.
+
+- name: Install Node.js runtime
+  ansible.builtin.apt:
+    name:
+      - nodejs
+      - npm
+    state: present
+    update_cache: true
+
+- name: Create kuma system user
+  ansible.builtin.user:
+    name: kuma
+    system: true
+    home: "{{ kuma_dir }}"
+    shell: /usr/sbin/nologin
+
+- name: Fetch Uptime Kuma source
+  ansible.builtin.git:
+    repo: https://github.com/louislam/uptime-kuma.git
+    dest: "{{ kuma_dir }}"
+    version: "{{ kuma_version }}"
+    depth: 1
+  register: _kuma_src
+
+- name: Install kuma dependencies
+  ansible.builtin.command: npm ci --omit=dev
+  args:
+    chdir: "{{ kuma_dir }}"
+  when: _kuma_src.changed
+
+# Recursive chown over node_modules is slow — only after source changes.
+- name: Set kuma directory ownership
+  ansible.builtin.file:
+    path: "{{ kuma_dir }}"
+    owner: kuma
+    group: kuma
+    recurse: true
+  when: _kuma_src.changed
+
+- name: Ensure kuma data directory exists
+  ansible.builtin.file:
+    path: "{{ kuma_dir }}/data"
+    state: directory
+    owner: kuma
+    group: kuma
+    mode: "0750"
+
+- name: Deploy kuma systemd unit
+  ansible.builtin.template:
+    src: kuma.service.j2
+    dest: /etc/systemd/system/kuma.service
+    mode: "0644"
+  notify: Restart kuma
+
+- name: Ensure kuma is running and enabled
+  ansible.builtin.service:
+    name: kuma
+    state: started
+    enabled: true
+  when: not ansible_check_mode

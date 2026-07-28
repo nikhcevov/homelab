@@ -1,0 +1,22 @@
+---
+# Monitoring configuration for the monitoring VPS itself (deployed to
+# /opt/homelab-monitoring/.env). Secrets live in vault.yml.
+ntfy_url: "https://ntfy.sh"
+ntfy_topic_critical: "{{ vault_ntfy_topic_critical }}"
+ntfy_topic_alerts: "{{ vault_ntfy_topic_alerts }}"
+ntfy_topic_info: "{{ vault_ntfy_topic_info }}"
+host_prefix: "[MON]"
+
+check_services: "caddy kuma fail2ban cron ssh"
+check_containers: ""
+disk_threshold: 85
+disk_mounts: "/"
+
+# Own health endpoint (strict 200). External checks of the other
+# hosts are Uptime Kuma's job — no cron cross-checks here.
+https_endpoints: "https://{{ kuma_domain }}/healthz"
+
+check_ports: ""
+
+# No backups on this host yet (kuma DB backup is a follow-up).
+backup_dir: ""

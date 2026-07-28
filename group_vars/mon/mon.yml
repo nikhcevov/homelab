@@ -1,0 +1,15 @@
+---
+# Monitoring stack configuration (roles: kuma, caddy).
+
+# --- Uptime Kuma (native, no Docker) ---
+# Pinned release tag; bump to upgrade. Kuma's monitors and
+# notification channels live in its SQLite DB (managed via UI).
+kuma_version: "1.23.13"
+kuma_dir: /opt/uptime-kuma
+kuma_port: 3001
+kuma_domain: kuma.example.com
+
+# --- Caddy ---
+caddy_acme_email: ""
+caddy_sites:
+  - { domain: "{{ kuma_domain }}", upstream_port: "{{ kuma_port }}", healthz: true }

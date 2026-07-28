@@ -22,9 +22,16 @@ xui_reality_port: 2053
 
 # --- Caddy ---
 # HTTPS + Let's Encrypt + reverse proxy only. No Reality traffic here.
-caddy_acme_email: ""      # optional but recommended (expiry notices)
+caddy_acme_email: "" # optional but recommended (expiry notices)
 caddy_panel_domain: panel.example.com
 caddy_sub_domain: sub.example.com
+caddy_sites:
+  - {
+      domain: "{{ caddy_panel_domain }}",
+      upstream_port: "{{ xui_panel_port }}",
+      healthz: true,
+    }
+  - { domain: "{{ caddy_sub_domain }}", upstream_port: "{{ xui_sub_port }}" }
 
 # --- Backups (stay on the VPS; another machine collects them) ---
 vpn_backup_dir: /opt/vpn-backup

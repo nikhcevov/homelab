@@ -1,0 +1,18 @@
+# Managed by Ansible (role: kuma). Source: group_vars/mon/mon.yml
+[Unit]
+Description=Uptime Kuma
+After=network.target
+
+[Service]
+Type=simple
+User=kuma
+Group=kuma
+WorkingDirectory={{ kuma_dir }}
+Environment=UPTIME_KUMA_HOST=127.0.0.1
+Environment=UPTIME_KUMA_PORT={{ kuma_port }}
+ExecStart=/usr/bin/node server/server.js
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

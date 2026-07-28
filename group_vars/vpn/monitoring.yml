@@ -19,9 +19,10 @@ https_endpoints: >-
   https://{{ caddy_panel_domain }}{{ vault_xui_web_base_path }}
   any:https://{{ caddy_sub_domain }}{{ vault_xui_sub_path }}
 
-# Reality port locally; edge VPS stream listener cross-checked by IP
-# (no borrowed domain, no DNS dependency). IP comes from the vault.
-check_ports: "{{ xui_reality_port }} {{ vault_vps_ip }}:443"
+# Reality port: panel alive != VPN data path alive.
+# External health of this host is watched by the central monitoring
+# VPS (Uptime Kuma) — no cross-checks here.
+check_ports: "{{ xui_reality_port }}"
 
 # Backup freshness (cron runs nightly at 03:30).
 backup_dir: "{{ vpn_backup_dir }}/archives"

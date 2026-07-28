@@ -1,15 +1,18 @@
-# Managed by Ansible (role: caddy). Source: group_vars/vpn/vpn.yml
+# Managed by Ansible (role: caddy). Source: caddy_sites in group_vars.
 {% if caddy_acme_email | length > 0 %}
 {
 	email {{ caddy_acme_email }}
 }
 
 {% endif %}
-{{ caddy_panel_domain }} {
+{% for site in caddy_sites %}
+{{ site.domain }} {
+{% if site.healthz | default(false) %}
 	# Health endpoint for external monitoring (no backend involved).
 	respond /healthz 200
 
-	reverse_proxy 127.0.0.1:{{ xui_panel_port }}
+{% endif %}
+	reverse_proxy 127.0.0.1:{{ site.upstream_port }}
 
 	log {
 		output file /var/log/caddy/access.log {
@@ -20,14 +23,4 @@
 	}
 }
 
-{{ caddy_sub_domain }} {
-	reverse_proxy 127.0.0.1:{{ xui_sub_port }}
-
-	log {
-		output file /var/log/caddy/access.log {
-			roll_size 10MiB
-			roll_keep 5
-			roll_keep_for 720h
-		}
-	}
-}
+{% endfor %}

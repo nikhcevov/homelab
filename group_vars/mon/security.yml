@@ -1,0 +1,21 @@
+---
+# Firewall + intrusion prevention for the monitoring VPS.
+
+# --- UFW ---
+ufw_default_incoming: deny
+ufw_default_outgoing: allow
+ufw_logging: low
+
+ufw_open_service_ports: false
+
+# SSH is opened automatically from sshd_port. Kuma itself listens on
+# localhost behind Caddy — no extra ports needed.
+ufw_rules:
+  - { port: 80, proto: tcp, comment: HTTP }
+  - { port: 443, proto: tcp, comment: HTTPS }
+
+# --- Fail2Ban ---
+fail2ban_bantime: 1h
+fail2ban_findtime: 10m
+fail2ban_maxretry: 5
+fail2ban_caddy_jail: true

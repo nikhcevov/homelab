@@ -14,13 +14,10 @@ check_containers: ""
 disk_threshold: 85
 disk_mounts: "/"
 
-# nginx listeners locally; VPN VPS cross-checked from here.
-# "host:port" = remote TCP check, bare "port" = localhost.
-check_ports: "443 25565 panel.example.com:2053"
-
-# Caddy /healthz on the VPN VPS: strict 200, validates the full
-# DNS -> cert -> TLS -> Caddy chain from the outside.
-https_endpoints: "https://panel.example.com/healthz"
+# nginx listeners locally. External health of this host is watched
+# by the central monitoring VPS (Uptime Kuma) — no cross-checks here.
+check_ports: "443 25565"
+https_endpoints: ""
 
 # Optional checks (empty = disabled):
 # backup_dir: "/opt/vpn-backup/archives"  # archive freshness

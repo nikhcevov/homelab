@@ -4,7 +4,7 @@ Reproducible VPS edge node for a self-hosted homelab, managed entirely by Ansibl
 
 The VPS is a thin, replaceable edge node. It accepts inbound TCP/UDP traffic and forwards it to home servers over Tailscale. It holds no application data and never decrypts TLS — routing is done via SNI (`ssl_preread`) at L4.
 
-The repository also manages a second, fully independent host: a **VPN VPS** (`vpn.yml`, hosts group `vpn`) running native 3x-ui + Caddy. See [VPN VPS](#vpn-vps).
+The repository also manages two more fully independent hosts: a **VPN VPS** (`vpn.yml`, hosts group `vpn`) running native 3x-ui + Caddy — see [VPN VPS](#vpn-vps), and a **monitoring VPS** (`mon.yml`, hosts group `mon`) running native Uptime Kuma + Caddy — see [Monitoring VPS](#monitoring-vps).
 
 A fresh VPS becomes fully operational with three steps:
 
@@ -476,6 +476,34 @@ tar -czf vpn-backup-seed.tar.gz -C /tmp/seed etc
 ```
 
 Then steps 1–3 from the restore section with `vpn_restore_archive=vpn-backup-seed.tar.gz`. Native 3x-ui reads the same schema — nothing is regenerated. After cutover, Docker/Traefik on the old host can be decommissioned (not managed by this repo).
+
+---
+
+## Monitoring VPS
+
+A third, fully independent host (`mon` inventory group): the central external watcher, running **native Uptime Kuma + Caddy**. Its job is black-box monitoring of everything else (edge VPS, VPN VPS; later unraid and OpenWrt routers) — it answers "is the service reachable from the internet", while the per-host cron checks answer "is the host healthy inside".
+
+### Division of responsibility
+
+| Layer              | Where                | Covers                                                  |
+| ------------------ | -------------------- | ------------------------------------------------------- |
+| Uptime Kuma        | mon-1 (external)     | ports, HTTPS, certificates, ping — for all hosts        |
+| cron + ntfy checks | each host (internal) | systemd units, disk, backup freshness, security updates |
+
+Kuma pushes alerts to the same ntfy topics (configured once in the Kuma UI).
+
+### Deploy
+
+1. Provision VPS (Debian 13 / Ubuntu 24.04), put its IP into `vault_mon_ip` (`ansible-vault edit group_vars/mon/vault.yml`).
+2. DNS: A record for `kuma.example.com` (or change `kuma_domain` in `group_vars/mon/mon.yml`).
+3. `ansible-playbook mon.yml`
+4. Open `https://kuma.example.com`, create the admin account, add monitors (edge :443/:25565, vpn panel/sub URLs, Reality :2053) and the ntfy notification channel (topics are in the vault).
+
+### Notes
+
+- Kuma is native (Node.js + systemd unit, pinned by `kuma_version`), listens on `127.0.0.1:3001` behind Caddy. UFW exposes only SSH/80/443.
+- Kuma's monitors and settings live in its SQLite DB (`/opt/uptime-kuma/data`) — managed via the UI, not from Git. A backup role for it is a follow-up (same pattern as `vpn_backup`).
+- The host also watches itself via the cron checks (`caddy kuma fail2ban cron ssh`, own `/healthz`). No cron cross-checks between hosts — external watching of every host is Uptime Kuma's job alone (single watcher, minimal coupling).
 
 ---
 
