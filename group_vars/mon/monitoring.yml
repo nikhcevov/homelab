@@ -18,5 +18,6 @@ https_endpoints: "https://{{ kuma_domain }}/healthz"
 
 check_ports: ""
 
-# No backups on this host yet (kuma DB backup is a follow-up).
-backup_dir: ""
+# Backup freshness (cron runs nightly at 04:00).
+backup_dir: "{{ kuma_backup_dir }}/archives"
+backup_max_age_hours: 25

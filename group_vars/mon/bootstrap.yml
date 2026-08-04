@@ -4,7 +4,7 @@
 
 bootstrap_apt_upgrade: dist
 
-bootstrap_timezone: UTC
+bootstrap_timezone: Europe/Moscow
 bootstrap_locale: en_US.UTF-8
 
 bootstrap_packages:
@@ -23,7 +23,7 @@ bootstrap_packages:
   - python3-debian  # required by deb822_repository (caddy role)
 
 bootstrap_unattended_upgrades: true
-bootstrap_unattended_reboot: false
+bootstrap_unattended_reboot: true
 bootstrap_unattended_reboot_time: "04:00"
 
 # Public SSH keys for the root login (public keys are NOT secrets).

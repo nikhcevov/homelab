@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Managed by Ansible (role: kuma_backup). Source: group_vars/mon/mon.yml
+#
+# Archive layout (relative paths, restore extracts into /):
+#   opt/uptime-kuma/data/kuma.db    safe sqlite3 .backup snapshot (ALL state:
+#                                   monitors, notifications, users, settings,
+#                                   status pages, API keys)
+#   opt/uptime-kuma/data/upload/    status page icons (if any)
+#   opt/uptime-kuma/data/screenshots/  browser-monitor screenshots (if any)
+#   opt/uptime-kuma/data/docker-tls/   docker host TLS certs (if any)
+#   etc/caddy/                      Caddyfile
+#   var/lib/caddy/                  certificates (avoids LE re-issue on restore)
+# kuma.db-wal/-shm are NOT archived: sqlite3 .backup already produces a
+# consistent snapshot that includes everything in the WAL.
+set -euo pipefail
+
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+
+DEST="{{ kuma_backup_dir }}/archives/kuma-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
+DB="{{ kuma_dir }}/data/kuma.db"
+REL_DATA="{{ (kuma_dir ~ '/data') | regex_replace('^/', '') }}"
+REL_DB="$REL_DATA/kuma.db"
+
+# Small static extras from the data dir — safe to copy live, included only
+# when present (upload/icons, browser screenshots, docker certs, db-config).
+EXTRA=()
+for d in upload screenshots docker-tls; do
+    [[ -d "/$REL_DATA/$d" ]] && EXTRA+=("$REL_DATA/$d")
+done
+[[ -f "/$REL_DATA/db-config.json" ]] && EXTRA+=("$REL_DATA/db-config.json")
+
+if [[ -f "$DB" ]]; then
+    mkdir -p "$STAGE/$(dirname "$REL_DB")"
+    sqlite3 "$DB" ".backup '$STAGE/$REL_DB'"
+    tar -czf "$DEST" -C "$STAGE" "$REL_DB" -C / "${EXTRA[@]}" etc/caddy var/lib/caddy
+else
+    tar -czf "$DEST" -C / "${EXTRA[@]}" etc/caddy var/lib/caddy
+fi
+
+find "{{ kuma_backup_dir }}/archives" -name 'kuma-backup-*.tar.gz' \
+    -mtime +{{ kuma_backup_retention_days }} -delete

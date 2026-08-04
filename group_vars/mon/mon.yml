@@ -4,7 +4,7 @@
 # --- Uptime Kuma (native, no Docker) ---
 # Pinned release tag; bump to upgrade. Kuma's monitors and
 # notification channels live in its SQLite DB (managed via UI).
-kuma_version: "1.23.13"
+kuma_version: "2.4.0"
 kuma_dir: /opt/uptime-kuma
 kuma_port: 3001
 kuma_domain: kuma.example.com
@@ -12,4 +12,14 @@ kuma_domain: kuma.example.com
 # --- Caddy ---
 caddy_acme_email: ""
 caddy_sites:
-  - { domain: "{{ kuma_domain }}", upstream_port: "{{ kuma_port }}", healthz: true }
+  - {
+      domain: "{{ kuma_domain }}",
+      upstream_port: "{{ kuma_port }}",
+      healthz: true,
+    }
+
+# --- Backups (stay on the VPS; another machine collects them) ---
+kuma_backup_dir: /opt/kuma-backup
+kuma_backup_retention_days: 14
+kuma_backup_cron_hour: "4"
+kuma_backup_cron_minute: "0"

@@ -12,14 +12,21 @@
     state: present
     update_cache: true
 
+# create_home: false — the home path IS the app directory, which the
+# git task below must be able to clone into (it refuses non-empty dirs).
 - name: Create kuma system user
   ansible.builtin.user:
     name: kuma
     system: true
     home: "{{ kuma_dir }}"
+    create_home: false
     shell: /usr/sbin/nologin
 
+# Source is fetched and built as the kuma user, so the whole tree is
+# owned correctly from the start (no recursive chown over node_modules,
+# no git "dubious ownership" conflicts with root).
 - name: Fetch Uptime Kuma source
+  become_user: kuma
   ansible.builtin.git:
     repo: https://github.com/louislam/uptime-kuma.git
     dest: "{{ kuma_dir }}"
@@ -27,20 +34,20 @@
     depth: 1
   register: _kuma_src
 
-- name: Install kuma dependencies
-  ansible.builtin.command: npm ci --omit=dev
+- name: Check for built frontend
+  ansible.builtin.stat:
+    path: "{{ kuma_dir }}/dist/index.html"
+  register: _kuma_dist
+
+# Official setup: npm ci --production + download-dist (prebuilt
+# frontend). Also runs when a previous/killed run left dist missing.
+- name: Install kuma dependencies and frontend
+  become_user: kuma
+  ansible.builtin.command: npm run setup
   args:
     chdir: "{{ kuma_dir }}"
-  when: _kuma_src.changed
-
-# Recursive chown over node_modules is slow — only after source changes.
-- name: Set kuma directory ownership
-  ansible.builtin.file:
-    path: "{{ kuma_dir }}"
-    owner: kuma
-    group: kuma
-    recurse: true
-  when: _kuma_src.changed
+  when: _kuma_src.changed or not _kuma_dist.stat.exists
+  notify: Restart kuma
 
 - name: Ensure kuma data directory exists
   ansible.builtin.file:

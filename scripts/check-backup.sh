@@ -16,7 +16,7 @@ KEY="backup-freshness"
 
 newest=""
 if [ -d "$BACKUP_DIR" ]; then
-    newest=$(find "$BACKUP_DIR" -name 'vpn-backup-*.tar.gz' -type f -printf '%T@\n' 2>/dev/null | sort -rn | head -1)
+    newest=$(find "$BACKUP_DIR" -name '*-backup-*.tar.gz' -type f -printf '%T@\n' 2>/dev/null | sort -rn | head -1)
 fi
 
 if [ -z "$newest" ]; then

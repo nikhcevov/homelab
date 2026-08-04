@@ -1,0 +1,33 @@
+---
+# Backups stay on the VPS (kuma_backup_dir); another machine collects
+# them. The SQLite DB is snapshotted with sqlite3 .backup (safe on a
+# live database), never copied raw.
+
+- name: Install sqlite3
+  ansible.builtin.apt:
+    name: sqlite3
+    state: present
+    update_cache: true
+
+- name: Create backup directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0750"
+  loop:
+    - "{{ kuma_backup_dir }}"
+    - "{{ kuma_backup_dir }}/archives"
+
+- name: Deploy backup script
+  ansible.builtin.template:
+    src: kuma-backup.sh.j2
+    dest: "{{ kuma_backup_dir }}/backup.sh"
+    mode: "0750"
+
+- name: Schedule daily backup
+  ansible.builtin.cron:
+    name: kuma-backup
+    user: root
+    hour: "{{ kuma_backup_cron_hour }}"
+    minute: "{{ kuma_backup_cron_minute }}"
+    job: "{{ kuma_backup_dir }}/backup.sh"

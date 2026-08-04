@@ -4,9 +4,9 @@
 # --- 3x-ui (native, no Docker) ---
 # present = install if missing | latest = (re)install/upgrade |
 # absent = uninstall | reinstalled = uninstall + install
-xui_state: present
+xui_state: latest
 # Pin a version ("v2.8.11") or leave empty for latest.
-xui_version: ""
+xui_version: "v3.6.0"
 # absent: also remove /etc/x-ui (THE DATABASE — clients, keys, stats).
 xui_purge: false
 
@@ -15,7 +15,7 @@ xui_purge: false
 # settings (webPort / subPort) — the backup is authoritative.
 xui_panel_port: 54321
 xui_sub_port: 2096
-xui_reality_port: 2053
+xui_reality_port: 8443
 
 # Built-in 3x-ui fail2ban integration stays disabled (it is a DB
 # setting); the system fail2ban service is used instead.
