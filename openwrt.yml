@@ -1,0 +1,15 @@
+---
+# OpenWrt routers: base system, packages, SSH (dropbear), LAN/DHCP/DNS,
+# firewall, Tailscale. Assumes manual first-boot setup already done
+# (root SSH access from the control machine).
+# Python is bootstrapped via raw by the openwrt_common role.
+- name: Configure OpenWrt routers
+  hosts: routers
+  gather_facts: false
+  roles:
+    - openwrt_common
+    - openwrt_packages
+    - openwrt_ssh
+    - openwrt_network
+    - openwrt_firewall
+    - openwrt_tailscale

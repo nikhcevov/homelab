@@ -1,0 +1,26 @@
+---
+# Harden dropbear: key-only auth, root password login off.
+# Make sure an authorized key actually works before running this —
+# with PasswordAuth off there is no fallback login.
+
+- name: Deploy dropbear config
+  ansible.builtin.template:
+    src: dropbear.j2
+    dest: /etc/config/dropbear
+    mode: "0644"
+    backup: true
+  notify: Reload dropbear
+
+- name: Deploy root authorized_keys
+  ansible.builtin.template:
+    src: authorized_keys.j2
+    dest: /etc/dropbear/authorized_keys
+    mode: "0600"
+  when: ssh_authorized_keys | length > 0
+  notify: Reload dropbear
+
+- name: Ensure dropbear is running and enabled
+  ansible.builtin.service:
+    name: dropbear
+    state: started
+    enabled: true

@@ -1,0 +1,3 @@
+---
+- name: Reload firewall
+  ansible.builtin.command: /etc/init.d/firewall reload

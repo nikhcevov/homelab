@@ -1,0 +1,14 @@
+# Managed by Ansible (role: openwrt_common). Manual changes will be overwritten.
+config system
+	option hostname '{{ owrt_hostname }}'
+	option zonename '{{ owrt_timezone_name }}'
+	option ttylogin '0'
+	option log_size '64'
+	option urandom_seed '0'
+
+config timeserver 'ntp'
+	option enabled '1'
+	option enable_server '0'
+{% for server in owrt_ntp_servers %}
+	list server '{{ server }}'
+{% endfor %}

@@ -1,0 +1,11 @@
+---
+# Firewall (role: openwrt_firewall). Deploys /etc/config/firewall.
+
+# Software flow offloading (NAT acceleration). Requires a firewall4/fw4
+# capable build (OpenWrt 22.03+). Hardware offloading needs device support.
+owrt_flow_offloading: true
+owrt_flow_offloading_hw: false
+
+# Extra allow rules, rendered as `config rule` sections. Example:
+#   - { name: Allow-SSH-WAN, src: wan, proto: tcp, dest_port: 22, target: ACCEPT }
+owrt_firewall_rules: []

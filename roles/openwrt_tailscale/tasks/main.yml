@@ -1,0 +1,68 @@
+---
+# Install and authenticate Tailscale. Mirrors the Debian tailscale role,
+# but installs via apk and uses the OpenWrt init script.
+#
+# Idempotency: `tailscale up` runs only when the backend is NOT in the
+# Running state (fresh node or logged out). An already-authorized node
+# gets its settings reconciled via `tailscale set`, which never touches
+# auth — important because auth keys are usually single-use.
+
+- name: Install tailscale
+  community.general.apk:
+    name:
+      - tailscale
+      - tailscaled
+    state: present
+    update_cache: true
+
+- name: Ensure tailscale is running and enabled
+  ansible.builtin.service:
+    name: tailscale
+    state: started
+    enabled: true
+
+- name: Check tailscale backend state
+  ansible.builtin.command: tailscale status --json
+  register: _tailscale_status
+  changed_when: false
+  failed_when: false
+
+# When the node is not logged in, `tailscale status` exits non-zero and may
+# print plain text instead of JSON — the rc != 0 branch short-circuits the
+# `or`, so from_json never sees that output.
+- name: Authenticate node to the tailnet
+  ansible.builtin.command: >-
+    tailscale up
+    --auth-key={{ tailscale_auth_key }}
+    --hostname={{ tailscale_hostname }}
+    {% if tailscale_advertise_routes | length > 0 %}
+    --advertise-routes={{ tailscale_advertise_routes }}
+    {% endif %}
+  no_log: true
+  when:
+    - tailscale_auth_key | length > 0
+    - _tailscale_status.rc != 0 or
+      (_tailscale_status.stdout | from_json).BackendState != "Running"
+
+- name: Fail when the node is not authenticated and no auth key is set
+  ansible.builtin.fail:
+    msg: >-
+      {{ tailscale_hostname }} is not authenticated to the tailnet and
+      tailscale_auth_key is empty. Set vault_tailscale_auth_key in
+      group_vars/routers/vault.yml or run `tailscale up` manually.
+  when:
+    - tailscale_auth_key | length == 0
+    - _tailscale_status.rc != 0 or
+      (_tailscale_status.stdout | from_json).BackendState != "Running"
+
+# Reconcile settings on an authorized node without re-authenticating.
+# Always reported as ok: `tailscale set` does not tell us what changed.
+- name: Apply tailscale settings (hostname, advertised routes)
+  ansible.builtin.command: >-
+    tailscale set
+    --hostname={{ tailscale_hostname }}
+    --advertise-routes={{ tailscale_advertise_routes }}
+  changed_when: false
+  when:
+    - _tailscale_status.rc == 0
+    - (_tailscale_status.stdout | from_json).BackendState == "Running"

@@ -1,0 +1,23 @@
+---
+# Base system configuration for OpenWrt routers (role: openwrt_common).
+
+# Hostname defaults to the inventory name; override per host in host_vars/.
+owrt_hostname: "{{ inventory_hostname }}"
+
+# IANA zone name. The POSIX `timezone` option is derived from it
+# automatically on `system reload` — no need to set it by hand.
+# Requires the matching zoneinfo-* package (see group_vars/routers/packages.yml).
+owrt_timezone_name: Europe/Moscow
+
+# NTP servers the router syncs against.
+owrt_ntp_servers:
+  - 0.openwrt.pool.ntp.org
+  - 1.openwrt.pool.ntp.org
+  - 2.openwrt.pool.ntp.org
+  - 3.openwrt.pool.ntp.org
+
+# Kernel parameters written to /etc/sysctl.conf (applied with sysctl -p).
+owrt_sysctl:
+  # Conntrack table size — raise on busy routers.
+  - { key: net.netfilter.nf_conntrack_max, value: "65536" }
+  # Do not enable IP forwarding here: the firewall config manages it.

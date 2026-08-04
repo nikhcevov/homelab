@@ -1,0 +1,4 @@
+---
+ssh_dropbear_port: 22
+ssh_dropbear_interface: ""
+ssh_authorized_keys: []

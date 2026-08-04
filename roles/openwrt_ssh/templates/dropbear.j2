@@ -1,0 +1,8 @@
+# Managed by Ansible (role: openwrt_ssh). Manual changes will be overwritten.
+config dropbear
+	option PasswordAuth 'off'
+	option RootPasswordAuth 'off'
+	option Port '{{ ssh_dropbear_port }}'
+{% if ssh_dropbear_interface | length > 0 %}
+	option Interface '{{ ssh_dropbear_interface }}'
+{% endif %}

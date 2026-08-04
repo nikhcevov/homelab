@@ -1,0 +1,15 @@
+---
+# Extra packages via apk (OpenWrt 25.12+ replaced opkg with apk).
+# python3-light is handled by openwrt_common (via raw, before any module
+# can run).
+
+- name: Update apk package lists
+  community.general.apk:
+    update_cache: true
+  when: owrt_packages | length > 0
+
+- name: Install packages
+  community.general.apk:
+    name: "{{ owrt_packages }}"
+    state: present
+  when: owrt_packages | length > 0

@@ -1,0 +1,4 @@
+---
+# Reload (not restart): existing SSH sessions survive a reload.
+- name: Reload dropbear
+  ansible.builtin.command: /etc/init.d/dropbear reload

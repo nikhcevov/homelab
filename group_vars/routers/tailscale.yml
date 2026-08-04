@@ -1,0 +1,15 @@
+---
+# Tailscale mesh VPN (role: openwrt_tailscale).
+# Variable names intentionally match the Debian tailscale role.
+
+# Hostname shown in the tailnet (defaults to the inventory name).
+tailscale_hostname: "{{ inventory_hostname }}"
+
+# Auth key from the vault. Add to group_vars/routers/vault.yml:
+#   vault_tailscale_auth_key: "tskey-auth-..."
+# Leave empty to skip authentication (node already authenticated manually).
+tailscale_auth_key: "{{ vault_tailscale_auth_key | default('') }}"
+
+# Optional: advertise the LAN subnet as an exit of site-to-site routing.
+# Example: "192.168.1.0/24" (must match owrt_lan_*). Empty = disabled.
+tailscale_advertise_routes: ""

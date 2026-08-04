@@ -1,0 +1,40 @@
+---
+# router-alm — per-host overrides. Shared defaults: group_vars/routers/.
+# Anything defined here wins over group_vars.
+
+# --- Identity ---
+# Hostname on the device and in the tailnet (default: inventory name).
+# owrt_hostname: router-alm
+# tailscale_hostname: router-alm
+
+# --- Network ---
+# LAN IP of this router (used by /etc/config/network).
+owrt_lan_ip: 192.168.101.1
+# Non-default LAN size:
+# owrt_lan_netmask: "255.255.255.0"
+# Different hardware -> different DSA port names (`ip link` on the router):
+# owrt_lan_bridge_ports:
+#   - lan1
+#   - lan2
+# WAN behind another ISP router with a static address:
+# owrt_wan_proto: static
+
+# --- Location ---
+owrt_timezone_name: Europe/Moscow
+
+# --- DNS ---
+# Local/regional resolvers, if different from group default:
+owrt_dns_servers:
+  - 1.1.1.1
+  - 8.8.8.8
+# Search domain for this site:
+owrt_dns_domain: alm.home.arpa
+
+# --- Tailscale ---
+# Advertise this site's LAN to the tailnet (matches owrt_lan_*).
+tailscale_advertise_routes: "192.168.101.0/24"
+
+# --- Firewall ---
+# Extra rules only on this router:
+# owrt_firewall_rules:
+#   - { name: Allow-SSH-WAN, src: wan, proto: tcp, dest_port: 22, target: ACCEPT }

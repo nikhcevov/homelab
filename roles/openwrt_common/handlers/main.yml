@@ -1,0 +1,6 @@
+---
+- name: Reload system config
+  ansible.builtin.command: /etc/init.d/system reload
+
+- name: Apply sysctl
+  ansible.builtin.command: sysctl -p /etc/sysctl.conf

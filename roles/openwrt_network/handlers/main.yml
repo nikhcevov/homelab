@@ -1,0 +1,6 @@
+---
+- name: Reload network
+  ansible.builtin.command: /etc/init.d/network reload
+
+- name: Restart dnsmasq
+  ansible.builtin.command: /etc/init.d/dnsmasq restart

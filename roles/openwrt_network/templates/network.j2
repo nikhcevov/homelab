@@ -1,0 +1,34 @@
+# Managed by Ansible (role: openwrt_network). Manual changes will be overwritten.
+config interface 'loopback'
+	option device 'lo'
+	option proto 'static'
+	option ipaddr '127.0.0.1'
+	option netmask '255.0.0.0'
+
+config globals 'globals'
+	option ula_prefix 'fd00:0:0:1::/64'
+
+config device
+	option name 'br-lan'
+	option type 'bridge'
+{% for port in owrt_lan_bridge_ports %}
+	list ports '{{ port }}'
+{% endfor %}
+
+config interface 'lan'
+	option device 'br-lan'
+	option proto 'static'
+	option ipaddr '{{ owrt_lan_ip }}'
+	option netmask '{{ owrt_lan_netmask }}'
+	option ip6assign '60'
+{% for dns in owrt_lan_dns %}
+	list dns '{{ dns }}'
+{% endfor %}
+
+config interface 'wan'
+	option device '{{ owrt_wan_device }}'
+	option proto '{{ owrt_wan_proto }}'
+
+config interface 'wan6'
+	option device '{{ owrt_wan_device }}'
+	option proto 'dhcpv6'

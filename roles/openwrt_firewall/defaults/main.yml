@@ -1,0 +1,4 @@
+---
+owrt_flow_offloading: true
+owrt_flow_offloading_hw: false
+owrt_firewall_rules: []

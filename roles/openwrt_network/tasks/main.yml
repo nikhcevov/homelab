@@ -1,0 +1,24 @@
+---
+# LAN bridge, WAN client, DHCP and DNS (dnsmasq). Deploys whole
+# /etc/config/network and /etc/config/dhcp — manual uci changes there
+# will be overwritten.
+#
+# WARNING: a changed network config triggers a network reload, which
+# can drop your SSH session if you manage the router over the LAN
+# address being changed. Run from the tailnet or console in that case.
+
+- name: Deploy network config
+  ansible.builtin.template:
+    src: network.j2
+    dest: /etc/config/network
+    mode: "0644"
+    backup: true
+  notify: Reload network
+
+- name: Deploy DHCP and DNS config
+  ansible.builtin.template:
+    src: dhcp.j2
+    dest: /etc/config/dhcp
+    mode: "0644"
+    backup: true
+  notify: Restart dnsmasq

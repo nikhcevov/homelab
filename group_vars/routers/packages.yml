@@ -1,0 +1,15 @@
+---
+# Packages installed via apk, OpenWrt 25.12+ (role: openwrt_packages).
+# python3-light is installed earlier via raw by openwrt_common.
+
+owrt_packages:
+  - curl
+  - ca-bundle
+  - htop
+  - tcpdump
+  - nano
+  # Timezone database — needed for zonename to POSIX TZ derivation.
+  # Add zoneinfo-asia / others if you have routers in those regions.
+  - zoneinfo-core
+  - zoneinfo-europe
+  - zoneinfo-asia

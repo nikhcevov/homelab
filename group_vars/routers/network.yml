@@ -1,0 +1,30 @@
+---
+# LAN, DHCP and DNS (role: openwrt_network).
+# Deploys /etc/config/network and /etc/config/dhcp.
+
+# Bridge ports depend on the device (DSA names). Adjust to your hardware:
+#   ip link  # on the router
+owrt_lan_bridge_ports:
+  - lan1
+  - lan2
+  - lan3
+  - lan4
+
+# LAN addressing. owrt_lan_ip is per host (host_vars/), the rest is shared.
+owrt_lan_netmask: "255.255.255.0"
+owrt_lan_dns: "{{ owrt_dns_servers }}"
+
+# WAN side: plain DHCP client.
+owrt_wan_device: wan
+owrt_wan_proto: dhcp
+
+# DHCP pool on LAN.
+owrt_dhcp_start: 100
+owrt_dhcp_limit: 150
+owrt_dhcp_leasetime: 12h
+
+# DNS: upstream resolvers dnsmasq forwards to, and the local domain.
+owrt_dns_servers:
+  - 9.9.9.9 # Quad9 DNS
+  - 149.112.112.112 # Quad9 DNS
+owrt_dns_domain: lan

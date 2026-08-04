@@ -1,0 +1,9 @@
+---
+owrt_hostname: "{{ inventory_hostname }}"
+owrt_timezone_name: Europe/Moscow
+owrt_ntp_servers:
+  - 0.openwrt.pool.ntp.org
+  - 1.openwrt.pool.ntp.org
+  - 2.openwrt.pool.ntp.org
+  - 3.openwrt.pool.ntp.org
+owrt_sysctl: []

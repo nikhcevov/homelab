@@ -7,5 +7,9 @@ tailscale_hostname: vps-proxy
 
 # Auth key from the vault. Add to group_vars/vps/vault.yml:
 #   vault_tailscale_auth_key: "tskey-auth-..."
-# Leave empty to skip authentication (e.g. node already authenticated manually).
+# Runs only while the node is unauthenticated; an authorized node gets its
+# settings reconciled via `tailscale set` without touching auth.
 tailscale_auth_key: "{{ vault_tailscale_auth_key | default('') }}"
+
+# Optional: advertise subnets through this node. Empty = disabled.
+tailscale_advertise_routes: ""

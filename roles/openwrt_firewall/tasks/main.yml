@@ -1,0 +1,11 @@
+---
+# Firewall: stock lan/wan zones + NAT plus software flow offloading,
+# extra rules come from owrt_firewall_rules.
+
+- name: Deploy firewall config
+  ansible.builtin.template:
+    src: firewall.j2
+    dest: /etc/config/firewall
+    mode: "0644"
+    backup: true
+  notify: Reload firewall

@@ -1,0 +1,31 @@
+---
+# router-krm — per-host overrides. Shared defaults: group_vars/routers/.
+# Anything defined here wins over group_vars.
+
+# --- Identity ---
+# Hostname on the device and in the tailnet (default: inventory name).
+# owrt_hostname: router-krm
+# tailscale_hostname: router-krm
+
+# --- Network ---
+# LAN IP of this router (used by /etc/config/network).
+owrt_lan_ip: 192.168.100.1
+# Non-default LAN size:
+# owrt_lan_netmask: "255.255.255.0"
+# Different hardware -> different DSA port names (`ip link` on the router):
+# owrt_lan_bridge_ports:
+#   - lan1
+#   - lan2
+#   - lan3
+#   - lan4
+
+# --- Location ---
+owrt_timezone_name: Europe/Moscow
+
+# --- DNS ---
+# Search domain for this site:
+owrt_dns_domain: krm.home.arpa
+
+# --- Tailscale ---
+# Advertise this site's LAN to the tailnet (matches owrt_lan_*).
+tailscale_advertise_routes: "192.168.100.0/24"
