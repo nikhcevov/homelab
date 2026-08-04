@@ -1,0 +1,16 @@
+---
+# Example vault for the vpn group. Copy to vault.yml and fill in:
+#   cp vault.example.yml vault.yml
+# Real vault.yml is gitignored.
+
+# Management IP of the VPN VPS (used as ansible_host in inventory).
+vault_vpn_ip: "CHANGE_ME"
+
+# Secret URL path fragments for the 3x-ui panel and subscriptions.
+vault_xui_web_base_path: "CHANGE_ME"
+vault_xui_sub_path: "CHANGE_ME"
+
+# ntfy topic names (treat as secrets — anyone knowing the topic can post).
+vault_ntfy_topic_critical: "CHANGE_ME"
+vault_ntfy_topic_alerts: "CHANGE_ME"
+vault_ntfy_topic_info: "CHANGE_ME"

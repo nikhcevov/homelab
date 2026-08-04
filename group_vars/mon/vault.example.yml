@@ -1,0 +1,16 @@
+---
+# Example vault for the mon group. Copy to vault.yml and fill in:
+#   cp vault.example.yml vault.yml
+# Real vault.yml is gitignored.
+
+# Management IP of the monitoring VPS (used as ansible_host in inventory).
+vault_mon_ip: "CHANGE_ME"
+
+# IPs of the other hosts — mon-1 watches them (health checks, backups).
+vault_vps_ip: "CHANGE_ME"
+vault_vpn_ip: "CHANGE_ME"
+
+# ntfy topic names (treat as secrets — anyone knowing the topic can post).
+vault_ntfy_topic_critical: "CHANGE_ME"
+vault_ntfy_topic_alerts: "CHANGE_ME"
+vault_ntfy_topic_info: "CHANGE_ME"

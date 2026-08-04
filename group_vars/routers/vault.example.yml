@@ -1,0 +1,14 @@
+---
+# Example vault for the routers group. Copy to vault.yml and fill in:
+#   cp vault.example.yml vault.yml
+# Real vault.yml is gitignored.
+
+# Management IPs of the routers (used as ansible_host in inventory).
+# LAN IPs are fine; switch to tailnet names once Tailscale is up.
+vault_router_alm_ip: "CHANGE_ME"
+vault_router_krm_ip: "CHANGE_ME"
+
+# Tailscale auth key: https://login.tailscale.com/admin/settings/keys
+# Use a reusable, tagged key — routers re-authenticate only while logged
+# out, but a fresh flash needs a working key.
+vault_tailscale_auth_key: "tskey-auth-CHANGE_ME"

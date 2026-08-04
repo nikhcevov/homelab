@@ -293,21 +293,24 @@ The VPS IP comes from the vault, so a public repo never reveals it.
 
 In Git: templates, roles, inventory, playbooks, service/domain lists.
 
-**Never** in Git: SSH private keys, API tokens, Tailscale auth keys, passwords. All secrets live in `group_vars/vps/vault.yml`, encrypted with ansible-vault.
-
-| Vault var                  | Used in                        | Why                                             |
-| -------------------------- | ------------------------------ | ----------------------------------------------- |
-| `vault_ntfy_topic_*`       | `group_vars/*/monitoring.yml`  | ntfy topic name = password (read + post access) |
-| `vault_vps_ip`             | `inventory/hosts.ini`          | keeps the VPS off scanner radars                |
-| `vault_tailscale_auth_key` | `group_vars/vps/tailscale.yml` | tailnet join credential                         |
-
-Plaintext files reference them as `{{ vault_* }}`, so playbooks run transparently once the vault password is configured. Secret-bearing tasks use `no_log`, so values never appear in Ansible output.
+**Never** in Git: SSH private keys, API tokens, Tailscale auth keys, passwords. All secrets live in `group_vars/*/vault.yml` — plaintext, but gitignored (`group_vars/*/vault.yml` in `.gitignore`). Each group ships a `vault.example.yml`; copy it and fill in:
 
 ```bash
-ansible-vault edit group_vars/vps/vault.yml
+cp group_vars/vps/vault.example.yml group_vars/vps/vault.yml
+# edit, done — no encryption step needed
 ```
 
-Sanity check before pushing: `head -1 group_vars/vps/vault.yml` must start with `$ANSIBLE_VAULT;`.
+| Vault var                  | Used in                       | Why                                             |
+| -------------------------- | ----------------------------- | ----------------------------------------------- |
+| `vault_ntfy_topic_*`       | `group_vars/*/monitoring.yml` | ntfy topic name = password (read + post access) |
+| `vault_vps_ip`             | `inventory/hosts.ini`         | keeps the VPS off scanner radars                |
+| `vault_tailscale_auth_key` | `group_vars/*/tailscale.yml`  | tailnet join credential                         |
+
+Plaintext files reference them as `{{ vault_* }}`, so playbooks run transparently. Secret-bearing tasks use `no_log`, so values never appear in Ansible output.
+
+Since the vaults are no longer encrypted in Git, **back them up yourself** (password manager, encrypted disk image) — and keep `.vault_pass` around only if you still have old encrypted vaults to decrypt.
+
+Sanity check before pushing: `git status` must not list any `vault.yml`.
 
 The Tailscale auth key can be left empty — authentication is then skipped (useful if the node was joined manually or uses an ephemeral-key-free flow).
 
@@ -505,6 +508,38 @@ Kuma pushes alerts to the same ntfy topics (configured once in the Kuma UI).
 - Kuma's monitors and settings live in its SQLite DB (`/opt/uptime-kuma/data`) — managed via the UI, not from Git. The `kuma_backup` role snapshots it nightly to `/opt/kuma-backup/archives` (same pattern as `vpn_backup`, cron at 04:00); the freshness check watches that dir.
 - Restore: stop kuma, extract the archive into `/`, `chown kuma:kuma /opt/uptime-kuma/data/kuma.db`, start kuma. The Caddyfile and LE certificates are in the same archive.
 - The host also watches itself via the cron checks (`caddy kuma fail2ban cron ssh`, own `/healthz`). No cron cross-checks between hosts — external watching of every host is Uptime Kuma's job alone (single watcher, minimal coupling).
+
+---
+
+## OpenWrt routers
+
+Multiple OpenWrt routers (`routers` inventory group), identical config, managed end-to-end by `openwrt.yml`. First boot is manual: flash OpenWrt, set a root password, make SSH reachable from the control machine. Everything after that is Ansible-only.
+
+### Deploy
+
+1. Put the router IPs into `group_vars/routers/vault.yml` (`ansible-vault edit group_vars/routers/vault.yml`): `vault_router_alm_ip`, `vault_router_krm_ip`, plus `vault_tailscale_auth_key`.
+2. Drop your public key into `files/ssh/personal.pub` (referenced by `ssh_authorized_keys` in `group_vars/routers/ssh.yml`).
+3. Check `owrt_lan_bridge_ports` in `group_vars/routers/network.yml` against the hardware (`ip link` on the router — DSA port names vary).
+4. `ansible-playbook openwrt.yml`
+
+### Roles
+
+| Role              | Configures                                                                  |
+| ----------------- | --------------------------------------------------------------------------- |
+| openwrt_common    | python3-light bootstrap (via `raw`), hostname, timezone, NTP, sysctl        |
+| openwrt_packages  | extra apk packages (`owrt_packages`)                                        |
+| openwrt_ssh       | dropbear (key-only auth), root `authorized_keys`                            |
+| openwrt_network   | `/etc/config/network` (LAN bridge, WAN) and `/etc/config/dhcp` (DHCP + DNS) |
+| openwrt_firewall  | `/etc/config/firewall`, software flow offloading, extra rules               |
+| openwrt_tailscale | tailscale via apk, tailnet auth (same var names as the Debian role)         |
+
+Notes:
+
+- The play starts with `gather_facts: false` because a fresh router has no Python; `openwrt_common` installs `python3-light` via `raw` (apk, OpenWrt 25.12+) and then gathers facts explicitly.
+- Config is authoritative: the roles deploy whole `/etc/config/*` files, so manual `uci` edits on the router get overwritten.
+- Per-host differences (LAN IP, hostname override) live in `host_vars/router-*.yml`; hostname and tailscale name default to the inventory name.
+- Changing `owrt_lan_ip` reloads the network and drops a LAN-based SSH session mid-run — manage over the tailnet when changing addressing.
+- Monitoring of the routers is not wired yet (decide: Uptime Kuma on mon-1 vs local checks).
 
 ---
 
