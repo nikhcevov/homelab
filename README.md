@@ -95,9 +95,9 @@ Layers depend on each other left to right (proxy needs tailnet DNS; monitoring e
 │       ├── security.yml            ufw rules, fail2ban policy
 │       ├── tailscale.yml           tailscale hostname, auth key ref
 │       ├── monitoring.yml          monitoring settings (checks, thresholds)
-│       └── vault.yml               SECRETS (plaintext, gitignored — not in the repo)
+│       └── vault.yml               SECRETS (ansible-vault inline values, committed)
 ├── vars/
-│   └── proxy.yml                   THE single source of truth for routing
+│   └── proxy.yml                   routing map (gitignored; ship proxy.example.yml)
 ├── roles/
 │   ├── common/                     base system bootstrap
 │   ├── ssh/                        sshd drop-in hardening (validated by sshd -t)
@@ -137,10 +137,13 @@ Layers depend on each other left to right (proxy needs tailnet DNS; monitoring e
 ansible-galaxy collection install -r requirements.yml
 
 # 2. add secrets (see "Secrets" below)
-cp group_vars/vps/vault.example.yml group_vars/vps/vault.yml
 $EDITOR group_vars/vps/vault.yml
+# encrypt each secret value inline:
+ansible-vault encrypt_string 'the-secret' --name vault_vps_ip   # paste block into vault.yml
 
-# 3. review group_vars/vps/*.yml and vars/proxy.yml
+# 3. review group_vars/vps/*.yml, then create the routing config
+cp vars/proxy.example.yml vars/proxy.yml
+$EDITOR vars/proxy.yml
 
 # 4. deploy
 ansible-playbook site.yml
@@ -180,7 +183,7 @@ services:
       - paperless.example.com
       - nextcloud.example.com
     upstream:
-      host: great-hornbill.tailnet-name.ts.net
+      host: unraid.tailnet-name.ts.net
       port: 443
 
   homeassistant:
@@ -188,7 +191,7 @@ services:
     sni:
       - ha.example.com
     upstream:
-      host: ha-krm.tailnet-name.ts.net
+      host: homeassistant.tailnet-name.ts.net
       port: 443
 ```
 
@@ -278,13 +281,13 @@ Bootstrap runs as root. To move daily management to a sudo user:
 
 ```ini
 [vps]
-edge ansible_host="{{ vault_vps_ip }}" ansible_user=root
+edge ansible_host=203.0.113.10 ansible_user=root
 
 [vps:vars]
 ansible_python_interpreter=/usr/bin/python3
 ```
 
-The VPS IP comes from the vault, so a public repo never reveals it.
+Host IPs come from the vault (`{{ vault_*_ip }}`), so a public repo never reveals them.
 
 ---
 
@@ -292,24 +295,28 @@ The VPS IP comes from the vault, so a public repo never reveals it.
 
 In Git: templates, roles, inventory, playbooks, service/domain lists.
 
-**Never** in Git: SSH private keys, API tokens, Tailscale auth keys, passwords. All secrets live in `group_vars/*/vault.yml` — plaintext, but gitignored (`group_vars/*/vault.yml` in `.gitignore`). Each group ships a `vault.example.yml`; copy it and fill in:
+**Never** in Git as plaintext: SSH private keys, API tokens, Tailscale auth keys, passwords, real domains and host IPs. Secrets live in `group_vars/*/vault.yml` (shared ones in `group_vars/all/vault.yml`) as inline `!vault` blocks (`ansible-vault encrypt_string`) — keys and comments stay readable in diffs, values are ciphertext, and Ansible decrypts natively (no plugins). The real routing map `vars/proxy.yml` stays plaintext-gitignored (config, not credentials; copy `vars/proxy.example.yml`). To add or change a secret value:
 
 ```bash
-cp group_vars/vps/vault.example.yml group_vars/vps/vault.yml
-# edit, done — no encryption step needed
+ansible-vault encrypt_string 'the-secret' --name vault_vps_ip
+# paste the printed block into group_vars/vps/vault.yml, replacing the old one
 ```
 
-| Vault var                  | Used in                       | Why                                             |
-| -------------------------- | ----------------------------- | ----------------------------------------------- |
-| `vault_ntfy_topic_*`       | `group_vars/*/monitoring.yml` | ntfy topic name = password (read + post access) |
-| `vault_vps_ip`             | `inventory/hosts.ini`         | keeps the VPS off scanner radars                |
-| `vault_tailscale_auth_key` | `group_vars/*/tailscale.yml`  | tailnet join credential                         |
+The vault password lives in `.vault_pass` in the repo dir (gitignored, referenced by `vault_password_file` in `ansible.cfg`) — back it up into your password manager; losing it means losing all secrets.
+
+| Vault var                  | Used in                         | Why                                             |
+| -------------------------- | ------------------------------- | ----------------------------------------------- |
+| `vault_*_ip`               | `inventory/hosts.ini`           | keeps host IPs out of the public repo           |
+| `vault_*_domain`           | `group_vars/mon, vpn`           | keeps real domains out of the public repo       |
+| `vault_ntfy_topic_*`       | `group_vars/all/monitoring.yml` | ntfy topic name = password (read + post access) |
+| `vault_xui_*_path`         | `group_vars/vpn/monitoring.yml` | secret URL paths of the 3x-ui panel             |
+| `vault_tailscale_auth_key` | `group_vars/*/tailscale.yml`    | tailnet join credential                         |
 
 Plaintext files reference them as `{{ vault_* }}`, so playbooks run transparently. Secret-bearing tasks use `no_log`, so values never appear in Ansible output.
 
-The vaults are plaintext and gitignored, so **back them up yourself** (password manager, encrypted disk image).
+The encrypted vaults travel with the repo, so no separate secret backup is needed — just keep the vault password (`.vault_pass`, gitignored) in your password manager.
 
-Sanity check before pushing: `git status` must not list any `vault.yml`.
+Sanity check before pushing: `git grep -c '!vault' group_vars/` must show every secret value encrypted.
 
 The Tailscale auth key can be left empty — authentication is then skipped (useful if the node was joined manually or uses an ephemeral-key-free flow).
 
@@ -459,7 +466,7 @@ Backups stay on the VPS; another machine collects them.
 
 ### Restore (fresh VPS)
 
-1. Provision VPS, put its IP into `vault_vpn_ip` (`group_vars/vpn/vault.yml`).
+1. Provision VPS, put its IP into `inventory/hosts.ini` (group `[vpn]`).
 2. `ansible-playbook vpn.yml`
 3. `ansible-playbook vpn-restore.yml -e vpn_restore_archive=/path/to/vpn-backup-*.tar.gz`
 
@@ -496,10 +503,10 @@ Kuma pushes alerts to the same ntfy topics (configured once in the Kuma UI).
 
 ### Deploy
 
-1. Provision VPS (Debian 13 / Ubuntu 24.04), put its IP into `vault_mon_ip` (`group_vars/mon/vault.yml`).
-2. DNS: A record for `kuma.example.com` (or change `kuma_domain` in `group_vars/mon/mon.yml`).
+1. Provision VPS (Debian 13 / Ubuntu 24.04), put its IP into `inventory/hosts.ini` (group `[mon]`).
+2. DNS: A record for your Kuma domain (`vault_kuma_domain` in `group_vars/mon/vault.yml`).
 3. `ansible-playbook mon.yml`
-4. Open `https://kuma.example.com`, create the admin account, add monitors (edge :443/:25565, vpn panel/sub URLs, Reality :2053) and the ntfy notification channel (topics are in the vault).
+4. Open `https://<kuma-domain>`, create the admin account, add monitors (edge :443/:25565, vpn panel/sub URLs, Reality :2053) and the ntfy notification channel (topics are in the vault).
 
 ### Notes
 
@@ -516,7 +523,7 @@ Multiple OpenWrt routers (`routers` inventory group), identical config, managed 
 
 ### Deploy
 
-1. Put the router IPs into `group_vars/routers/vault.yml` (`ansible-vault edit group_vars/routers/vault.yml`): `vault_router_alm_ip`, `vault_router_krm_ip`, plus `vault_tailscale_auth_key`.
+1. Put the router IPs into `inventory/hosts.ini` (group `[routers]`; `192.168.1.1` for a fresh flash) and the auth key into `group_vars/routers/vault.yml` (`vault_tailscale_auth_key`).
 2. Drop your public key into `files/ssh/personal.pub` (referenced by `ssh_authorized_keys` in `group_vars/routers/ssh.yml`).
 3. Check `owrt_lan_bridge_ports` in `group_vars/routers/network.yml` against the hardware (`ip link` on the router — DSA port names vary).
 4. `ansible-playbook openwrt.yml`

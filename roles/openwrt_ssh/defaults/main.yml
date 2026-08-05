@@ -1,4 +1,4 @@
 ---
-ssh_dropbear_port: 22
-ssh_dropbear_interface: ""
+# Guard defaults only (protect against undefined). Real configuration
+# lives in group_vars/routers/ssh.yml.
 ssh_authorized_keys: []

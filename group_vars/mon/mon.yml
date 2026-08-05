@@ -7,7 +7,7 @@
 kuma_version: "2.4.0"
 kuma_dir: /opt/uptime-kuma
 kuma_port: 3001
-kuma_domain: kuma.example.com
+kuma_domain: "{{ vault_kuma_domain }}"
 
 # --- Caddy ---
 caddy_acme_email: ""

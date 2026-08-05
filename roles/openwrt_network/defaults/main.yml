@@ -1,17 +1,3 @@
 ---
-owrt_lan_bridge_ports:
-  - lan1
-  - lan2
-  - lan3
-  - lan4
-owrt_lan_netmask: "255.255.255.0"
-owrt_wan_device: wan
-owrt_wan_proto: dhcp
-owrt_dhcp_start: 100
-owrt_dhcp_limit: 150
-owrt_dhcp_leasetime: 12h
-owrt_dns_servers:
-  - 1.1.1.1
-  - 8.8.8.8
-owrt_dns_domain: lan
-# owrt_lan_ip has no default — set it per host in host_vars/.
+# No defaults on purpose: real configuration lives in
+# group_vars/routers/network.yml, owrt_lan_ip in host_vars/<router>.yml.

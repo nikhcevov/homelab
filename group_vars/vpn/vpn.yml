@@ -23,8 +23,8 @@ xui_reality_port: 8443
 # --- Caddy ---
 # HTTPS + Let's Encrypt + reverse proxy only. No Reality traffic here.
 caddy_acme_email: "" # optional but recommended (expiry notices)
-caddy_panel_domain: panel.example.com
-caddy_sub_domain: sub.example.com
+caddy_panel_domain: "{{ vault_panel_domain }}"
+caddy_sub_domain: "{{ vault_sub_domain }}"
 caddy_sites:
   - {
       domain: "{{ caddy_panel_domain }}",

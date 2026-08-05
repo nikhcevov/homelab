@@ -1,0 +1,8 @@
+---
+# Monitoring settings shared by all monitored hosts (vps, vpn, mon).
+# Per-host checks live in group_vars/<group>/monitoring.yml.
+
+ntfy_url: "https://ntfy.sh"
+ntfy_topic_critical: "{{ vault_ntfy_topic_critical }}"
+ntfy_topic_alerts: "{{ vault_ntfy_topic_alerts }}"
+ntfy_topic_info: "{{ vault_ntfy_topic_info }}"

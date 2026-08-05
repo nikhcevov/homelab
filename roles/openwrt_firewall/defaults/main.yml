@@ -1,4 +1,4 @@
 ---
-owrt_flow_offloading: true
-owrt_flow_offloading_hw: false
+# Guard defaults only (protect against undefined). Real configuration
+# lives in group_vars/routers/firewall.yml.
 owrt_firewall_rules: []

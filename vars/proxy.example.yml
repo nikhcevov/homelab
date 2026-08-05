@@ -1,0 +1,67 @@
+---
+# Single source of truth for the VPS stream proxy.
+# This is the ONLY file you edit to add/remove services.
+# Copy to vars/proxy.yml and fill in your services:
+#   cp vars/proxy.example.yml vars/proxy.yml
+# Real vars/proxy.yml is gitignored (contains your domains/tailnet names).
+# Apply with: ansible-playbook site.yml
+#
+# Service schema:
+#   listen:    port nginx listens on (required)
+#   protocol:  tcp (default) or udp
+#   sni:       list of TLS SNI hostnames routed to this service (tcp only).
+#              Services sharing a listen port must ALL use SNI — they are
+#              routed via ssl_preread without terminating TLS.
+#   default:   true -> catch-all backend for unknown SNI on this listener
+#              (if none is marked, the first service on the port wins)
+#   upstream:  one backend (map) or a list of backends:
+#     host:      MagicDNS name (never raw tailscale IPs)
+#     port:      backend port
+#     backup:    true -> nginx backup server (optional)
+#     weight:    nginx weight for load balancing (optional)
+#     max_fails: nginx max_fails (optional)
+services:
+  unraid:
+    listen: 443
+    default: true
+    sni:
+      - immich.example.com
+      - jellyfin.example.com
+      - paperless.example.com
+      - nextcloud.example.com
+    upstream:
+      host: unraid.tailnet-name.ts.net
+      port: 443
+
+  homeassistant:
+    listen: 443
+    sni:
+      - ha.example.com
+    upstream:
+      host: homeassistant.tailnet-name.ts.net
+      port: 443
+
+  # Plain TCP forward (no SNI) — one service per listen port:
+  minecraft:
+    listen: 25565
+    upstream:
+      host: unraid.tailnet-name.ts.net
+      port: 25565
+
+  # UDP forward:
+  voicechat:
+    listen: 24454
+    protocol: udp
+    upstream:
+      host: unraid.tailnet-name.ts.net
+      port: 24454
+
+  # Load-balanced / backup backends:
+  # app:
+  #   listen: 8443
+  #   upstream:
+  #     - host: server1.tailnet.ts.net
+  #       port: 443
+  #     - host: server2.tailnet.ts.net
+  #       port: 443
+  #       backup: true

@@ -1,0 +1,3 @@
+# Values encrypted with ansible-vault. To change a value:
+#   ansible-vault encrypt_string 'new-value' --name <key>
+vault_tailscale_auth_key: "tskey-auth-CHANGE_ME"
