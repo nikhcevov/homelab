@@ -1,0 +1,51 @@
+---
+# Apply pending updates on OpenWrt routers. Complements the notify-only
+# checks (role openwrt_upgrades): those tell you updates exist via ntfy,
+# this playbook actually applies them.
+#
+# Usage:
+#   ansible-playbook openwrt-upgrade.yml [--limit router-alm]
+#     # apk packages only
+#   ansible-playbook openwrt-upgrade.yml -e owrt_firmware_upgrade=true
+#     # + firmware via owut; the router REBOOTS and the SSH session drops
+- name: Upgrade OpenWrt routers
+  hosts: routers
+  gather_facts: false
+  tasks:
+    - name: Upgrade all apk packages
+      community.general.apk:
+        update_cache: true
+        upgrade: true
+
+    - name: Firmware update (opt-in via -e owrt_firmware_upgrade=true)
+      when: owrt_firmware_upgrade | default(false) | bool
+      block:
+        - name: Check for firmware update
+          ansible.builtin.command: owut check
+          register: _owut_check
+          changed_when: false
+
+        - name: Parse available firmware versions
+          ansible.builtin.set_fact:
+            # NOTE: single-quoted Jinja strings only — ansible's templating
+            # does not unescape \\ inside double-quoted Jinja strings, which
+            # silently breaks the regex (no match -> None).
+            _v_from: >-
+              {{ _owut_check.stdout | regex_search('(?m)^Version-from\s+(\S+)', '\1') | first | default('') }}
+            _v_to: >-
+              {{ _owut_check.stdout | regex_search('(?m)^Version-to\s+(\S+)', '\1') | first | default('') }}
+
+        - name: Install firmware update (router reboots mid-task)
+          ansible.builtin.command: owut upgrade
+          # Fire and forget: owut ends in sysupgrade, which cuts the SSH
+          # connection before the module can report back.
+          async: 3600
+          poll: 0
+          when: _v_to != '' and _v_to != _v_from
+
+        - name: Report firmware status
+          ansible.builtin.debug:
+            msg: >-
+              {{ 'Firmware update to ' + _v_to + ' started, the router is rebooting'
+                 if _v_to != '' and _v_to != _v_from
+                 else 'Firmware already up to date' }}

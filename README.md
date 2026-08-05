@@ -528,6 +528,13 @@ Multiple OpenWrt routers (`routers` inventory group), identical config, managed 
 3. Check `owrt_lan_bridge_ports` in `group_vars/routers/network.yml` against the hardware (`ip link` on the router — DSA port names vary).
 4. `ansible-playbook openwrt.yml`
 
+### Upgrades
+
+Daily checks are notify-only (role `openwrt_upgrades` -> ntfy). To apply:
+
+- `ansible-playbook openwrt-upgrade.yml` — upgrade all apk packages
+- `ansible-playbook openwrt-upgrade.yml -e owrt_firmware_upgrade=true` — plus firmware via `owut` (ASU image with your packages baked in). The router **reboots**; the play fires the upgrade async and returns immediately. Re-run `openwrt.yml` afterwards if configs drifted.
+
 ### Roles
 
 | Role              | Configures                                                                                        |
