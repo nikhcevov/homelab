@@ -28,3 +28,9 @@ owrt_dns_servers:
   - 9.9.9.9 # Quad9 DNS
   - 149.112.112.112 # Quad9 DNS
 owrt_dns_domain: lan
+
+# dnsmasq drops queries from non-local subnets at application level
+# (localservice). That blocks DNS over the tailnet subnet route — sources
+# are in 100.64.0.0/10. The firewall zones already gate who can reach
+# dnsmasq at all (wan input REJECT), so the app-level check is redundant.
+owrt_dns_localservice: false
