@@ -1,0 +1,101 @@
+#!/bin/sh
+# Managed by Ansible (role: openwrt_upgrades). Manual changes will be overwritten.
+# Notify-only update check: apk package upgrades + owut firmware check -> ntfy.
+# Applies nothing; re-run openwrt.yml or `owut upgrade` to actually update.
+
+set -u
+
+ENV_FILE=/etc/homelab-update-check.env
+STATE_DIR=/root/.update-check
+
+# shellcheck source=/dev/null
+. "$ENV_FILE"
+mkdir -p "$STATE_DIR"
+
+send_ntfy() {
+	# $1 title  $2 tags  $3 message
+	curl --fail --silent --show-error --max-time 10 --retry 2 \
+		-H "Title: $HOST_PREFIX $1" \
+		-H "Priority: high" \
+		-H "Tags: $2" \
+		-d "$3" \
+		"${NTFY_URL%/}/$NTFY_TOPIC_ALERTS" >/dev/null
+}
+
+# Notify only when the signature for a key changes; clears are explicit.
+notify_transition() {
+	_key=$1
+	_signature=$2
+	_title=$3
+	_tags=$4
+	_message=$5
+
+	_file="$STATE_DIR/$_key"
+	_prev=""
+	[ -f "$_file" ] && _prev=$(cat "$_file")
+
+	[ "$_prev" = "$_signature" ] && return 0
+
+	send_ntfy "$_title" "$_tags" "$_message" || return 1
+	echo "$_signature" >"$_file"
+}
+
+clear_state() {
+	rm -f "$STATE_DIR/$1"
+}
+
+HOSTNAME=$(cat /proc/sys/kernel/hostname)
+
+# --- apk package updates ---
+if ! apk update >/dev/null 2>&1; then
+	notify_transition "apk-update-failed" "failed" \
+		"apk update failed" "warning,package" \
+		"❌ apk update failed on $HOSTNAME"
+	exit 1
+fi
+clear_state "apk-update-failed"
+
+UPGRADABLE=$(apk list -u 2>/dev/null | awk '{print $1}')
+TOTAL=$(printf '%s\n' "$UPGRADABLE" | sed '/^$/d' | wc -l | tr -d ' ')
+
+if [ "$TOTAL" -eq 0 ]; then
+	clear_state "apk-updates"
+else
+	SIGNATURE=$(printf '%s\n' "$UPGRADABLE" | md5sum | awk '{print $1}')
+	LIST=$(printf '%s\n' "$UPGRADABLE" | head -20)
+	notify_transition "apk-updates" "$SIGNATURE" \
+		"Updates available" "warning,update" \
+		"📦 Updates available
+
+Host: $HOSTNAME
+Packages: $TOTAL
+
+$LIST"
+fi
+
+# --- firmware update (owut / ASU) ---
+if [ "$OWRT_OWUT_CHECK" = "1" ]; then
+	OWUT_OUT=$(owut check 2>&1)
+	if [ $? -ne 0 ]; then
+		notify_transition "owut-failed" "failed" \
+			"owut check failed" "warning,package" \
+			"❌ owut check failed on $HOSTNAME"
+	else
+		clear_state "owut-failed"
+		VERSION_FROM=$(printf '%s\n' "$OWUT_OUT" | awk '/^Version-from/ {print $2}')
+		VERSION_TO=$(printf '%s\n' "$OWUT_OUT" | awk '/^Version-to/ {print $2}')
+		if [ -n "$VERSION_TO" ] && [ "$VERSION_TO" != "$VERSION_FROM" ]; then
+			notify_transition "firmware-update" "$VERSION_FROM-$VERSION_TO" \
+				"Firmware update available" "warning,arrow_up" \
+				"⬆️ Firmware update available
+
+Host: $HOSTNAME
+Current: $VERSION_FROM
+Available: $VERSION_TO
+
+Apply with: owut upgrade"
+		else
+			clear_state "firmware-update"
+		fi
+	fi
+fi

@@ -1,0 +1,13 @@
+---
+# Update checks (role: openwrt_upgrades). Notify-only via ntfy: nothing
+# is installed automatically, you apply updates by re-running openwrt.yml
+# (packages) or `owut upgrade` on the router (firmware).
+
+# Master switch; false removes the role from the play.
+owrt_update_check: true
+
+# Cron schedule (BusyBox crond reads /etc/crontabs/root).
+owrt_update_check_schedule: "0 10 * * *"
+
+# Firmware check via owut (ASU). The owut package is installed when true.
+owrt_owut_check: true

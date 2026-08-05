@@ -13,3 +13,5 @@
     - openwrt_network
     - openwrt_firewall
     - openwrt_tailscale
+    - role: openwrt_upgrades
+      when: owrt_update_check | bool

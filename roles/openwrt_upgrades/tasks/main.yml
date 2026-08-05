@@ -1,0 +1,39 @@
+---
+# Notify-only update checks: a daily cron script reports available apk
+# package upgrades and owut firmware updates to ntfy. Installs nothing.
+
+- name: Install owut (ASU firmware check tool)
+  community.general.apk:
+    name: owut
+    state: present
+    update_cache: true
+  when: owrt_owut_check | bool
+
+- name: Deploy update check env file
+  ansible.builtin.template:
+    src: env.j2
+    dest: /etc/homelab-update-check.env
+    mode: "0600"
+  no_log: true
+
+- name: Deploy update check script
+  ansible.builtin.template:
+    src: update-check.sh.j2
+    dest: /usr/sbin/homelab-update-check
+    mode: "0755"
+
+- name: Add update check to root crontab
+  ansible.builtin.blockinfile:
+    path: /etc/crontabs/root
+    create: true
+    mode: "0600"
+    marker: "# {mark} ANSIBLE MANAGED — openwrt_upgrades"
+    block: |
+      {{ owrt_update_check_schedule }} /usr/sbin/homelab-update-check
+  notify: Restart cron
+
+- name: Ensure cron is running and enabled
+  ansible.builtin.service:
+    name: cron
+    state: started
+    enabled: true
