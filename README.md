@@ -95,7 +95,7 @@ Layers depend on each other left to right (proxy needs tailnet DNS; monitoring e
 │       ├── security.yml            ufw rules, fail2ban policy
 │       ├── tailscale.yml           tailscale hostname, auth key ref
 │       ├── monitoring.yml          monitoring settings (checks, thresholds)
-│       └── vault.yml               SECRETS (ansible-vault encrypted)
+│       └── vault.yml               SECRETS (plaintext, gitignored — not in the repo)
 ├── vars/
 │   └── proxy.yml                   THE single source of truth for routing
 ├── roles/
@@ -133,13 +133,12 @@ Layers depend on each other left to right (proxy needs tailnet DNS; monitoring e
 ## First run (new VPS)
 
 ```bash
-# 1. one-time: collections + vault password (store it OUTSIDE the repo)
+# 1. one-time: collections
 ansible-galaxy collection install -r requirements.yml
-echo 'your-vault-password' > ~/.vault_pass_homelab && chmod 600 ~/.vault_pass_homelab
-#    then point vault_password_file in ansible.cfg at it
 
 # 2. add secrets (see "Secrets" below)
-ansible-vault edit group_vars/vps/vault.yml
+cp group_vars/vps/vault.example.yml group_vars/vps/vault.yml
+$EDITOR group_vars/vps/vault.yml
 
 # 3. review group_vars/vps/*.yml and vars/proxy.yml
 
@@ -308,7 +307,7 @@ cp group_vars/vps/vault.example.yml group_vars/vps/vault.yml
 
 Plaintext files reference them as `{{ vault_* }}`, so playbooks run transparently. Secret-bearing tasks use `no_log`, so values never appear in Ansible output.
 
-Since the vaults are no longer encrypted in Git, **back them up yourself** (password manager, encrypted disk image) — and keep `.vault_pass` around only if you still have old encrypted vaults to decrypt.
+The vaults are plaintext and gitignored, so **back them up yourself** (password manager, encrypted disk image).
 
 Sanity check before pushing: `git status` must not list any `vault.yml`.
 
@@ -460,7 +459,7 @@ Backups stay on the VPS; another machine collects them.
 
 ### Restore (fresh VPS)
 
-1. Provision VPS, put its IP into `vault_vpn_ip` (`ansible-vault edit group_vars/vpn/vault.yml`).
+1. Provision VPS, put its IP into `vault_vpn_ip` (`group_vars/vpn/vault.yml`).
 2. `ansible-playbook vpn.yml`
 3. `ansible-playbook vpn-restore.yml -e vpn_restore_archive=/path/to/vpn-backup-*.tar.gz`
 
@@ -497,7 +496,7 @@ Kuma pushes alerts to the same ntfy topics (configured once in the Kuma UI).
 
 ### Deploy
 
-1. Provision VPS (Debian 13 / Ubuntu 24.04), put its IP into `vault_mon_ip` (`ansible-vault edit group_vars/mon/vault.yml`).
+1. Provision VPS (Debian 13 / Ubuntu 24.04), put its IP into `vault_mon_ip` (`group_vars/mon/vault.yml`).
 2. DNS: A record for `kuma.example.com` (or change `kuma_domain` in `group_vars/mon/mon.yml`).
 3. `ansible-playbook mon.yml`
 4. Open `https://kuma.example.com`, create the admin account, add monitors (edge :443/:25565, vpn panel/sub URLs, Reality :2053) and the ntfy notification channel (topics are in the vault).
