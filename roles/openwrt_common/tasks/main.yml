@@ -2,13 +2,15 @@
 # Base system for a fresh OpenWrt router: Python bootstrap (Ansible modules
 # need it), hostname, timezone, NTP, sysctl.
 
-# Chicken-and-egg: python3-light is not installed yet, so no Ansible module
+# Chicken-and-egg: python is not installed yet, so no Ansible module
 # works. Install it via raw (OpenWrt 25.12+ uses apk); later runs see it
-# present and skip apk update.
-- name: Bootstrap python3-light
+# present and skip apk update. Full python3, not python3-light: the light
+# build strips stdlib modules ansible needs (encodings.idna, decimal).
+# The import check doubles as the "already bootstrapped" probe.
+- name: Bootstrap python3
   ansible.builtin.raw: >-
-    sh -c 'command -v python3 >/dev/null 2>&1 && echo present ||
-    (apk update >/dev/null && apk add python3-light >/dev/null && echo installed)'
+    sh -c 'python3 -c "import decimal, encodings.idna" >/dev/null 2>&1 && echo present ||
+    (apk update >/dev/null && apk add python3 >/dev/null && echo installed)'
   register: _owrt_python
   changed_when: "'installed' in _owrt_python.stdout"
   failed_when: _owrt_python.rc != 0 and 'present' not in _owrt_python.stdout

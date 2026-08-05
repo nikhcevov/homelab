@@ -9,4 +9,4 @@ ssh_dropbear_interface: "lan"
 # Public key files from files/ssh/ authorized for root.
 # Public keys are NOT secrets, they belong in Git.
 ssh_authorized_keys:
-  - personal.pub
+  - starling.pub

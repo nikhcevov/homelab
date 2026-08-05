@@ -532,7 +532,7 @@ Multiple OpenWrt routers (`routers` inventory group), identical config, managed 
 
 | Role              | Configures                                                                  |
 | ----------------- | --------------------------------------------------------------------------- |
-| openwrt_common    | python3-light bootstrap (via `raw`), hostname, timezone, NTP, sysctl        |
+| openwrt_common    | python3 bootstrap (via `raw`), hostname, timezone, NTP, sysctl              |
 | openwrt_packages  | extra apk packages (`owrt_packages`)                                        |
 | openwrt_ssh       | dropbear (key-only auth), root `authorized_keys`                            |
 | openwrt_network   | `/etc/config/network` (LAN bridge, WAN) and `/etc/config/dhcp` (DHCP + DNS) |
@@ -541,7 +541,7 @@ Multiple OpenWrt routers (`routers` inventory group), identical config, managed 
 
 Notes:
 
-- The play starts with `gather_facts: false` because a fresh router has no Python; `openwrt_common` installs `python3-light` via `raw` (apk, OpenWrt 25.12+) and then gathers facts explicitly.
+- The play starts with `gather_facts: false` because a fresh router has no Python; `openwrt_common` installs full `python3` via `raw` (apk, OpenWrt 25.12+; `python3-light` is too stripped for ansible) and then gathers facts explicitly.
 - Config is authoritative: the roles deploy whole `/etc/config/*` files, so manual `uci` edits on the router get overwritten.
 - Per-host differences (LAN IP, hostname override) live in `host_vars/router-*.yml`; hostname and tailscale name default to the inventory name.
 - Changing `owrt_lan_ip` reloads the network and drops a LAN-based SSH session mid-run — manage over the tailnet when changing addressing.

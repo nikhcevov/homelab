@@ -12,10 +12,10 @@
 owrt_lan_ip: 192.168.101.1
 # Non-default LAN size:
 # owrt_lan_netmask: "255.255.255.0"
-# Different hardware -> different DSA port names (`ip link` on the router):
-# owrt_lan_bridge_ports:
-#   - lan1
-#   - lan2
+# This device has no DSA switch: plain eth0 (WAN) / eth1 (LAN).
+owrt_lan_bridge_ports:
+  - eth1
+owrt_wan_device: eth0
 # WAN behind another ISP router with a static address:
 # owrt_wan_proto: static
 
@@ -24,10 +24,6 @@ owrt_timezone_name: Europe/Moscow
 
 # --- DNS ---
 # Local/regional resolvers, if different from group default:
-owrt_dns_servers:
-  - 1.1.1.1
-  - 8.8.8.8
-# Search domain for this site:
 owrt_dns_domain: alm.home.arpa
 
 # --- Tailscale ---
