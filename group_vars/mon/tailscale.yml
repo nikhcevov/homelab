@@ -1,0 +1,19 @@
+---
+# Tailscale mesh VPN (layer: network). mon-1 runs Uptime Kuma pull
+# monitors against tailnet-only targets: OpenWrt routers and anything
+# else that should not be publicly reachable.
+
+# Hostname shown in the tailnet (becomes <hostname>.<tailnet>.ts.net).
+tailscale_hostname: mon-1
+
+# Auth key from the vault. Add to group_vars/mon/vault.yml:
+#   vault_tailscale_auth_key: "tskey-auth-..."
+tailscale_auth_key: "{{ vault_tailscale_auth_key | default('') }}"
+
+# This node only consumes the tailnet, it advertises nothing.
+tailscale_advertise_routes: ""
+
+# Accept subnet routes (e.g. router-alm's 192.168.101.0/24), so Kuma can
+# monitor LAN-side services like dnsmasq on 192.168.101.1. The route must
+# also be approved in the Tailscale admin console.
+tailscale_accept_routes: true

@@ -59,7 +59,7 @@ Deployment is split into independent layers. `site.yml` runs them all in order; 
 | --------- | --------------- | ------------- | --------------------------------------------------------------------------------------------- |
 | bootstrap | `bootstrap.yml` | common, ssh   | apt upgrade, base packages, timezone, locale, unattended-upgrades, admin user, sshd hardening |
 | security  | `security.yml`  | ufw, fail2ban | declarative firewall, sshd jail                                                               |
-| network   | `network.yml`   | tailscale     | tailnet membership (install, auth, autostart)                                                 |
+| network   | `network.yml`   | tailscale     | tailnet membership (install, auth, autostart) — vps for proxy upstreams, mon for Kuma pull    |
 | proxy     | `proxy.yml`     | nginx         | L4 stream proxy generated from `vars/proxy.yml`                                               |
 | services  | `services.yml`  | monitoring    | bash health checks + cron + ntfy (future services land here)                                  |
 
@@ -553,7 +553,7 @@ Notes:
 - Config is authoritative: the roles deploy whole `/etc/config/*` files, so manual `uci` edits on the router get overwritten.
 - Per-host differences (LAN IP, hostname override) live in `host_vars/router-*.yml`; hostname and tailscale name default to the inventory name.
 - Changing `owrt_lan_ip` reloads the network and drops a LAN-based SSH session mid-run — manage over the tailnet when changing addressing.
-- Monitoring of the routers is not wired yet (decide: Uptime Kuma on mon-1 vs local checks).
+- Monitoring: mon-1 is on the tailnet (network layer, `tailscale_accept_routes: true`), so Uptime Kuma pulls the routers — no inbound access or push hacks needed. Suggested monitors (create in the Kuma UI): Ping `100.102.172.25`; DNS with resolver `192.168.101.1` querying a public A record (exercises dnsmasq end-to-end); TCP `192.168.101.1:22` (dropbear). LAN-side targets ride the advertised subnet route — approve it in the Tailscale admin console. Ping works on the tailscale IP too (firewall zone input), but dropbear/dnsmasq bind to the LAN interface only, so use the LAN IP for those. DNS over the tailnet additionally needs `owrt_dns_localservice: false` (set in `group_vars/routers/network.yml`): dnsmasq otherwise drops queries from 100.64.0.0/10 at application level.
 
 ---
 
