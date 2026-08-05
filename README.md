@@ -530,14 +530,15 @@ Multiple OpenWrt routers (`routers` inventory group), identical config, managed 
 
 ### Roles
 
-| Role              | Configures                                                                  |
-| ----------------- | --------------------------------------------------------------------------- |
-| openwrt_common    | python3 bootstrap (via `raw`), hostname, timezone, NTP, sysctl              |
-| openwrt_packages  | extra apk packages (`owrt_packages`)                                        |
-| openwrt_ssh       | dropbear (key-only auth), root `authorized_keys`                            |
-| openwrt_network   | `/etc/config/network` (LAN bridge, WAN) and `/etc/config/dhcp` (DHCP + DNS) |
-| openwrt_firewall  | `/etc/config/firewall`, software flow offloading, extra rules               |
-| openwrt_tailscale | tailscale via apk, tailnet auth (same var names as the Debian role)         |
+| Role              | Configures                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| openwrt_common    | python3 bootstrap (via `raw`), hostname, timezone, NTP, sysctl                                    |
+| openwrt_packages  | extra apk packages (`owrt_packages`)                                                              |
+| openwrt_ssh       | dropbear (key-only auth), root `authorized_keys`                                                  |
+| openwrt_network   | `/etc/config/network` (LAN bridge, WAN) and `/etc/config/dhcp` (DHCP + DNS)                       |
+| openwrt_firewall  | `/etc/config/firewall`, tailscale zone + subnet forwarding, software flow offloading, extra rules |
+| openwrt_tailscale | tailscale via apk, tailnet auth (same var names as the Debian role)                               |
+| openwrt_upgrades  | daily notify-only update check (apk + owut firmware) -> ntfy                                      |
 
 Notes:
 

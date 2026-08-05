@@ -28,8 +28,24 @@ config forwarding
 	option src 'lan'
 	option dest 'wan'
 
-# Allow the router itself to be a Tailscale endpoint: permit inbound
-# WireGuard-style UDP from the tailnet interface once tailscale0 exists.
+{% if owrt_firewall_tailscale_zone | bool %}
+# Tailscale zone. Device-based, so it works even though tailscale0 only
+# appears once tailscaled starts (openwrt_tailscale runs after this role).
+config zone
+	option name 'tailscale'
+	list device 'tailscale0'
+	option input 'ACCEPT'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+
+{% if tailscale_advertise_routes | default('') | length > 0 %}
+# Subnet router: let tailnet peers reach the advertised LAN. Return
+# traffic is matched by conntrack, so one direction is enough.
+config forwarding
+	option src 'tailscale'
+	option dest 'lan'
+{% endif %}
+{% endif %}
 config rule
 	option name 'Allow-DHCP-Renew'
 	option src 'wan'

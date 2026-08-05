@@ -8,4 +8,11 @@ owrt_flow_offloading_hw: false
 
 # Extra allow rules, rendered as `config rule` sections. Example:
 #   - { name: Allow-SSH-WAN, src: wan, proto: tcp, dest_port: 22, target: ACCEPT }
+#   - { name: Allow-Tailscale-WAN, src: wan, proto: udp, dest_port: 41641 }  # direct connections, optional
 owrt_firewall_rules: []
+
+# Tailscale zone for tailscale0: lets tailnet peers reach the router
+# itself (zone input ACCEPT) and, when tailscale_advertise_routes is set,
+# forwards tailnet -> lan so the advertised subnet actually works.
+# Without this zone both are dropped by the REJECT defaults.
+owrt_firewall_tailscale_zone: true
