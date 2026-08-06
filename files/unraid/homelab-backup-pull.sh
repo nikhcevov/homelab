@@ -1,6 +1,6 @@
 #!/bin/bash
 #name=Homelab backup pull
-#description=Pull homelab backups over tailnet into /mnt/user/backups/homelab
+#description=Pull homelab backups over tailnet into /mnt/user/backup/homelab
 #arrayStarted=true
 #
 # homelab-backup-pull — central backup collector for Unraid.
@@ -22,20 +22,22 @@ set -uo pipefail
 
 # --- config ---------------------------------------------------------------
 SSH_KEY="/root/.ssh/id_ed25519"
-DEST="/mnt/user/backups/homelab"
+DEST="/mnt/user/backup/homelab"
 RETENTION_DAYS=30
 
-# VPS hosts: rsync the archives dir produced by the *_backup roles.
-# Format: "<tailscale-ip-or-name>:<remote-dir>"
+# Subfolders are named explicitly: tailscale IPs can change, names must
+# not. VPS hosts: rsync the archives dir produced by the *_backup roles.
+# Format: "<name>|<tailscale-ip>|<remote-dir>"
 RSYNC_SOURCES=(
-	# "100.x.x.x:/opt/vpn-backup/archives/"   # vpn-nl (fill after network.yml)
-	"100.107.77.74:/opt/kuma-backup/archives/" # mon-1
+	"vpn-nl|100.100.146.5|/opt/vpn-backup/archives/"
+	"mon-1|100.107.77.74|/opt/kuma-backup/archives/"
 )
 
 # OpenWrt routers: config backup streamed via sysupgrade -b over SSH.
+# Format: "<name>|<tailscale-ip>"
 ROUTERS=(
-	"100.102.172.25" # router-alm
-	# "100.84.111.78" # router-krm
+	"router-alm|100.102.172.25"
+	# "router-krm|100.84.111.78"
 )
 # --------------------------------------------------------------------------
 
@@ -48,31 +50,30 @@ log() { echo "[$LOG_TAG] $*"; logger -t "$LOG_TAG" "$*"; }
 mkdir -p "$DEST"
 
 # --- VPS artifacts (rsync mirror; source-side rotation applies) ---
-for src in "${RSYNC_SOURCES[@]}"; do
-	host="${src%%:*}"
-	name=$(echo "$host" | tr '.' '-')
+for entry in "${RSYNC_SOURCES[@]}"; do
+	IFS='|' read -r name host dir <<<"$entry"
 	target="$DEST/$name"
 	mkdir -p "$target"
-	if rsync -a --delete -e "ssh ${SSH_OPTS[*]}" "root@$src" "$target/" >>/dev/null 2>&1; then
-		log "OK rsync $src -> $target"
+	if rsync -a --delete -e "ssh ${SSH_OPTS[*]}" "root@$host:$dir" "$target/" >>/dev/null 2>&1; then
+		log "OK rsync $name ($host:$dir) -> $target"
 	else
-		log "FAIL rsync $src (host down? key authorized?)"
+		log "FAIL rsync $name ($host)"
 	fi
 done
 
 # --- OpenWrt routers (dated tarballs + local retention) ---
-for router in "${ROUTERS[@]}"; do
-	name=$(echo "$router" | tr '.' '-')
+for entry in "${ROUTERS[@]}"; do
+	IFS='|' read -r name host <<<"$entry"
 	target="$DEST/$name"
 	mkdir -p "$target"
 	file="$target/sysupgrade-${DATE}.tar.gz"
-	if ssh "${SSH_OPTS[@]}" "root@$router" \
+	if ssh "${SSH_OPTS[@]}" "root@$host" \
 		'sysupgrade -b /tmp/backup-pull.tar.gz && cat /tmp/backup-pull.tar.gz && rm -f /tmp/backup-pull.tar.gz' \
 		>"$file" 2>/dev/null && [ -s "$file" ]; then
-		log "OK router $router -> $file"
+		log "OK router $name -> $file"
 	else
 		rm -f "$file"
-		log "FAIL router $router"
+		log "FAIL router $name ($host)"
 	fi
 	find "$target" -name 'sysupgrade-*.tar.gz' -mtime "+$RETENTION_DAYS" -delete
 done
