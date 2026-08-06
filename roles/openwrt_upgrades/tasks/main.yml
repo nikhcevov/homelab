@@ -9,6 +9,20 @@
     update_cache: true
   when: owrt_owut_check | bool
 
+# sysupgrade (owut firmware upgrade) preserves only package conffiles,
+# keep.d entries and /etc/sysupgrade.conf — ansible-deployed files are
+# none of those, so list them explicitly or the daily check silently
+# dies after the first firmware upgrade.
+- name: Keep update check files across firmware upgrades
+  ansible.builtin.lineinfile:
+    path: /etc/sysupgrade.conf
+    line: "{{ item }}"
+    create: true
+    mode: "0644"
+  loop:
+    - /etc/homelab-update-check.env
+    - /usr/sbin/homelab-update-check
+
 - name: Deploy update check env file
   ansible.builtin.template:
     src: env.j2
