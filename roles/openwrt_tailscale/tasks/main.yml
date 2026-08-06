@@ -54,7 +54,7 @@
       console, otherwise the node drops off the tailnet after 180 days.
       Re-run this playbook afterwards.
       Unattended alternative: set vault_tailscale_auth_key in
-      group_vars/routers/vault.yml.
+      group_vars/all/vault.yml.
   when:
     - tailscale_auth_key | length == 0
     - _tailscale_status.rc != 0 or

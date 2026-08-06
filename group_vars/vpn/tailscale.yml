@@ -6,7 +6,7 @@
 # Hostname shown in the tailnet (defaults to the inventory name).
 tailscale_hostname: "{{ inventory_hostname }}"
 
-# Auth key from the group vault (shared reusable key).
+# Auth key from the shared vault (group_vars/all/vault.yml).
 tailscale_auth_key: "{{ vault_tailscale_auth_key | default('') }}"
 
 # These nodes only join the tailnet; they advertise and accept nothing.

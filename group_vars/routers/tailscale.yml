@@ -5,9 +5,8 @@
 # Hostname shown in the tailnet (defaults to the inventory name).
 tailscale_hostname: "{{ inventory_hostname }}"
 
-# Auth key from the vault. Add to group_vars/routers/vault.yml:
-#   vault_tailscale_auth_key: "tskey-auth-..."
-# Leave empty to skip authentication (node already authenticated manually).
+# Auth key from the shared vault (group_vars/all/vault.yml).
+# Absent = day-0 manual join (the default flow).
 tailscale_auth_key: "{{ vault_tailscale_auth_key | default('') }}"
 
 # Optional: advertise the LAN subnet as an exit of site-to-site routing.

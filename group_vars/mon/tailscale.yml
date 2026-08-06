@@ -6,8 +6,7 @@
 # Hostname shown in the tailnet (becomes <hostname>.<tailnet>.ts.net).
 tailscale_hostname: mon-1
 
-# Auth key from the vault. Add to group_vars/mon/vault.yml:
-#   vault_tailscale_auth_key: "tskey-auth-..."
+# Auth key from the shared vault (group_vars/all/vault.yml).
 tailscale_auth_key: "{{ vault_tailscale_auth_key | default('') }}"
 
 # This node only consumes the tailnet, it advertises nothing.

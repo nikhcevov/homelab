@@ -95,8 +95,7 @@ Layers depend on each other left to right (proxy needs tailnet DNS; monitoring e
 │       ├── ssh.yml                 sshd settings (port, auth modes)
 │       ├── security.yml            ufw rules, fail2ban policy
 │       ├── tailscale.yml           tailscale hostname, auth key ref
-│       ├── monitoring.yml          monitoring settings (checks, thresholds)
-│       └── vault.yml               SECRETS (ansible-vault inline values, committed)
+│       └── monitoring.yml          monitoring settings (checks, thresholds)
 ├── vars/
 │   └── proxy.yml                   routing map (gitignored; ship proxy.example.yml)
 ├── roles/
@@ -156,9 +155,9 @@ From here on the host is `vps-proxy.<tailnet>.ts.net` and everything is Ansible-
 ansible-galaxy collection install -r requirements.yml
 
 # 2. add secrets (see "Secrets" below)
-$EDITOR group_vars/vps/vault.yml
+$EDITOR group_vars/all/vault.yml
 # encrypt each secret value inline:
-ansible-vault encrypt_string 'the-secret' --name vault_kuma_domain   # paste block into vault.yml
+ansible-vault encrypt_string 'the-secret' --name vault_ntfy_topic_info   # paste block into vault.yml
 
 # 3. review group_vars/vps/*.yml, then create the routing config
 cp vars/proxy.example.yml vars/proxy.yml
@@ -319,12 +318,12 @@ ansible-vault encrypt_string 'the-secret' --name vault_kuma_domain
 
 The vault password lives in `.vault_pass` in the repo dir (gitignored, referenced by `vault_password_file` in `ansible.cfg`) — back it up into your password manager; losing it means losing all secrets.
 
-| Vault var                  | Used in                         | Why                                             |
-| -------------------------- | ------------------------------- | ----------------------------------------------- |
-| `vault_*_domain`           | `group_vars/mon, vpn`           | keeps real domains out of the public repo       |
-| `vault_ntfy_topic_*`       | `group_vars/all/monitoring.yml` | ntfy topic name = password (read + post access) |
-| `vault_xui_*_path`         | `group_vars/vpn/monitoring.yml` | secret URL paths of the 3x-ui panel             |
-| `vault_tailscale_auth_key` | `group_vars/*/tailscale.yml`    | optional unattended tailnet join                |
+| Vault var                  | Used in                         | Why                                                    |
+| -------------------------- | ------------------------------- | ------------------------------------------------------ |
+| `vault_*_domain`           | `group_vars/mon, vpn`           | keeps real domains out of the public repo              |
+| `vault_ntfy_topic_*`       | `group_vars/all/monitoring.yml` | ntfy topic name = password (read + post access)        |
+| `vault_xui_*_path`         | `group_vars/vpn/monitoring.yml` | secret URL paths of the 3x-ui panel                    |
+| `vault_tailscale_auth_key` | `group_vars/all/vault.yml`      | optional unattended tailnet join (shared reusable key) |
 
 Plaintext files reference them as `{{ vault_* }}`, so playbooks run transparently. Secret-bearing tasks use `no_log`, so values never appear in Ansible output.
 

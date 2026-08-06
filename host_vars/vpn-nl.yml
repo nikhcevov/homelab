@@ -7,7 +7,7 @@
 # Per-host here: panel/sub domains, secret x-ui base paths. The host is
 # reached over the tailnet (MagicDNS name in inventory); its public IP is
 # not stored in the repo.
-# Shared in group vault: vault_tailscale_auth_key (reusable key).
+# Shared tailnet join key: group_vars/all/vault.yml.
 vault_panel_domain: !vault |
   $ANSIBLE_VAULT;1.1;AES256
   64383363633439336331386366393362653961376433336462333332346561353464386137333031

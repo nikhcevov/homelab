@@ -5,8 +5,7 @@
 # Hostname shown in the tailnet (becomes <hostname>.<tailnet>.ts.net).
 tailscale_hostname: vps-proxy
 
-# Auth key from the vault. Add to group_vars/vps/vault.yml:
-#   vault_tailscale_auth_key: "tskey-auth-..."
+# Auth key from the shared vault (group_vars/all/vault.yml).
 # Runs only while the node is unauthenticated; an authorized node gets its
 # settings reconciled via `tailscale set` without touching auth.
 tailscale_auth_key: "{{ vault_tailscale_auth_key | default('') }}"
