@@ -3,7 +3,8 @@
 # All proxy upstreams use MagicDNS names, so this node must be on the tailnet.
 
 # Hostname shown in the tailnet (becomes <hostname>.<tailnet>.ts.net).
-tailscale_hostname: vps-proxy
+# Intentionally matches the inventory name.
+tailscale_hostname: edge-proxy
 
 # Auth key from the shared vault (group_vars/all/vault.yml).
 # Runs only while the node is unauthenticated; an authorized node gets its
