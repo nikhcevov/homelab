@@ -1,8 +1,9 @@
 ---
 # Layer 3 — network: Tailscale mesh VPN.
 # vps: proxy upstreams use MagicDNS. mon: Kuma pulls tailnet-only targets.
+# vpn: Unraid pulls backups over the tailnet.
 - name: Configure tailnet connectivity
-  hosts: vps:mon
+  hosts: vps:mon:vpn
   become: true
   roles:
     - tailscale

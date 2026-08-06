@@ -417,7 +417,7 @@ A second, fully independent host (`vpn` inventory group): a VPN gateway running 
 ```
 Internet
    |
- VPN VPS (vpn-1)
+ VPN VPS (vpn-nl)
    |-- Caddy        HTTPS + Let's Encrypt + reverse proxy (panel, subscriptions)
    |-- 3x-ui (native)  VPN panel + Xray; VLESS Reality listens directly on :2053
    |-- ufw + fail2ban  firewall, sshd + caddy jails
