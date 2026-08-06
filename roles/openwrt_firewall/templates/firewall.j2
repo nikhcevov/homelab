@@ -37,6 +37,9 @@ config zone
 	option input 'ACCEPT'
 	option output 'ACCEPT'
 	option forward 'REJECT'
+{% if tailscale_exit_node | default('') | length > 0 %}
+	option masq '1'
+{% endif %}
 
 {% if tailscale_advertise_routes | default('') | length > 0 %}
 # Subnet router: let tailnet peers reach the advertised LAN. Return
@@ -44,6 +47,21 @@ config zone
 config forwarding
 	option src 'tailscale'
 	option dest 'lan'
+{% endif %}
+{% if tailscale_advertise_exit_node | default(false) | bool %}
+# Exit node: tailnet clients exit to the internet through this WAN.
+# Masquerade is already enabled on the wan zone.
+config forwarding
+	option src 'tailscale'
+	option dest 'wan'
+{% endif %}
+{% if tailscale_exit_node | default('') | length > 0 %}
+# Exit-node client gateway: LAN clients ride the chosen exit node.
+# Masq on the tailscale zone SNATs LAN sources to this node's tailnet
+# IP — the exit node would drop foreign LAN sources otherwise.
+config forwarding
+	option src 'lan'
+	option dest 'tailscale'
 {% endif %}
 {% endif %}
 config rule

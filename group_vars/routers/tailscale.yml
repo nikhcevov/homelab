@@ -12,3 +12,21 @@ tailscale_auth_key: "{{ vault_tailscale_auth_key | default('') }}"
 # Optional: advertise the LAN subnet as an exit of site-to-site routing.
 # Example: "192.168.1.0/24" (must match owrt_lan_*). Empty = disabled.
 tailscale_advertise_routes: ""
+
+# Advertise this router as an exit node (full-tunnel internet access via
+# this WAN). IP forwarding is already on (openwrt_common sysctl); the
+# firewall role adds tailscale -> wan forwarding when this is true.
+# Enable per-host in host_vars/router-*.yml. After the first run, approve
+# the exit route in the Tailscale admin console (Machines -> node -> Edit
+# route settings) — or add autoApprovers.exitNode to the tailnet ACLs.
+tailscale_advertise_exit_node: false
+
+# Client side: route this router (and its LAN clients, see the firewall
+# role) through another tailnet exit node. Value: tailnet hostname or IP
+# of the exit node. Empty = direct internet via WAN (default).
+# For an exit-node gateway VM: set this, leave advertise_* off.
+tailscale_exit_node: ""
+
+# Allow this device itself to keep talking to its local LAN while an exit
+# node is selected (does not affect forwarded LAN clients).
+tailscale_exit_node_allow_lan_access: false

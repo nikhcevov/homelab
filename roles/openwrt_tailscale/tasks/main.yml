@@ -38,6 +38,15 @@
     {% if tailscale_advertise_routes | length > 0 %}
     --advertise-routes={{ tailscale_advertise_routes }}
     {% endif %}
+    {% if tailscale_advertise_exit_node | default(false) | bool %}
+    --advertise-exit-node
+    {% endif %}
+    {% if tailscale_exit_node | default('') | length > 0 %}
+    --exit-node={{ tailscale_exit_node }}
+    {% if tailscale_exit_node_allow_lan_access | default(false) | bool %}
+    --exit-node-allow-lan-access
+    {% endif %}
+    {% endif %}
   no_log: true
   when:
     - tailscale_auth_key | length > 0
@@ -62,11 +71,14 @@
 
 # Reconcile settings on an authorized node without re-authenticating.
 # Always reported as ok: `tailscale set` does not tell us what changed.
-- name: Apply tailscale settings (hostname, advertised routes)
+- name: Apply tailscale settings (hostname, advertised routes, exit node)
   ansible.builtin.command: >-
     tailscale set
     --hostname={{ tailscale_hostname }}
     --advertise-routes={{ tailscale_advertise_routes }}
+    --advertise-exit-node={{ tailscale_advertise_exit_node | default(false) | bool }}
+    --exit-node={{ tailscale_exit_node | default('') }}
+    --exit-node-allow-lan-access={{ tailscale_exit_node_allow_lan_access | default(false) | bool }}
   changed_when: false
   when:
     - _tailscale_status.rc == 0

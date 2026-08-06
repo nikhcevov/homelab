@@ -1,0 +1,42 @@
+---
+# router-gw — OpenWrt VM on Unraid: exit-node CLIENT gateway. Devices on
+# its LAN (WiFi AP behind it) reach the internet through a home exit
+# node. Shared defaults: group_vars/routers/.
+# Anything defined here wins over group_vars.
+
+# --- Identity ---
+# Hostname on the device and in the tailnet (default: inventory name).
+# owrt_hostname: router-gw
+# tailscale_hostname: router-gw
+
+# --- Network ---
+# LAN IP of this router (used by /etc/config/network).
+owrt_lan_ip: 192.168.102.1
+# x86_64 VM: no DSA switch, plain interfaces. With two virtio NICs in
+# Unraid: eth0 = WAN (bridged to the local network), eth1 = LAN (to the
+# AP/switch). Check `ip link` on the VM after first boot.
+owrt_lan_bridge_ports:
+  - eth1
+owrt_wan_device: eth0
+
+# --- Location ---
+# owrt_timezone_name: Europe/Moscow
+
+# --- DNS ---
+# Search domain for this site:
+# owrt_dns_domain: gw.home.arpa
+
+# --- Tailscale ---
+# Client of a home exit node: everything on this LAN exits with the home
+# country IP. Switch nodes by changing the value (tailnet hostname or
+# 100.x IP) and re-running openwrt.yml — or ad hoc on the device:
+#   tailscale set --exit-node=router-alm
+tailscale_exit_node: router-krm
+# Let the VM itself keep reaching its own LAN while the exit node is on
+# (SSH from the LAN, etc.); forwarded clients are unaffected.
+tailscale_exit_node_allow_lan_access: true
+
+# --- Firewall ---
+# No advertise_* flags: this node is a pure client. The firewall role
+# renders lan -> tailscale forwarding with masq automatically when
+# tailscale_exit_node is set.

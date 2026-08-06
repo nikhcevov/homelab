@@ -29,6 +29,12 @@ owrt_dns_domain: alm.home.arpa
 # --- Tailscale ---
 # Advertise this site's LAN to the tailnet (matches owrt_lan_*).
 tailscale_advertise_routes: "192.168.101.0/24"
+# Exit node: full-tunnel internet via this WAN. Approved once in the
+# Tailscale admin console (Edit route settings), or autoApprovers.exitNode.
+tailscale_advertise_exit_node: true
+# If this device becomes a dedicated exit node (no local LAN served),
+# tailscale_advertise_routes above can go away; the LAN/DHCP config is
+# then simply unused.
 
 # --- Firewall ---
 # Extra rules only on this router:

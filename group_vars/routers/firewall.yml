@@ -13,6 +13,7 @@ owrt_firewall_rules: []
 
 # Tailscale zone for tailscale0: lets tailnet peers reach the router
 # itself (zone input ACCEPT) and, when tailscale_advertise_routes is set,
-# forwards tailnet -> lan so the advertised subnet actually works.
+# forwards tailnet -> lan so the advertised subnet actually works. When
+# tailscale_advertise_exit_node is set, also forwards tailnet -> wan.
 # Without this zone both are dropped by the REJECT defaults.
 owrt_firewall_tailscale_zone: true

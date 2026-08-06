@@ -539,6 +539,19 @@ Multiple OpenWrt routers (`routers` inventory group), identical config, managed 
 3. Check `owrt_lan_bridge_ports` in `group_vars/routers/network.yml` against the hardware (`ip link` on the router — DSA port names vary).
 4. `ansible-playbook openwrt.yml`
 
+### Exit nodes
+
+Any router can double as a Tailscale exit node (full-tunnel internet access via its WAN — e.g. to keep a residential IP of your home country while abroad). Set `tailscale_advertise_exit_node: true` in the router's `host_vars/router-*.yml` and re-run `openwrt.yml`. The tailscale role passes `--advertise-exit-node`, the firewall role adds the `tailscale -> wan` forwarding (masquerade on the wan zone is already on; IP forwarding is set by openwrt_common sysctl). Two one-time steps remain in the Tailscale admin console: approve the exit route (Machines → node → Edit route settings, or `autoApprovers.exitNode` in the tailnet ACLs) and disable key expiry. Note there is no automatic failover between exit nodes — clients pick one explicitly (`tailscale set --exit-node=...` or the client GUI), so multiple nodes mean "somewhere to switch to", not seamless switching. Place them at different sites (different ISP/power) for real redundancy.
+
+### Exit-node client gateway
+
+The inverse role: an OpenWrt box (e.g. a VM on Unraid) that routes its whole LAN through a chosen exit node — every device behind it gets the home country IP without installing Tailscale anywhere. Same playbook, same group; the difference is two host_vars (see the ready-made `host_vars/router-gw.yml`):
+
+- `tailscale_exit_node: router-krm` — the tailscale role runs `tailscale set --exit-node=...`; the firewall role adds masquerade on the tailscale zone and a `lan -> tailscale` forwarding (SNAT is required: the exit node drops packets with foreign LAN sources).
+- `tailscale_exit_node_allow_lan_access: true` — the gateway itself keeps LAN reachability while the exit node is selected.
+
+Switching to a backup exit node: change `tailscale_exit_node` and re-run `openwrt.yml`, or ad hoc on the device (`tailscale set --exit-node=router-alm`). VM notes: use the OpenWrt x86_64 image (generic combined, EFI or not to match the Unraid VM firmware), two virtio NICs — first is WAN (bridged to the local LAN), second is LAN towards the AP/switch; recent x86_64 images ship virtio drivers, verify with `ip link` after first boot.
+
 ### Upgrades
 
 Daily checks are notify-only (role `openwrt_upgrades` -> ntfy). To apply:
@@ -548,15 +561,15 @@ Daily checks are notify-only (role `openwrt_upgrades` -> ntfy). To apply:
 
 ### Roles
 
-| Role              | Configures                                                                                        |
-| ----------------- | ------------------------------------------------------------------------------------------------- |
-| openwrt_common    | python3 bootstrap (via `raw`), hostname, timezone, NTP, sysctl                                    |
-| openwrt_packages  | extra apk packages (`owrt_packages`)                                                              |
-| openwrt_ssh       | dropbear (key-only auth), root `authorized_keys`                                                  |
-| openwrt_network   | `/etc/config/network` (LAN bridge, WAN) and `/etc/config/dhcp` (DHCP + DNS)                       |
-| openwrt_firewall  | `/etc/config/firewall`, tailscale zone + subnet forwarding, software flow offloading, extra rules |
-| openwrt_tailscale | tailscale via apk, tailnet auth (same var names as the Debian role)                               |
-| openwrt_upgrades  | daily notify-only update check (apk + owut firmware) -> ntfy                                      |
+| Role              | Configures                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------ |
+| openwrt_common    | python3 bootstrap (via `raw`), hostname, timezone, NTP, sysctl                                         |
+| openwrt_packages  | extra apk packages (`owrt_packages`)                                                                   |
+| openwrt_ssh       | dropbear (key-only auth), root `authorized_keys`                                                       |
+| openwrt_network   | `/etc/config/network` (LAN bridge, WAN) and `/etc/config/dhcp` (DHCP + DNS)                            |
+| openwrt_firewall  | `/etc/config/firewall`, tailscale zone + subnet/exit forwarding, software flow offloading, extra rules |
+| openwrt_tailscale | tailscale via apk, tailnet auth, exit node (same var names as the Debian role)                         |
+| openwrt_upgrades  | daily notify-only update check (apk + owut firmware) -> ntfy                                           |
 
 Notes:
 
