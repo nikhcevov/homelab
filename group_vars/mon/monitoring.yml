@@ -8,12 +8,6 @@ check_containers: ""
 disk_threshold: 85
 disk_mounts: "/"
 
-# Own health endpoint (strict 200). External checks of the other
-# hosts are Uptime Kuma's job — no cron cross-checks here.
-https_endpoints: "https://{{ kuma_domain }}/healthz"
-
-check_ports: ""
-
 # Backup freshness (cron runs nightly at 04:00).
 backup_dir: "{{ kuma_backup_dir }}/archives"
 backup_max_age_hours: 25

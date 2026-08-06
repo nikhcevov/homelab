@@ -21,6 +21,15 @@
     dest: /opt/homelab-monitoring/scripts/
     mode: "0755"
 
+# copy has no delete flag; retire removed checks explicitly.
+- name: Remove retired check scripts
+  ansible.builtin.file:
+    path: "/opt/homelab-monitoring/scripts/{{ item }}"
+    state: absent
+  loop:
+    - check-https.sh
+    - check-port.sh
+
 - name: Deploy monitoring env file
   ansible.builtin.template:
     src: env.j2

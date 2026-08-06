@@ -139,14 +139,14 @@ Layers depend on each other left to right (proxy needs tailnet DNS; monitoring e
 
    ```bash
    curl -fsSL https://tailscale.com/install.sh | sh
-   tailscale up --hostname=vps-proxy
+   tailscale up --hostname=edge-proxy
    ```
 
    Open the login URL, then **disable key expiry** for the node in the Tailscale admin console (Machines → node → Disable key expiry) — otherwise the node silently drops off the tailnet after 180 days and Ansible loses access.
 
 3. Set `tailnet_domain` in `group_vars/all/tailscale.yml` (once, for the whole repo).
 
-From here on the host is `vps-proxy.<tailnet>.ts.net` and everything is Ansible-only.
+From here on the host is `edge-proxy.<tailnet>.ts.net` and everything is Ansible-only. Convention: the inventory name always matches the tailnet name.
 
 **On the control machine:**
 
@@ -275,7 +275,7 @@ app:
 | `ssh.yml`        | ssh           | `sshd_port`, `sshd_password_authentication`, `sshd_permit_root_login`, `sshd_pubkey_authentication`, `sshd_allow_users` |
 | `security.yml`   | ufw, fail2ban | default policies, static rules, `ufw_open_service_ports`, ban policy                                                    |
 | `tailscale.yml`  | tailscale     | `tailscale_hostname`, auth key (from vault)                                                                             |
-| `monitoring.yml` | monitoring    | checked units, disk threshold/mounts, HTTPS endpoints, host prefix                                                      |
+| `monitoring.yml` | monitoring    | checked units, disk threshold/mounts, backup freshness, host prefix                                                     |
 
 The SSH port is defined once in `ssh.yml` and consumed by sshd, ufw and fail2ban — they can never drift apart.
 
@@ -294,7 +294,7 @@ Bootstrap runs as root. To move daily management to a sudo user:
 
 ```ini
 [vps]
-edge ansible_host=vps-proxy.{{ tailnet_domain }} ansible_user=root
+edge-proxy ansible_host=edge-proxy.{{ tailnet_domain }} ansible_user=root
 
 [vps:vars]
 ansible_python_interpreter=/usr/bin/python3
@@ -318,12 +318,12 @@ ansible-vault encrypt_string 'the-secret' --name vault_kuma_domain
 
 The vault password lives in `.vault_pass` in the repo dir (gitignored, referenced by `vault_password_file` in `ansible.cfg`) — back it up into your password manager; losing it means losing all secrets.
 
-| Vault var                  | Used in                         | Why                                                    |
-| -------------------------- | ------------------------------- | ------------------------------------------------------ |
-| `vault_*_domain`           | `group_vars/mon, vpn`           | keeps real domains out of the public repo              |
-| `vault_ntfy_topic_*`       | `group_vars/all/monitoring.yml` | ntfy topic name = password (read + post access)        |
-| `vault_xui_*_path`         | `group_vars/vpn/monitoring.yml` | secret URL paths of the 3x-ui panel                    |
-| `vault_tailscale_auth_key` | `group_vars/all/vault.yml`      | optional unattended tailnet join (shared reusable key) |
+| Vault var                  | Used in                         | Why                                                     |
+| -------------------------- | ------------------------------- | ------------------------------------------------------- |
+| `vault_*_domain`           | `group_vars/mon, vpn`           | keeps real domains out of the public repo               |
+| `vault_ntfy_topic_*`       | `group_vars/all/monitoring.yml` | ntfy topic name = password (read + post access)         |
+| `vault_xui_*_path`         | `host_vars/vpn-<cc>.yml`        | secret URL paths of the 3x-ui panel (Kuma monitor URLs) |
+| `vault_tailscale_auth_key` | `group_vars/all/vault.yml`      | optional unattended tailnet join (shared reusable key)  |
 
 Plaintext files reference them as `{{ vault_* }}`, so playbooks run transparently. Secret-bearing tasks use `no_log`, so values never appear in Ansible output.
 
@@ -348,18 +348,16 @@ cat /tmp/rendered-stream.conf
 
 Both hosts (`vps` and `vpn` groups) run the same monitoring role; each group has its own env config. Each check runs from cron and pushes to ntfy only on state transitions.
 
-| Check             | Interval | Alerts on                                      | Severity                    |
-| ----------------- | -------- | ---------------------------------------------- | --------------------------- |
-| systemd services  | 15 min   | unit not active                                | critical → DOWN / RECOVERED |
-| docker containers | 15 min   | container not running                          | critical                    |
-| HTTPS endpoints   | 15 min   | non-2xx/3xx response or timeout                | critical                    |
-| TCP ports         | 15 min   | port closed (tunnel ports, e.g. Reality :8443) | critical                    |
-| disk usage        | 1 h      | usage > threshold                              | alert                       |
-| security updates  | daily    | apt security updates available                 | alert                       |
-| reboot required   | daily    | `/var/run/reboot-required` exists              | alert                       |
-| backup freshness  | daily    | no archive / newest > 25 h old                 | alert                       |
+| Check             | Interval | Alerts on                         | Severity                    |
+| ----------------- | -------- | --------------------------------- | --------------------------- |
+| systemd services  | 15 min   | unit not active                   | critical → DOWN / RECOVERED |
+| docker containers | 15 min   | container not running             | critical                    |
+| disk usage        | 1 h      | usage > threshold                 | alert                       |
+| security updates  | daily    | apt security updates available    | alert                       |
+| reboot required   | daily    | `/var/run/reboot-required` exists | alert                       |
+| backup freshness  | daily    | no archive / newest > 25 h old    | alert                       |
 
-Empty lists disable a check (e.g. no docker on the VPN host). The VPN host monitors `x-ui caddy fail2ban cron ssh`, the panel/subscription HTTPS endpoints (secret base paths live in the vault), the Reality TCP port, and `/opt/vpn-backup/archives` freshness.
+External health (HTTPS endpoints, TCP/UDP ports, certificates) is deliberately NOT checked here — that is Uptime Kuma's job on the central monitoring VPS. Empty lists disable a check (e.g. no docker on the VPN host). The VPN host monitors `x-ui caddy fail2ban cron ssh` and `/opt/vpn-backup/archives` freshness.
 
 Notification channels are severity-first: `*-critical`, `*-alerts`, `*-info`. Three topics regardless of service count.
 
@@ -388,7 +386,7 @@ sudo bash /opt/homelab-monitoring/scripts/check-services.sh
 
 ### Migrate to a new VPS
 
-1. Provision VPS (Debian 12) with your SSH key, then day-0: install Tailscale, `tailscale up --hostname=vps-proxy`, disable key expiry. Same hostname = same MagicDNS name, no inventory change.
+1. Provision VPS (Debian 12) with your SSH key, then day-0: install Tailscale, `tailscale up --hostname=edge-proxy`, disable key expiry. Same hostname = same MagicDNS name, no inventory change.
 2. `ansible-playbook site.yml`.
 3. Switch DNS A/AAAA records to the new VPS.
 
@@ -526,7 +524,7 @@ Kuma pushes alerts to the same ntfy topics (configured once in the Kuma UI).
 - Kuma is native (Node.js + systemd unit, pinned by `kuma_version`), listens on `127.0.0.1:3001` behind Caddy. UFW exposes only SSH/80/443.
 - Kuma's monitors and settings live in its SQLite DB (`/opt/uptime-kuma/data`) — managed via the UI, not from Git. The `kuma_backup` role snapshots it nightly to `/opt/kuma-backup/archives` (same pattern as `vpn_backup`, cron at 04:00); the freshness check watches that dir.
 - Restore: stop kuma, extract the archive into `/`, `chown kuma:kuma /opt/uptime-kuma/data/kuma.db`, start kuma. The Caddyfile and LE certificates are in the same archive.
-- The host also watches itself via the cron checks (`caddy kuma fail2ban cron ssh`, own `/healthz`). No cron cross-checks between hosts — external watching of every host is Uptime Kuma's job alone (single watcher, minimal coupling).
+- The host also watches itself via the cron checks (`caddy kuma fail2ban cron ssh`, backup freshness). No cron cross-checks between hosts — external watching of every host is Uptime Kuma's job alone (single watcher, minimal coupling).
 
 ---
 

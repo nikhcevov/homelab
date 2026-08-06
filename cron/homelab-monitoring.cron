@@ -7,12 +7,6 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # Docker containers every 15 min
 */15 * * * * root /opt/homelab-monitoring/scripts/check-containers.sh
 
-# HTTPS endpoints every 15 min
-*/15 * * * * root /opt/homelab-monitoring/scripts/check-https.sh
-
-# TCP ports every 15 min
-*/15 * * * * root /opt/homelab-monitoring/scripts/check-port.sh
-
 # Disk usage every hour
 30 * * * * root /opt/homelab-monitoring/scripts/check-disk.sh
 

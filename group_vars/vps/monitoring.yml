@@ -1,17 +1,12 @@
 ---
 # Monitoring configuration for the edge VPS (deployed to
 # /opt/homelab-monitoring/.env). ntfy topics and URL: group_vars/all/.
-host_prefix: "[VPS]"
+host_prefix: "[{{ inventory_hostname | upper }}]"
 
 check_services: "nginx tailscaled fail2ban cron ssh"
 check_containers: ""
 disk_threshold: 85
 disk_mounts: "/"
-
-# nginx listeners locally. External health of this host is watched
-# by the central monitoring VPS (Uptime Kuma) — no cross-checks here.
-check_ports: "443 25565"
-https_endpoints: ""
 
 # Optional checks (empty = disabled):
 # backup_dir: "/opt/vpn-backup/archives"  # archive freshness

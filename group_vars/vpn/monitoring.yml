@@ -8,20 +8,6 @@ check_containers: ""
 disk_threshold: 85
 disk_mounts: "/"
 
-# Panel + subscription endpoints: full chain DNS -> cert -> Caddy -> x-ui.
-# Base paths are secrets and live in the vault. The sub path returns 404
-# without a subId, so it uses the "any:" prefix (any HTTP status = up).
-https_endpoints: >-
-  https://{{ caddy_panel_domain }}{{ vault_xui_web_base_path }}
-  any:https://{{ caddy_sub_domain }}{{ vault_xui_sub_path }}
-
-# Tunnel ports: panel alive != VPN data path alive. TCP connect check,
-# so UDP tunnels (Hysteria2, TUIC) are skipped here — they are watched
-# externally by Uptime Kuma on the central monitoring VPS.
-# External health of this host is watched by the central monitoring
-# VPS (Uptime Kuma) — no cross-checks here.
-check_ports: "{{ xui_tunnel_ports | selectattr('proto', 'eq', 'tcp') | map(attribute='port') | join(' ') }}"
-
 # Backup freshness (cron runs nightly at 03:30).
 backup_dir: "{{ vpn_backup_dir }}/archives"
 backup_max_age_hours: 25
