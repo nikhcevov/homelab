@@ -54,7 +54,7 @@
 - name: Authorize root SSH keys
   ansible.posix.authorized_key:
     user: root
-    key: "{{ item }}"
+    key: "{{ lookup('ansible.builtin.file', 'ssh/' + item) }}"
   loop: "{{ bootstrap_root_ssh_keys }}"
   when: bootstrap_root_ssh_keys | length > 0
 
