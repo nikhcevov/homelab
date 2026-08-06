@@ -1,0 +1,7 @@
+---
+# Tailnet MagicDNS domain. The tailnet is the ONLY management plane:
+# every ansible_host in inventory/hosts.ini is
+# <tailscale-hostname>.{{ tailnet_domain }} — set it once here.
+# Break-glass addresses (public VPS IPs, router LAN IPs) are deliberately
+# not stored in this repo; if tailscale is down, SSH in manually.
+tailnet_domain: han-diatonic.ts.net

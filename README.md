@@ -25,6 +25,7 @@ This repository is the single source of truth. All infrastructure changes go thr
 5. **Layered.** Full deployment via `site.yml`, or any single layer via its own playbook.
 6. **Minimal resources.** Runs on 1 vCPU / 500 MB RAM. No Docker, no Prometheus.
 7. **Signal over noise.** Alerts only when action is needed. Severity-based channels, state-based deduping.
+8. **The tailnet is the management plane.** Every host is managed via its MagicDNS name; day-0 (install OS, add one SSH key, `tailscale up`) is the only manual step, everything after it is Ansible-only. Break-glass addresses (public IPs, LAN) are deliberately not stored in the repo.
 
 ---
 
@@ -87,7 +88,7 @@ Layers depend on each other left to right (proxy needs tailnet DNS; monitoring e
 ├── requirements.yml                ansible collections
 ├── ansible.cfg
 ├── inventory/
-│   └── hosts.ini                   your VPS (IP from the vault)
+│   └── hosts.ini                   all hosts, addressed by MagicDNS names
 ├── group_vars/
 │   └── vps/
 │       ├── bootstrap.yml           packages, timezone, locale, admin user
@@ -124,13 +125,31 @@ Layers depend on each other left to right (proxy needs tailnet DNS; monitoring e
   ```bash
   ansible-galaxy collection install -r requirements.yml
   ```
-- VPS: **Debian 12 (Bookworm), x86_64**, reachable over SSH as root. **Python 3 is the only requirement** — everything else is installed by Ansible.
-- A Tailscale tailnet with MagicDNS enabled.
+- VPS: **Debian 12 (Bookworm), x86_64**, reachable over SSH as root **via the tailnet** (day-0 below). **Python 3 is the only requirement** — everything else is installed by Ansible.
+- A Tailscale tailnet with MagicDNS enabled; `tailnet_domain` set in `group_vars/all/tailscale.yml`.
 - A reachable [ntfy.sh](https://ntfy.sh) topic for notifications.
 
 ---
 
 ## First run (new VPS)
+
+**Day-0 (manual, once, on the VPS):**
+
+1. Provision the VPS (Debian 12) with your SSH public key injected by the provider (or add it via the provider console / web terminal).
+2. Join the tailnet:
+
+   ```bash
+   curl -fsSL https://tailscale.com/install.sh | sh
+   tailscale up --hostname=vps-proxy
+   ```
+
+   Open the login URL, then **disable key expiry** for the node in the Tailscale admin console (Machines → node → Disable key expiry) — otherwise the node silently drops off the tailnet after 180 days and Ansible loses access.
+
+3. Set `tailnet_domain` in `group_vars/all/tailscale.yml` (once, for the whole repo).
+
+From here on the host is `vps-proxy.<tailnet>.ts.net` and everything is Ansible-only.
+
+**On the control machine:**
 
 ```bash
 # 1. one-time: collections
@@ -139,7 +158,7 @@ ansible-galaxy collection install -r requirements.yml
 # 2. add secrets (see "Secrets" below)
 $EDITOR group_vars/vps/vault.yml
 # encrypt each secret value inline:
-ansible-vault encrypt_string 'the-secret' --name vault_vps_ip   # paste block into vault.yml
+ansible-vault encrypt_string 'the-secret' --name vault_kuma_domain   # paste block into vault.yml
 
 # 3. review group_vars/vps/*.yml, then create the routing config
 cp vars/proxy.example.yml vars/proxy.yml
@@ -149,18 +168,13 @@ $EDITOR vars/proxy.yml
 ansible-playbook site.yml
 ```
 
-**SSH key on a brand-new VPS.** If the provider injected your public key at provisioning, nothing to do. If you only have a root password, put your public key into `bootstrap_root_ssh_keys` in `group_vars/vps/bootstrap.yml` (public keys are not secrets — they belong in Git), then run the first pass with password auth:
-
-```bash
-ansible-playbook bootstrap.yml -k   # asks for the root SSH password once
-ansible-playbook site.yml           # key-only from here on
-```
+**Extra SSH keys.** Drop the `.pub` into `files/ssh/` and list its filename in `bootstrap_root_ssh_keys` in `group_vars/vps/bootstrap.yml` — the common role authorizes them idempotently on every run. Public keys are not secrets — they belong in Git.
 
 What a full run does:
 
 1. **bootstrap** — upgrades apt, installs base packages, sets timezone/locale, enables unattended security upgrades, hardens sshd (validated by `sshd -t` before apply).
 2. **security** — opens SSH + base ports + every listen port from `vars/proxy.yml` in ufw, enables the firewall (rules are added _before_ enabling, so the SSH session survives), configures fail2ban.
-3. **network** — installs Tailscale from the official repo, authenticates with the vault auth key (skipped if the node is already connected), enables `tailscaled`.
+3. **network** — installs Tailscale from the official repo and reconciles settings on the already-joined node (day-0 join is manual; an auth key from the vault is an optional unattended path).
 4. **proxy** — validates `vars/proxy.yml` declaratively (fails fast, VPS untouched), installs nginx, deploys the generated stream config, runs `nginx -t`, reloads only on changes.
 5. **services** — deploys monitoring scripts, `.env`, cron jobs.
 
@@ -281,13 +295,14 @@ Bootstrap runs as root. To move daily management to a sudo user:
 
 ```ini
 [vps]
-edge ansible_host=203.0.113.10 ansible_user=root
+edge ansible_host=vps-proxy.{{ tailnet_domain }} ansible_user=root
 
 [vps:vars]
 ansible_python_interpreter=/usr/bin/python3
+ansible_ssh_private_key_file=~/.ssh/starling
 ```
 
-Host IPs come from the vault (`{{ vault_*_ip }}`), so a public repo never reveals them.
+Every host is addressed by its MagicDNS name — the tailnet is the only management plane. The domain is set once in `group_vars/all/tailscale.yml`, the per-host tailnet names in `group_vars/*/tailscale.yml`. Host IPs are not stored in the repo at all (not even in the vault): if tailscale is down, SSH in manually using the public IP or LAN address.
 
 ---
 
@@ -295,22 +310,21 @@ Host IPs come from the vault (`{{ vault_*_ip }}`), so a public repo never reveal
 
 In Git: templates, roles, inventory, playbooks, service/domain lists.
 
-**Never** in Git as plaintext: SSH private keys, API tokens, Tailscale auth keys, passwords, real domains and host IPs. Secrets live in `group_vars/*/vault.yml` (shared ones in `group_vars/all/vault.yml`) as inline `!vault` blocks (`ansible-vault encrypt_string`) — keys and comments stay readable in diffs, values are ciphertext, and Ansible decrypts natively (no plugins). The real routing map `vars/proxy.yml` stays plaintext-gitignored (config, not credentials; copy `vars/proxy.example.yml`). To add or change a secret value:
+**Never** in Git as plaintext: SSH private keys, API tokens, Tailscale auth keys, passwords, real domains. Secrets live in `group_vars/*/vault.yml` (shared ones in `group_vars/all/vault.yml`) as inline `!vault` blocks (`ansible-vault encrypt_string`) — keys and comments stay readable in diffs, values are ciphertext, and Ansible decrypts natively (no plugins). The real routing map `vars/proxy.yml` stays plaintext-gitignored (config, not credentials; copy `vars/proxy.example.yml`). To add or change a secret value:
 
 ```bash
-ansible-vault encrypt_string 'the-secret' --name vault_vps_ip
-# paste the printed block into group_vars/vps/vault.yml, replacing the old one
+ansible-vault encrypt_string 'the-secret' --name vault_kuma_domain
+# paste the printed block into group_vars/mon/vault.yml, replacing the old one
 ```
 
 The vault password lives in `.vault_pass` in the repo dir (gitignored, referenced by `vault_password_file` in `ansible.cfg`) — back it up into your password manager; losing it means losing all secrets.
 
 | Vault var                  | Used in                         | Why                                             |
 | -------------------------- | ------------------------------- | ----------------------------------------------- |
-| `vault_*_ip`               | `inventory/hosts.ini`           | keeps host IPs out of the public repo           |
 | `vault_*_domain`           | `group_vars/mon, vpn`           | keeps real domains out of the public repo       |
 | `vault_ntfy_topic_*`       | `group_vars/all/monitoring.yml` | ntfy topic name = password (read + post access) |
 | `vault_xui_*_path`         | `group_vars/vpn/monitoring.yml` | secret URL paths of the 3x-ui panel             |
-| `vault_tailscale_auth_key` | `group_vars/*/tailscale.yml`    | tailnet join credential                         |
+| `vault_tailscale_auth_key` | `group_vars/*/tailscale.yml`    | optional unattended tailnet join                |
 
 Plaintext files reference them as `{{ vault_* }}`, so playbooks run transparently. Secret-bearing tasks use `no_log`, so values never appear in Ansible output.
 
@@ -318,7 +332,7 @@ The encrypted vaults travel with the repo, so no separate secret backup is neede
 
 Sanity check before pushing: `git grep -c '!vault' group_vars/` must show every secret value encrypted.
 
-The Tailscale auth key can be left empty — authentication is then skipped (useful if the node was joined manually or uses an ephemeral-key-free flow).
+The Tailscale auth key can be left empty (the default flow) — nodes then join manually at day-0 and the role only reconciles settings. Set it only if you want a fully unattended VPS rebuild.
 
 ---
 
@@ -335,16 +349,16 @@ cat /tmp/rendered-stream.conf
 
 Both hosts (`vps` and `vpn` groups) run the same monitoring role; each group has its own env config. Each check runs from cron and pushes to ntfy only on state transitions.
 
-| Check             | Interval | Alerts on                         | Severity                    |
-| ----------------- | -------- | --------------------------------- | --------------------------- |
-| systemd services  | 15 min   | unit not active                   | critical → DOWN / RECOVERED |
-| docker containers | 15 min   | container not running             | critical                    |
-| HTTPS endpoints   | 15 min   | non-2xx/3xx response or timeout   | critical                    |
-| TCP ports         | 15 min   | port closed (tunnel ports, e.g. Reality :8443)  | critical                    |
-| disk usage        | 1 h      | usage > threshold                 | alert                       |
-| security updates  | daily    | apt security updates available    | alert                       |
-| reboot required   | daily    | `/var/run/reboot-required` exists | alert                       |
-| backup freshness  | daily    | no archive / newest > 25 h old    | alert                       |
+| Check             | Interval | Alerts on                                      | Severity                    |
+| ----------------- | -------- | ---------------------------------------------- | --------------------------- |
+| systemd services  | 15 min   | unit not active                                | critical → DOWN / RECOVERED |
+| docker containers | 15 min   | container not running                          | critical                    |
+| HTTPS endpoints   | 15 min   | non-2xx/3xx response or timeout                | critical                    |
+| TCP ports         | 15 min   | port closed (tunnel ports, e.g. Reality :8443) | critical                    |
+| disk usage        | 1 h      | usage > threshold                              | alert                       |
+| security updates  | daily    | apt security updates available                 | alert                       |
+| reboot required   | daily    | `/var/run/reboot-required` exists              | alert                       |
+| backup freshness  | daily    | no archive / newest > 25 h old                 | alert                       |
 
 Empty lists disable a check (e.g. no docker on the VPN host). The VPN host monitors `x-ui caddy fail2ban cron ssh`, the panel/subscription HTTPS endpoints (secret base paths live in the vault), the Reality TCP port, and `/opt/vpn-backup/archives` freshness.
 
@@ -375,7 +389,7 @@ sudo bash /opt/homelab-monitoring/scripts/check-services.sh
 
 ### Migrate to a new VPS
 
-1. Provision VPS (Debian 12), set up root SSH access, put the new IP into the vault.
+1. Provision VPS (Debian 12) with your SSH key, then day-0: install Tailscale, `tailscale up --hostname=vps-proxy`, disable key expiry. Same hostname = same MagicDNS name, no inventory change.
 2. `ansible-playbook site.yml`.
 3. Switch DNS A/AAAA records to the new VPS.
 
@@ -396,17 +410,17 @@ The home servers are untouched.
 
 ## Troubleshooting
 
-| Symptom                                | Look at                                                                                  |
-| -------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Playbook fails in validation tasks     | `vars/proxy.yml` — the assert message names the offending service.                       |
-| `nginx -t` task fails                  | Rendered `/etc/nginx/stream.d/proxy.conf` on the VPS.                                    |
-| Locked out after security layer        | Rules are added before ufw is enabled; check `sshd_port` vs `ansible_port` in inventory. |
-| Tailscale auth task skips              | Node already connected (`tailscale status`), or empty auth key.                          |
-| `sudo tailscale up` prompts for login  | Auth key expired — rotate it in the vault and re-run `network.yml`.                      |
-| Connection refused on a forwarded port | `ss -tlnp \| grep <port>`, `journalctl -u nginx`, `ufw status`.                          |
-| Wrong backend for a domain             | SNI hostname missing/duplicated in `vars/proxy.yml`; check the `map`.                    |
-| Backend unreachable                    | `nc -vz <host>.ts.net <port>` from the VPS; check Tailscale.                             |
-| No ntfy messages arrive                | Topics in `group_vars/*/monitoring.yml`, run a check script manually.                    |
+| Symptom                                | Look at                                                                                   |
+| -------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Playbook fails in validation tasks     | `vars/proxy.yml` — the assert message names the offending service.                        |
+| `nginx -t` task fails                  | Rendered `/etc/nginx/stream.d/proxy.conf` on the VPS.                                     |
+| Locked out after security layer        | Rules are added before ufw is enabled; check `sshd_port` vs `ansible_port` in inventory.  |
+| Tailscale auth task skips              | Node already connected (`tailscale status`), or empty auth key (day-0 manual join).       |
+| Node fell off the tailnet              | Key expiry — re-run `tailscale up` on the host, then disable expiry in the admin console. |
+| Connection refused on a forwarded port | `ss -tlnp \| grep <port>`, `journalctl -u nginx`, `ufw status`.                           |
+| Wrong backend for a domain             | SNI hostname missing/duplicated in `vars/proxy.yml`; check the `map`.                     |
+| Backend unreachable                    | `nc -vz <host>.ts.net <port>` from the VPS; check Tailscale.                              |
+| No ntfy messages arrive                | Topics in `group_vars/*/monitoring.yml`, run a check script manually.                     |
 
 ---
 
@@ -466,7 +480,7 @@ Backups stay on the VPS; another machine collects them.
 
 ### Restore (fresh VPS)
 
-1. Provision VPS, put its IP into `inventory/hosts.ini` (group `[vpn]`).
+1. Provision VPS with your SSH key, then day-0: install Tailscale, `tailscale up --hostname=vpn-nl`, disable key expiry (see "First run").
 2. `ansible-playbook vpn.yml`
 3. `ansible-playbook vpn-restore.yml -e vpn_restore_archive=/path/to/vpn-backup-*.tar.gz`
 
@@ -503,7 +517,7 @@ Kuma pushes alerts to the same ntfy topics (configured once in the Kuma UI).
 
 ### Deploy
 
-1. Provision VPS (Debian 13 / Ubuntu 24.04), put its IP into `inventory/hosts.ini` (group `[mon]`).
+1. Provision VPS (Debian 13 / Ubuntu 24.04) with your SSH key, then day-0: install Tailscale, `tailscale up --hostname=mon-1`, disable key expiry (see "First run").
 2. DNS: A record for your Kuma domain (`vault_kuma_domain` in `group_vars/mon/vault.yml`).
 3. `ansible-playbook mon.yml`
 4. Open `https://<kuma-domain>`, create the admin account, add monitors (edge :443/:25565, vpn panel/sub URLs, tunnel ports) and the ntfy notification channel (topics are in the vault).
@@ -519,12 +533,12 @@ Kuma pushes alerts to the same ntfy topics (configured once in the Kuma UI).
 
 ## OpenWrt routers
 
-Multiple OpenWrt routers (`routers` inventory group), identical config, managed end-to-end by `openwrt.yml`. First boot is manual: flash OpenWrt, set a root password, make SSH reachable from the control machine. Everything after that is Ansible-only.
+Multiple OpenWrt routers (`routers` inventory group), identical config, managed end-to-end by `openwrt.yml` over the tailnet. Day-0 is manual: flash OpenWrt, set a root password, add your SSH key to dropbear (LuCI → System → Administration, or `ssh-copy-id` after `passwd`), then `apk add tailscale tailscaled && service tailscale enable && service tailscale start && tailscale up` — open the login URL and disable key expiry in the admin console. Everything after that is Ansible-only.
 
 ### Deploy
 
-1. Put the router IPs into `inventory/hosts.ini` (group `[routers]`; `192.168.1.1` for a fresh flash) and the auth key into `group_vars/routers/vault.yml` (`vault_tailscale_auth_key`).
-2. Drop your public key into `files/ssh/` (bird-named, e.g. `starling.pub`) and reference it from `ssh_authorized_keys` in `group_vars/routers/ssh.yml`.
+1. Do the day-0 steps above; the router appears as `router-<name>.<tailnet>.ts.net` — the inventory entry is already a MagicDNS name.
+2. Drop your public key into `files/ssh/` (bird-named, e.g. `starling.pub`) and reference it from `ssh_authorized_keys` in `group_vars/routers/ssh.yml` — the role takes over `authorized_keys` authoritatively.
 3. Check `owrt_lan_bridge_ports` in `group_vars/routers/network.yml` against the hardware (`ip link` on the router — DSA port names vary).
 4. `ansible-playbook openwrt.yml`
 

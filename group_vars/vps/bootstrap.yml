@@ -30,9 +30,10 @@ bootstrap_unattended_upgrades: true
 bootstrap_unattended_reboot: false
 bootstrap_unattended_reboot_time: "04:00"
 
-# Public SSH keys for the root login (public keys are NOT secrets,
-# they belong in Git). Needed only if the VPS provider did not inject
-# your key at provisioning; empty = leave root's authorized_keys as is.
+# Extra public SSH key files (from files/ssh/) authorized for root.
+# Public keys are NOT secrets, they belong in Git. The day-0 key is added
+# manually (provider injection or console) before Ansible ever connects;
+# this list is for additional keys authorized idempotently on every run.
 bootstrap_root_ssh_keys: []
 
 # Optional non-root admin user (empty = manage root only).

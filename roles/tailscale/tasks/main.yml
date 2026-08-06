@@ -1,7 +1,12 @@
 ---
-# Install and authenticate Tailscale. Upstreams in vars/proxy.yml use
+# Install and reconcile Tailscale. Upstreams in vars/proxy.yml use
 # MagicDNS names, so the node must join the tailnet before the proxy
 # layer is useful.
+#
+# Joining is a manual day-0 step (see README "First run"): the package
+# is already installed by the time the auth check runs, so `tailscale up`
+# on the host is all that's left. vault_tailscale_auth_key remains as an
+# optional unattended path.
 #
 # Idempotency: `tailscale up` runs only when the backend is NOT in the
 # Running state (fresh node or logged out). An already-authorized node
@@ -65,9 +70,13 @@
 - name: Fail when the node is not authenticated and no auth key is set
   ansible.builtin.fail:
     msg: >-
-      {{ tailscale_hostname }} is not authenticated to the tailnet and
-      tailscale_auth_key is empty. Set vault_tailscale_auth_key in the
-      group vault or run `tailscale up` manually.
+      {{ tailscale_hostname }} is not in the tailnet. Day-0 step (once,
+      manually): SSH to the host and run `tailscale up` — the package is
+      already installed by this role. Open the login URL, then disable
+      key expiry for the node in the Tailscale admin console (Machines ->
+      node -> Disable key expiry), otherwise the node drops off the
+      tailnet after 180 days. Re-run this playbook afterwards.
+      Unattended alternative: set vault_tailscale_auth_key in the vault.
   when:
     - tailscale_auth_key | length == 0
     - _tailscale_status.rc != 0 or

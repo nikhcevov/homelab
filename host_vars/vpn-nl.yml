@@ -4,15 +4,10 @@
 # the values (ansible-vault encrypt_string 'v' --name <key>), add one line
 # to inventory [vpn]. Nothing else changes.
 #
-# Per-host here: public IP, panel/sub domains, secret x-ui base paths.
+# Per-host here: panel/sub domains, secret x-ui base paths. The host is
+# reached over the tailnet (MagicDNS name in inventory); its public IP is
+# not stored in the repo.
 # Shared in group vault: vault_tailscale_auth_key (reusable key).
-vault_vpn_ip: !vault |
-  $ANSIBLE_VAULT;1.1;AES256
-  31386566626161343939383465313065643538343666333661313237626232353333333439353464
-  3561666136323162643665643233393566306334646437380a633666306233366437386433343436
-  66346434326539346664303364316134353037633838663561343239353935393737356563316233
-  3266363466646666650a396464313737363939326339376166663230383233356131333835393435
-  6139
 vault_panel_domain: !vault |
   $ANSIBLE_VAULT;1.1;AES256
   64383363633439336331386366393362653961376433336462333332346561353464386137333031
