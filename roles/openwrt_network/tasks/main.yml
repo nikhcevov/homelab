@@ -13,7 +13,11 @@
     dest: /etc/config/network
     mode: "0644"
     backup: true
-  notify: Reload network
+  notify:
+    - Reload network
+    # The reload bounces the tailscale0 tun; the handler lives in
+    # openwrt_tailscale (runs after, role order) and recreates it.
+    - Restart tailscale
 
 - name: Deploy DHCP and DNS config
   ansible.builtin.template:

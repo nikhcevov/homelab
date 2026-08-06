@@ -1,0 +1,11 @@
+---
+# A network reload (openwrt_network's "Reload network" handler) tears
+# down the tailscale0 tun device — tailscaled keeps running but every
+# packet write fails with EIO and the node falls off the tailnet,
+# which also kills the Ansible management plane. Since this role is
+# ordered after openwrt_network in the play, this handler runs after
+# the reload and brings the tun back.
+- name: Restart tailscale
+  ansible.builtin.service:
+    name: tailscale
+    state: restarted
