@@ -17,6 +17,11 @@
 #
 # Pull model on purpose: hosts never get credentials for Unraid, so a
 # compromised host cannot delete or encrypt its own backups.
+#
+# Alerting: every source is tracked in a state file (persists on the
+# flash drive, next to the script). ntfy fires only on transitions —
+# OK->FAIL (alerts topic) and FAIL->OK (info topic), repeated failures
+# stay silent. ntfy topics are rendered by Ansible from the vault.
 
 set -uo pipefail
 
@@ -24,6 +29,10 @@ set -uo pipefail
 SSH_KEY="/root/.ssh/id_ed25519"
 DEST="/mnt/user/backup/homelab"
 RETENTION_DAYS=30
+
+NTFY_URL="{{ ntfy_url }}"
+NTFY_TOPIC_ALERTS="{{ ntfy_topic_alerts }}"
+NTFY_TOPIC_INFO="{{ ntfy_topic_info }}"
 
 # Subfolders are named explicitly: tailscale IPs can change, names must
 # not. VPS hosts: rsync the archives dir produced by the *_backup roles.
@@ -44,10 +53,42 @@ ROUTERS=(
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -i "$SSH_KEY")
 DATE=$(date +%F)
 LOG_TAG="homelab-backup-pull"
+STATE_DIR="$(cd "$(dirname "$0")" && pwd)/.state"
 
 log() { echo "[$LOG_TAG] $*"; logger -t "$LOG_TAG" "$*"; }
 
-mkdir -p "$DEST"
+send_ntfy() {
+	local severity=$1 title=$2 tags=$3 message=$4 topic priority
+	case "$severity" in
+	alert) topic="$NTFY_TOPIC_ALERTS"; priority=high ;;
+	info) topic="$NTFY_TOPIC_INFO"; priority=default ;;
+	esac
+	curl --fail --show-error --silent --max-time 10 --retry 2 \
+		-H "Title: [GREAT-HORNBILL] $title" \
+		-H "Priority: $priority" \
+		-H "Tags: $tags" \
+		-d "$message" \
+		"${NTFY_URL%/}/$topic" >/dev/null || log "WARN ntfy send failed ($title)"
+}
+
+notify_transition() {
+	local key=$1 status=$2 title=$3 message=$4
+	local file="$STATE_DIR/$key.state" prev=""
+	[ -f "$file" ] && prev=$(cat "$file")
+	[ "$prev" = "$status" ] && return 0
+	if [ -z "$prev" ] && [ "$status" = ok ]; then
+		echo "$status" >"$file"
+		return 0
+	fi
+	if [ "$status" = fail ]; then
+		send_ntfy alert "$title" "warning,package" "$message"
+	else
+		send_ntfy info "$title" "white_check_mark,package" "$message"
+	fi
+	echo "$status" >"$file"
+}
+
+mkdir -p "$DEST" "$STATE_DIR"
 
 # --- VPS artifacts (rsync mirror; source-side rotation applies) ---
 for entry in "${RSYNC_SOURCES[@]}"; do
@@ -56,8 +97,10 @@ for entry in "${RSYNC_SOURCES[@]}"; do
 	mkdir -p "$target"
 	if rsync -a --delete -e "ssh ${SSH_OPTS[*]}" "root@$host:$dir" "$target/" >>/dev/null 2>&1; then
 		log "OK rsync $name ($host:$dir) -> $target"
+		notify_transition "rsync-$name" ok "Backup pull recovered" "✅ rsync $name OK again ($host)"
 	else
 		log "FAIL rsync $name ($host)"
+		notify_transition "rsync-$name" fail "Backup pull FAILED" "⚠️ rsync $name failed ($host:$dir)"
 	fi
 done
 
@@ -71,9 +114,11 @@ for entry in "${ROUTERS[@]}"; do
 		'sysupgrade -b /tmp/backup-pull.tar.gz && cat /tmp/backup-pull.tar.gz && rm -f /tmp/backup-pull.tar.gz' \
 		>"$file" 2>/dev/null && [ -s "$file" ]; then
 		log "OK router $name -> $file"
+		notify_transition "router-$name" ok "Router backup recovered" "✅ router $name backup OK again"
 	else
 		rm -f "$file"
 		log "FAIL router $name ($host)"
+		notify_transition "router-$name" fail "Router backup FAILED" "⚠️ sysupgrade -b from router $name failed ($host)"
 	fi
 	find "$target" -name 'sysupgrade-*.tar.gz' -mtime "+$RETENTION_DAYS" -delete
 done

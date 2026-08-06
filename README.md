@@ -570,7 +570,9 @@ Notes:
 
 ## Backups → Unraid
 
-Central collector: Unraid **pulls** every host's backups over tailnet (script: `files/unraid/homelab-backup-pull.sh`, deployed into the User Scripts plugin by `unraid.yml`; schedule is set in the plugin GUI). Pull model on purpose — hosts hold no Unraid credentials, so a compromised host cannot delete or encrypt its own backups.
+Central collector: Unraid **pulls** every host's backups over tailnet (script: `files/unraid/homelab-backup-pull.sh.j2`, deployed into the User Scripts plugin by `unraid.yml`; schedule is set in the plugin GUI). Pull model on purpose — hosts hold no Unraid credentials, so a compromised host cannot delete or encrypt its own backups.
+
+Every pull source is tracked in a state file next to the script (persists on the flash drive): ntfy fires only on transitions — OK→FAIL to the alerts topic, FAIL→OK (recovery) to info. Repeated failures stay silent. Host-side freshness (`check-backup.sh`, >25 h) covers the VPS archive producers; this covers the collector itself — router tarballs and the rsync mirrors.
 
 What gets pulled:
 

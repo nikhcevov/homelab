@@ -13,7 +13,10 @@
     unraid_scripts_dir: /boot/config/plugins/user.scripts/scripts
     unraid_script_description: Pull homelab backups over tailnet (rsync + sysupgrade -b)
   tasks:
+    # The template embeds ntfy topics from the vault — keep task output
+    # (and the base64 payload) out of the logs.
     - name: Deploy User Scripts entry (script + description)
+      no_log: true
       ansible.builtin.raw: |
         set -e
         dir="{{ unraid_scripts_dir }}/{{ unraid_script_name }}"
@@ -29,7 +32,7 @@
         fi
         echo "{{ _desc_b64 }}" | base64 -d > "$dir/description"
       vars:
-        _script_b64: "{{ lookup('ansible.builtin.file', 'unraid/homelab-backup-pull.sh') | b64encode }}"
+        _script_b64: "{{ lookup('ansible.builtin.template', 'files/unraid/homelab-backup-pull.sh.j2') | b64encode }}"
         _desc_b64: "{{ unraid_script_description | b64encode }}"
       register: _deploy
       changed_when: "'changed' in _deploy.stdout"
