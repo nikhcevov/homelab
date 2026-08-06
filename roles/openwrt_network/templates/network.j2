@@ -25,6 +25,13 @@ config interface 'lan'
 	list dns '{{ dns }}'
 {% endfor %}
 
+{% if owrt_wan_mac | default('') | length > 0 %}
+# Spoofed WAN MAC (ISP binds the lease to it). Losing this loses the WAN.
+config device
+	option name '{{ owrt_wan_device }}'
+	option macaddr '{{ owrt_wan_mac }}'
+
+{% endif %}
 config interface 'wan'
 	option device '{{ owrt_wan_device }}'
 	option proto '{{ owrt_wan_proto }}'

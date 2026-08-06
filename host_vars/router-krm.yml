@@ -19,6 +19,17 @@ owrt_lan_ip: 192.168.100.1
 #   - lan3
 #   - lan4
 
+# ISP binds the WAN lease to this MAC — without it the WAN stays down.
+owrt_wan_mac: "50:ff:20:73:35:fd"
+
+# Static leases migrated from the manual config; devices keep their IPs
+# after the repo takes over /etc/config/dhcp.
+owrt_dhcp_hosts:
+  - { name: ipmi, ip: 192.168.100.10, mac: "ac:1f:6b:f9:82:8a" }
+  - { name: unraid, ip: 192.168.100.20, mac: "ac:1f:6b:f4:a4:18" }
+  - { name: ha-krm, ip: 192.168.100.30, mac: "dc:a6:32:9a:cb:1f" }
+  - { name: nvr, ip: 192.168.100.40, mac: "24:28:fd:3e:1e:f5" }
+
 # --- Location ---
 owrt_timezone_name: Europe/Moscow
 
@@ -29,3 +40,6 @@ owrt_dns_domain: krm.home.arpa
 # --- Tailscale ---
 # Advertise this site's LAN to the tailnet (matches owrt_lan_*).
 tailscale_advertise_routes: "192.168.100.0/24"
+# Exit node: full-tunnel internet via this WAN. Approved once in the
+# Tailscale admin console (Edit route settings), or autoApprovers.exitNode.
+tailscale_advertise_exit_node: true

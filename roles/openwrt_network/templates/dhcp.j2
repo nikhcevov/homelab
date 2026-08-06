@@ -45,3 +45,10 @@ config odhcpd 'odhcpd'
 	option leasefile '/tmp/hosts/odhcpd'
 	option leasetrigger '/usr/sbin/odhcpd-update'
 	option loglevel '4'
+
+{% for host in owrt_dhcp_hosts | default([]) %}
+config host
+	option name '{{ host.name }}'
+	option ip '{{ host.ip }}'
+	list mac '{{ host.mac }}'
+{% endfor %}

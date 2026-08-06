@@ -15,6 +15,9 @@ owrt_lan_netmask: "255.255.255.0"
 owrt_lan_dns: "{{ owrt_dns_servers }}"
 
 # WAN side: plain DHCP client.
+# owrt_wan_mac spoofs the WAN device MAC — set it in host_vars when the
+# ISP binds the lease to a specific MAC address.
+# owrt_wan_mac: "50:ff:20:73:35:fd"
 owrt_wan_device: wan
 owrt_wan_proto: dhcp
 
@@ -22,6 +25,12 @@ owrt_wan_proto: dhcp
 owrt_dhcp_start: 100
 owrt_dhcp_limit: 150
 owrt_dhcp_leasetime: 12h
+
+# Static DHCP leases, rendered as `config host` sections. Per-host in
+# host_vars when the reservations belong to one site's devices.
+# owrt_dhcp_hosts:
+#   - { name: unraid, ip: 192.168.100.20, mac: "ac:1f:6b:f4:a4:18" }
+owrt_dhcp_hosts: []
 
 # DNS: upstream resolvers dnsmasq forwards to, and the local domain.
 owrt_dns_servers:
