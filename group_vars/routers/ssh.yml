@@ -2,9 +2,11 @@
 # Dropbear SSH configuration (role: openwrt_ssh).
 
 ssh_dropbear_port: 22
-# Listen on LAN only (empty = all interfaces). Set to the LAN address
-# to keep SSH off the WAN side.
-ssh_dropbear_interface: "lan"
+# Listen on all interfaces: management over the tailnet requires the
+# tailscale0 address, and the wan side is already closed by the firewall
+# (zone wan input REJECT). Auth is key-only, so exposure is acceptable.
+# Set to "lan" to bind to the LAN addresses only.
+ssh_dropbear_interface: ""
 
 # Public key files from files/ssh/ authorized for root.
 # Public keys are NOT secrets, they belong in Git.
