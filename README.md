@@ -524,7 +524,7 @@ Multiple OpenWrt routers (`routers` inventory group), identical config, managed 
 ### Deploy
 
 1. Put the router IPs into `inventory/hosts.ini` (group `[routers]`; `192.168.1.1` for a fresh flash) and the auth key into `group_vars/routers/vault.yml` (`vault_tailscale_auth_key`).
-2. Drop your public key into `files/ssh/personal.pub` (referenced by `ssh_authorized_keys` in `group_vars/routers/ssh.yml`).
+2. Drop your public key into `files/ssh/` (bird-named, e.g. `starling.pub`) and reference it from `ssh_authorized_keys` in `group_vars/routers/ssh.yml`.
 3. Check `owrt_lan_bridge_ports` in `group_vars/routers/network.yml` against the hardware (`ip link` on the router — DSA port names vary).
 4. `ansible-playbook openwrt.yml`
 
@@ -554,6 +554,28 @@ Notes:
 - Per-host differences (LAN IP, hostname override) live in `host_vars/router-*.yml`; hostname and tailscale name default to the inventory name.
 - Changing `owrt_lan_ip` reloads the network and drops a LAN-based SSH session mid-run — manage over the tailnet when changing addressing.
 - Monitoring: mon-1 is on the tailnet (network layer, `tailscale_accept_routes: true`), so Uptime Kuma pulls the routers — no inbound access or push hacks needed. Suggested monitors (create in the Kuma UI): Ping `100.102.172.25`; DNS with resolver `192.168.101.1` querying a public A record (exercises dnsmasq end-to-end); TCP `192.168.101.1:22` (dropbear). LAN-side targets ride the advertised subnet route — approve it in the Tailscale admin console. Ping works on the tailscale IP too (firewall zone input), but dropbear/dnsmasq bind to the LAN interface only, so use the LAN IP for those. DNS over the tailnet additionally needs `owrt_dns_localservice: false` (set in `group_vars/routers/network.yml`): dnsmasq otherwise drops queries from 100.64.0.0/10 at application level.
+
+---
+
+## Backups → Unraid
+
+Central collector: Unraid **pulls** every host's backups over tailnet (script: `files/unraid/homelab-backup-pull.sh`, deployed into the User Scripts plugin by `unraid.yml`; schedule is set in the plugin GUI). Pull model on purpose — hosts hold no Unraid credentials, so a compromised host cannot delete or encrypt its own backups.
+
+What gets pulled:
+
+- VPS artifacts: `rsync` of the `/opt/*-backup/archives/` dirs produced by the `vpn_backup` / `kuma_backup` roles (SQLite snapshots with their own 14-day rotation).
+- OpenWrt routers: `sysupgrade -b` streamed over SSH into dated tarballs (`sysupgrade-<date>.tar.gz`, 30-day retention on the Unraid side). Nothing is installed on the routers for this.
+
+Setup:
+
+1. On Unraid: `ssh-keygen -t ed25519 -C "great-hornbill"` (default path, empty passphrase for cron), then drop the public key into `files/ssh/great-hornbill.pub` — it is referenced by `ssh_authorized_keys` (`group_vars/routers/ssh.yml`) and `bootstrap_root_ssh_keys` (VPS groups) — same flow as `starling.pub`.
+2. One-time chicken-egg: authorize `starling.pub` ON Unraid so `unraid.yml` can reach it — append it to `/boot/config/ssh/root/authorized_keys` (persists across reboots; `/root` is a ramdisk) via the web terminal.
+3. Fill in `RSYNC_SOURCES` / `ROUTERS` in the script (tailscale IPs) and adjust `DEST` to your share.
+4. `ansible-playbook unraid.yml` — deploys the script into `/boot/config/plugins/user.scripts/scripts/homelab-backup-pull/` (raw + base64, Unraid has no python).
+5. In Settings → User Scripts set the schedule (Schedule → Custom → `0 5 * * *`), run once manually and check the log.
+6. Re-run `openwrt.yml` / `mon.yml` so the great-hornbill key is authorized on the backup sources.
+
+Restore: VPS DBs — copy the tarball back and follow the role's restore path (`vpn-restore.yml` for 3x-ui); routers — upload the tarball in LuCI _Backup/Flash Firmware_ or `sysupgrade -r`.
 
 ---
 

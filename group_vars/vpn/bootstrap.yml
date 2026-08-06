@@ -20,14 +20,15 @@ bootstrap_packages:
   - unzip
   - gnupg
   - python3-apt
-  - python3-debian  # required by deb822_repository (caddy role)
+  - python3-debian # required by deb822_repository (caddy role)
 
 bootstrap_unattended_upgrades: true
 bootstrap_unattended_reboot: true
 bootstrap_unattended_reboot_time: "04:00"
 
 # Public SSH keys for the root login (public keys are NOT secrets).
-bootstrap_root_ssh_keys: []
+bootstrap_root_ssh_keys:
+  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPaBD8tuM4ai8Gmkgv0QsDfSBZLPT6Yp5YlTM53Mvzt1 great-hornbill"
 
 # Optional non-root admin user.
 bootstrap_admin_user: ""

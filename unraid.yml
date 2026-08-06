@@ -1,0 +1,35 @@
+---
+# Unraid (great-hornbill): deploy User Scripts entries onto the flash
+# drive (/boot/config/plugins/user.scripts/scripts/<name>/{script,description}).
+# Unraid has no python, so everything goes through raw + base64;
+# idempotency is tracked via a .b64 marker next to the deployed script.
+# Scheduling itself is set in the User Scripts GUI (plugin config is not
+# file-managed): Schedule -> Custom -> 0 5 * * *
+- name: Configure Unraid backup collector
+  hosts: unraid
+  gather_facts: false
+  vars:
+    unraid_script_name: homelab-backup-pull
+    unraid_scripts_dir: /boot/config/plugins/user.scripts/scripts
+    unraid_script_description: Pull homelab backups over tailnet (rsync + sysupgrade -b)
+  tasks:
+    - name: Deploy User Scripts entry (script + description)
+      ansible.builtin.raw: |
+        set -e
+        dir="{{ unraid_scripts_dir }}/{{ unraid_script_name }}"
+        mkdir -p "$dir"
+        if [ "$(cat "$dir/.b64" 2>/dev/null)" = "{{ _script_b64 }}" ]; then
+          echo ok
+        else
+          echo "{{ _script_b64 }}" | base64 -d > "$dir/script.tmp"
+          mv "$dir/script.tmp" "$dir/script"
+          chmod 755 "$dir/script"
+          echo "{{ _script_b64 }}" > "$dir/.b64"
+          echo changed
+        fi
+        echo "{{ _desc_b64 }}" | base64 -d > "$dir/description"
+      vars:
+        _script_b64: "{{ lookup('ansible.builtin.file', 'unraid/homelab-backup-pull.sh') | b64encode }}"
+        _desc_b64: "{{ unraid_script_description | b64encode }}"
+      register: _deploy
+      changed_when: "'changed' in _deploy.stdout"

@@ -10,3 +10,4 @@ ssh_dropbear_interface: "lan"
 # Public keys are NOT secrets, they belong in Git.
 ssh_authorized_keys:
   - starling.pub
+  - great-hornbill.pub
