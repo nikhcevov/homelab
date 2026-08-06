@@ -13,9 +13,19 @@ xui_purge: false
 # Panel and subscription ports are proxied by Caddy via localhost;
 # they are NOT exposed through UFW. Values must match the database
 # settings (webPort / subPort) — the backup is authoritative.
+# Tunnel ports: xui_tunnel_ports below.
 xui_panel_port: 54321
 xui_sub_port: 2096
-xui_reality_port: 8443
+
+# Inbound tunnels (VLESS Reality, Hysteria2, TUIC...) listen directly on
+# their own ports — they are NOT proxied through Caddy. Opened in ufw
+# (security.yml) and TCP-checked by the port monitor (UDP entries are
+# skipped there: the check is a TCP connect). Ports must match the
+# inbounds in the 3x-ui database.
+xui_tunnel_ports:
+  - { port: 8443, proto: tcp, comment: Reality }
+  - { port: 9443, proto: tcp, comment: xhttp }
+  # - { port: 8444, proto: udp, comment: Hysteria2 }
 
 # Built-in 3x-ui fail2ban integration stays disabled (it is a DB
 # setting); the system fail2ban service is used instead.

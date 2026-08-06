@@ -340,7 +340,7 @@ Both hosts (`vps` and `vpn` groups) run the same monitoring role; each group has
 | systemd services  | 15 min   | unit not active                   | critical → DOWN / RECOVERED |
 | docker containers | 15 min   | container not running             | critical                    |
 | HTTPS endpoints   | 15 min   | non-2xx/3xx response or timeout   | critical                    |
-| TCP ports         | 15 min   | port closed (e.g. Reality :2053)  | critical                    |
+| TCP ports         | 15 min   | port closed (tunnel ports, e.g. Reality :8443)  | critical                    |
 | disk usage        | 1 h      | usage > threshold                 | alert                       |
 | security updates  | daily    | apt security updates available    | alert                       |
 | reboot required   | daily    | `/var/run/reboot-required` exists | alert                       |
@@ -419,7 +419,7 @@ Internet
    |
  VPN VPS (vpn-nl)
    |-- Caddy        HTTPS + Let's Encrypt + reverse proxy (panel, subscriptions)
-   |-- 3x-ui (native)  VPN panel + Xray; VLESS Reality listens directly on :2053
+   |-- 3x-ui (native)  VPN panel + Xray; VLESS Reality listens directly on :8443
    |-- ufw + fail2ban  firewall, sshd + caddy jails
    |-- vpn-backup   nightly archive, stays on the VPS
 ```
@@ -448,7 +448,7 @@ All in `group_vars/vpn/`: `bootstrap.yml`, `ssh.yml`, `security.yml` mirror the 
 | `caddy_sub_domain`   | subscription hostname                                                   |
 | `vpn_backup_*`       | backup dir, retention, cron time                                        |
 
-UFW exposes only SSH, 80, 443 and the Reality port (2053). Fail2ban runs the sshd jail plus a `caddy-4xx` jail over the Caddy access log. The built-in 3x-ui fail2ban integration stays disabled.
+UFW exposes only SSH, 80, 443 and the tunnel ports (`xui_tunnel_ports`, currently Reality :8443 + xhttp :9443). Fail2ban runs the sshd jail plus a `caddy-4xx` jail over the Caddy access log. The built-in 3x-ui fail2ban integration stays disabled.
 
 ### The database is authoritative
 
@@ -506,7 +506,7 @@ Kuma pushes alerts to the same ntfy topics (configured once in the Kuma UI).
 1. Provision VPS (Debian 13 / Ubuntu 24.04), put its IP into `inventory/hosts.ini` (group `[mon]`).
 2. DNS: A record for your Kuma domain (`vault_kuma_domain` in `group_vars/mon/vault.yml`).
 3. `ansible-playbook mon.yml`
-4. Open `https://<kuma-domain>`, create the admin account, add monitors (edge :443/:25565, vpn panel/sub URLs, Reality :2053) and the ntfy notification channel (topics are in the vault).
+4. Open `https://<kuma-domain>`, create the admin account, add monitors (edge :443/:25565, vpn panel/sub URLs, tunnel ports) and the ntfy notification channel (topics are in the vault).
 
 ### Notes
 
