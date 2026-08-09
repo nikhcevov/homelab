@@ -298,7 +298,6 @@ edge-proxy ansible_host=edge-proxy.{{ tailnet_domain }} ansible_user=root
 
 [vps:vars]
 ansible_python_interpreter=/usr/bin/python3
-ansible_ssh_private_key_file=~/.ssh/starling
 ```
 
 Every host is addressed by its MagicDNS name — the tailnet is the only management plane. The domain is set once in `group_vars/all/tailscale.yml`, the per-host tailnet names in `group_vars/*/tailscale.yml`. Host IPs are not stored in the repo at all (not even in the vault): if tailscale is down, SSH in manually using the public IP or LAN address.
