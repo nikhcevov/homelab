@@ -1,0 +1,4 @@
+# Managed by Ansible (role: arch_packages). AUR helpers (paru/yay) run as
+# {{ workstation_user }} and shell out to `sudo pacman` for the install
+# step; this keeps unattended runs from hanging on a password prompt.
+{{ workstation_user }} ALL=(root) NOPASSWD: /usr/bin/pacman

@@ -10,6 +10,16 @@
     state: directory
     mode: "0755"
 
+# Arch generates host keys on first sshd start (sshdgenkeys.service), so
+# on a never-started sshd there are none — and the template validation
+# below (`sshd -t`) refuses to run without them. ssh-keygen -A creates
+# only the missing key types, so it is safe to run every time.
+- name: Generate sshd host keys (Arch)
+  ansible.builtin.command: ssh-keygen -A
+  register: _ssh_hostkeys
+  changed_when: _ssh_hostkeys.stdout | length > 0
+  when: ansible_os_family == "Archlinux"
+
 - name: Deploy sshd hardening drop-in
   ansible.builtin.template:
     src: sshd_hardening.conf.j2
@@ -20,6 +30,6 @@
 
 - name: Ensure ssh is running and enabled
   ansible.builtin.service:
-    name: ssh
+    name: "{{ ssh_service_name }}"
     state: started
     enabled: true

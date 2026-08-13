@@ -1,0 +1,13 @@
+---
+# SSH (role: ssh). Management plane is the tailnet; sshd is how Ansible
+# reaches workstations from each other / from any tailnet device.
+
+sshd_port: 22
+sshd_password_authentication: "no"
+sshd_permit_root_login: "no"
+sshd_pubkey_authentication: "yes"
+sshd_allow_users:
+  - boss
+
+# Unit name on Arch (role default is the Debian "ssh").
+ssh_service_name: sshd

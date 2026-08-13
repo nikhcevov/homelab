@@ -1,0 +1,40 @@
+---
+# Syncthing: syncs ONLY ~/Documents between workstations (over the
+# tailnet). ~/Projects is synced via git instead — by decision, not
+# through Syncthing. Nothing else (~/.config, ~/.ssh, ...) is synced.
+#
+# Pairing is deliberately NOT automated: device IDs are generated on
+# first start, so linking machines is a one-time GUI step
+# (http://127.0.0.1:8384): Add Remote Device -> pick the other machine ->
+# share the Documents folder. Keep folder type send+receive on both.
+
+- name: Install syncthing
+  ansible.builtin.pacman:
+    name: syncthing
+    state: present
+
+- name: Ensure synced directories exist
+  ansible.builtin.file:
+    path: "/home/{{ workstation_user }}/{{ item }}"
+    state: directory
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_user }}"
+    mode: "0755"
+  loop:
+    - Documents
+
+- name: Enable syncthing for the workstation user
+  ansible.builtin.systemd_service:
+    name: "syncthing@{{ workstation_user }}"
+    state: started
+    enabled: true
+
+# Let the user service start at boot without an interactive login.
+- name: Check lingering for the workstation user
+  ansible.builtin.stat:
+    path: "/var/lib/systemd/linger/{{ workstation_user }}"
+  register: _linger
+
+- name: Enable lingering for the workstation user
+  ansible.builtin.command: "loginctl enable-linger {{ workstation_user }}"
+  when: not _linger.stat.exists

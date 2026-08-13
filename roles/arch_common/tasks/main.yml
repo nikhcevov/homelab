@@ -1,0 +1,70 @@
+---
+# OS-level baseline for Arch/CachyOS workstations: optional full upgrade,
+# timezone/locale, MagicDNS repair (NetworkManager -> systemd-resolved).
+
+# Rolling release: a full upgrade is a deliberate operation, off by
+# default (arch_system_upgrade, group_vars/workstations/common.yml).
+# Never combine with `update_cache`+install runs — partial upgrades break
+# Arch.
+- name: Full system upgrade (pacman -Syu)
+  ansible.builtin.pacman:
+    update_cache: true
+    upgrade: true
+  when: arch_system_upgrade | bool
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ workstation_timezone }}"
+
+- name: Generate locales
+  community.general.locale_gen:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ workstation_locales_gen }}"
+
+- name: Set default locale
+  ansible.builtin.template:
+    src: locale.conf.j2
+    dest: /etc/locale.conf
+    mode: "0644"
+
+# Home for all git checkouts (spec: projects live locally, synced via
+# git — not Syncthing, not SMB).
+- name: Ensure projects directory exists
+  ansible.builtin.file:
+    path: "/home/{{ workstation_user }}/Projects"
+    state: directory
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_user }}"
+    mode: "0755"
+
+# --- MagicDNS fix -------------------------------------------------------
+# CachyOS wires NetworkManager to write /etc/resolv.conf directly
+# (resolvectl: "resolv.conf mode: foreign"), so tailscaled cannot
+# register 100.100.100.100 as the tailnet resolver and MagicDNS names do
+# not resolve. Fix: NM hands DNS to systemd-resolved, resolv.conf points
+# at the resolved stub.
+- name: Ensure systemd-resolved is running and enabled
+  ansible.builtin.service:
+    name: systemd-resolved
+    state: started
+    enabled: true
+  when: arch_magicdns_fix | bool
+
+- name: Wire NetworkManager to systemd-resolved
+  ansible.builtin.template:
+    src: 90-tailscale-dns.conf.j2
+    dest: /etc/NetworkManager/conf.d/90-tailscale-dns.conf
+    mode: "0644"
+  notify: Restart NetworkManager
+  when: arch_magicdns_fix | bool
+
+# The symlink itself is enough to stop NM from managing the file.
+- name: Point resolv.conf at the systemd-resolved stub
+  ansible.builtin.file:
+    src: /run/systemd/resolve/stub-resolv.conf
+    dest: /etc/resolv.conf
+    state: link
+    force: true
+  notify: Restart NetworkManager
+  when: arch_magicdns_fix | bool

@@ -18,6 +18,7 @@
     url: https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg
     dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
     mode: "0644"
+  when: ansible_os_family == "Debian"
 
 - name: Add Tailscale APT repository
   ansible.builtin.deb822_repository:
@@ -28,12 +29,21 @@
     components: main
     signed_by: /usr/share/keyrings/tailscale-archive-keyring.gpg
     state: present
+  when: ansible_os_family == "Debian"
 
-- name: Install tailscale
+- name: Install tailscale (Debian)
   ansible.builtin.apt:
     name: tailscale
     state: present
     update_cache: true
+  when: ansible_os_family == "Debian"
+
+# Arch/CachyOS ships tailscale in the official repos — no key/repo setup.
+- name: Install tailscale (Arch)
+  ansible.builtin.pacman:
+    name: tailscale
+    state: present
+  when: ansible_os_family == "Archlinux"
 
 - name: Ensure tailscaled is running and enabled
   ansible.builtin.service:

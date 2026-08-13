@@ -1,0 +1,21 @@
+---
+# Shared workstation identity / OS-level settings (role: arch_common).
+
+# Primary user; AUR builds and dotfiles run as this account.
+workstation_user: boss
+
+workstation_timezone: Europe/Moscow
+workstation_locale: en_US.UTF-8
+workstation_locales_gen:
+  - en_US.UTF-8
+  - ru_RU.UTF-8
+
+# Full `pacman -Syu` during the run. Off by default: rolling release,
+# upgrades are safer as a deliberate operation (tags=upgrade or a manual
+# -e arch_system_upgrade=true).
+arch_system_upgrade: false
+
+# Fix MagicDNS: NetworkManager writes /etc/resolv.conf directly
+# ("foreign" mode), so tailscaled can't register the tailnet resolver.
+# The fix wires NM -> systemd-resolved and repoints resolv.conf.
+arch_magicdns_fix: true

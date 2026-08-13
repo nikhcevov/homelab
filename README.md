@@ -604,6 +604,53 @@ Restore: VPS DBs — copy the tarball back and follow the role's restore path (`
 
 ---
 
+## Workstations (Arch/CachyOS)
+
+The desktops (PC `starling`, future laptop) are managed by `workstation.yml` — same model as the VPS layers: declarative lists in `group_vars/workstations/`, per-host deltas in `host_vars/`, management over the tailnet. starling's SSH key (`files/ssh/starling.pub`) is already the management key authorized on the VPS/routers, so the PC doubles as the control node.
+
+Goal: **identical development environment**, not identical systems. Division of truth:
+
+| Layer                                        | Tool                                           |
+| -------------------------------------------- | ---------------------------------------------- |
+| Dev packages                                 | Ansible (`arch_packages`, small base+dev list) |
+| User config (fish, nvim, git, starship, ...) | chezmoi + git                                  |
+| Source code (`~/Projects`)                   | git + GitHub                                   |
+| `~/Documents`                                | Syncthing                                      |
+| Large/shared files                           | Unraid directly                                |
+
+GUI/desktop/hardware packages, SMB and everything outside the dev baseline come from the OS install / manual setup and are deliberately NOT managed here.
+
+Layers (roles):
+
+- `arch_common` — optional full `pacman -Syu` (off by default; rolling release upgrades are deliberate: `-e arch_system_upgrade=true`), timezone/locale, `~/Projects`, and the MagicDNS fix: CachyOS wires NetworkManager to write `/etc/resolv.conf` directly, which breaks tailnet resolution — the role points NM at systemd-resolved.
+- `ssh` — enables sshd (Arch unit name via `ssh_service_name: sshd`) with the same hardening drop-in as the VPS.
+- `tailscale` — Arch branch (pacman); workstations accept subnet routes from the routers. Day-0 is still a manual `tailscale up`.
+- `arch_packages` — small dev baseline only (`base` CLI tools + `dev` toolchain, `workstation_enabled_groups`). AUR list is empty by design; the yay mechanism (passwordless `sudo pacman` drop-in, builds run as the user) stays ready for when a package genuinely needs AUR.
+- `docker` — docker/buildx/compose (official Arch packages), service enabled, user in the `docker` group. Group membership needs ONE re-login (or `newgrp docker`) after the first run.
+- `dotfiles` — chezmoi (the old stow repo `ovchingus/dotfiles` is legacy). Source state: `dot_config/*`, `dot_gitconfig` + `.chezmoiignore.tmpl` for per-OS/host differences — per-machine tweaks are chezmoi templates, not Ansible. Role runs `chezmoi init --apply` once, then `chezmoi update` (pull + apply) on every run. Migration of the stow layout lives in `~/Projects/dotfiles-chezmoi` (local git repo; zsh history/session junk excluded) — push it to GitHub and set `dotfiles_chezmoi_repo` in `group_vars/workstations/dotfiles.yml`.
+- `syncthing` — syncs ONLY `~/Documents` between workstations (user service `syncthing@boss` + lingering). Pairing is a one-time GUI step (`http://127.0.0.1:8384`): Add Remote Device -> share the Documents folder.
+
+### Bootstrap a fresh Arch/CachyOS machine
+
+1. Install minimal Arch/CachyOS, create the user, configure networking.
+2. `sudo pacman -S git ansible openssh tailscale`
+3. `tailscale up` (SSO login URL; disable key expiry in the admin console).
+4. Add the host to `[workstations]` in `inventory/hosts.ini` + `host_vars/<name>.yml` if it needs deltas.
+5. Run from starling: `ansible-playbook workstation.yml --limit <name> --ask-become-pass`
+   (or locally on the new machine with a repo clone: `-c local`).
+6. Log out/in once (docker group), then verify: `docker run hello-world`, `syncthing` at `http://127.0.0.1:8384`, `chezmoi status`.
+7. One-time Syncthing pairing in the GUI: share `~/Documents` with the other machine.
+
+Day-0 on the machine hosting this repo (no sshd/MagicDNS yet):
+
+```
+ansible-playbook workstation.yml -c local --limit starling --ask-become-pass
+```
+
+Afterwards workstations are tailnet-managed like every other group; partial runs via `--tags packages|docker|dotfiles|syncthing|tailscale`.
+
+---
+
 ## Non-goals
 
 - Prometheus / Grafana / Loki / ELK / SIEM.

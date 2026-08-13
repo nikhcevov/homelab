@@ -1,0 +1,25 @@
+---
+# Docker for local development. Compose comes from the official Arch
+# `docker-compose` package (v2 CLI plugin) — no third-party binaries.
+
+- name: Install docker
+  ansible.builtin.pacman:
+    name:
+      - docker
+      - docker-buildx
+      - docker-compose
+    state: present
+
+- name: Ensure docker is running and enabled
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+# Group membership applies only to NEW login sessions: after the first
+# run that adds the user, log out/in (or `newgrp docker`) once.
+- name: Add the workstation user to the docker group
+  ansible.builtin.user:
+    name: "{{ workstation_user }}"
+    groups: docker
+    append: true

@@ -1,0 +1,67 @@
+---
+# Declarative package state (role: arch_packages).
+#
+# Intentionally SMALL: the dev-environment baseline that must be identical
+# on PC and laptop. GUI/desktop/hardware packages come from the CachyOS
+# install and are deliberately NOT managed here — a short list is a
+# feature: easy to read, easy to keep machines in sync. Adding a tool to
+# your daily setup? Add it here too, so the other machine gets it.
+workstation_enabled_groups:
+  - base
+  - dev
+
+workstation_packages:
+  # CLI environment: shell, prompt, everyday tools.
+  base:
+    - bash-completion
+    - bat
+    - bind # dig/nslookup
+    - btop
+    - curl
+    - duf
+    - eza
+    - fastfetch
+    - fd
+    - fish
+    - fzf
+    - jq
+    - less
+    - man-db
+    - man-pages
+    - plocate
+    - pv
+    - ripgrep
+    - rsync
+    - starship
+    - tmux
+    - tree
+    - unzip
+    - vim
+    - wget
+    - which
+    - zip
+
+  # Development toolchain. Docker lives in the docker role; tailscale,
+  # chezmoi and syncthing are installed by their own roles.
+  dev:
+    - age
+    - ansible
+    - base-devel
+    - dotnet-sdk-8.0
+    - git
+    - meld
+    - mkcert
+    - neovim
+    - python
+    - python-pip
+    - shellcheck
+    - sops
+    - sshuttle
+
+# AUR: empty by design — only for packages genuinely unavailable in the
+# official repos. The arch_packages role skips its AUR tasks while this
+# is empty; the yay mechanism (passwordless `sudo pacman` drop-in) stays
+# ready for when it's needed.
+workstation_aur_packages:
+  base: []
+  dev: []

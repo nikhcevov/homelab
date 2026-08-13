@@ -1,0 +1,36 @@
+---
+# Dotfiles via chezmoi (group_vars/workstations/dotfiles.yml).
+# init --apply clones the source repo into ~/.local/share/chezmoi and
+# applies the target state; `chezmoi update` afterwards pulls + applies.
+# Per-host differences live in chezmoi templates, not here.
+
+- name: Install chezmoi
+  ansible.builtin.pacman:
+    name: chezmoi
+    state: present
+
+# The config file is the source of truth for "initialized" — NOT the
+# default ~/.local/share/chezmoi path: on starling the source dir is the
+# working clone ~/Projects/dotfiles-chezmoi (sourceDir in the config).
+- name: Check for an existing chezmoi config
+  ansible.builtin.stat:
+    path: "/home/{{ workstation_user }}/.config/chezmoi/chezmoi.toml"
+  register: _chezmoi_config
+
+- name: Initialize and apply dotfiles
+  ansible.builtin.command: chezmoi init --apply "{{ dotfiles_chezmoi_repo }}"
+  become_user: "{{ workstation_user }}"
+  environment:
+    HOME: "/home/{{ workstation_user }}"
+  when: not _chezmoi_config.stat.exists
+
+# Pull + apply on every run (git pull inside the configured sourceDir).
+# Always reported as ok: chezmoi's output does not tell us reliably what
+# changed (same convention as the tailscale role's `tailscale set`).
+- name: Update and apply dotfiles
+  ansible.builtin.command: chezmoi update
+  become_user: "{{ workstation_user }}"
+  environment:
+    HOME: "/home/{{ workstation_user }}"
+  changed_when: false
+  when: _chezmoi_config.stat.exists

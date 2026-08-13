@@ -1,0 +1,26 @@
+---
+# Workstation layer: Arch/CachyOS desktops (PC + laptop).
+# Goal: identical DEV ENVIRONMENT on both machines, not identical
+# systems — desktop/GUI/hardware packages come from the OS install.
+#
+# Day-0 on the machine that hosts this repo (no sshd, MagicDNS not yet
+# fixed — both come from arch_common/ssh below):
+#   ansible-playbook workstation.yml -c local --limit starling --ask-become-pass
+# Afterwards workstations are managed over the tailnet like every other
+# group. Partial runs: --tags packages|docker|dotfiles|syncthing|tailscale.
+# Full system upgrade (rolling release, deliberate operation):
+#   ansible-playbook workstation.yml -e arch_system_upgrade=true
+- name: Configure Arch workstations
+  hosts: workstations
+  become: true
+  roles:
+    - { role: arch_common, tags: [common] }
+    - { role: ssh, tags: [ssh] }
+    - { role: tailscale, tags: [tailscale] }
+    # packages before dotfiles: the tools the configs describe (bat,
+    # eza, fzf, starship...) should exist when chezmoi applies them.
+    - { role: arch_packages, tags: [packages] }
+    - { role: docker, tags: [docker] }
+    - { role: dotfiles, tags: [dotfiles] }
+    # syncthing syncs ONLY ~/Documents; ~/Projects moves via git.
+    - { role: syncthing, tags: [syncthing] }

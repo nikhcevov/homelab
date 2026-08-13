@@ -1,0 +1,11 @@
+---
+# Dotfiles via chezmoi (role: dotfiles). The old stow repo
+# (ovchingus/dotfiles) is LEGACY — the source state was migrated to
+# chezmoi format (see README "Workstations"); push it and point this var
+# at the repo.
+#
+# chezmoi init --apply clones the source into ~/.local/share/chezmoi and
+# applies it to $HOME; per-host differences (PC vs laptop) live in
+# chezmoi templates (.chezmoiignore.tmpl, *.tmpl), not in Ansible.
+
+dotfiles_chezmoi_repo: "git@github.com:nikhcevov/dotfiles-chezmoi.git"

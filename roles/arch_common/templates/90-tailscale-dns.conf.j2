@@ -1,0 +1,5 @@
+# Managed by Ansible (role: arch_common). Hands DNS to systemd-resolved
+# so Tailscale MagicDNS (100.100.100.100) works; /etc/resolv.conf is a
+# symlink to the resolved stub.
+[main]
+dns=systemd-resolved

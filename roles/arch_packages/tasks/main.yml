@@ -1,0 +1,52 @@
+---
+# Declarative packages: official repos via pacman, AUR via paru.
+# Lists come from group_vars/workstations/packages.yml; the active subset
+# is workstation_enabled_groups (host_vars can shrink it per machine).
+
+- name: Compute enabled package lists
+  ansible.builtin.set_fact:
+    _pacman_packages: >-
+      {{ workstation_enabled_groups
+         | map('extract', workstation_packages) | flatten }}
+    _aur_packages: >-
+      {{ workstation_enabled_groups
+         | map('extract', workstation_aur_packages) | flatten }}
+
+# No update_cache here: `pacman -Sy` + install without a full upgrade is
+# the classic partial-upgrade breakage on Arch. Fresh installs should run
+# with -e arch_system_upgrade=true first (role arch_common).
+- name: Install official packages
+  ansible.builtin.pacman:
+    name: "{{ _pacman_packages }}"
+    state: present
+
+# AUR helpers call `sudo pacman` internally for the install step; make
+# that specific call passwordless so unattended runs don't hang.
+# makepkg itself must NOT run as root — the build below runs as the user.
+- name: Allow passwordless pacman for AUR installs
+  ansible.builtin.template:
+    src: etc/sudoers.d/aur.j2
+    dest: /etc/sudoers.d/90-ansible-aur
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+  when: _aur_packages | length > 0
+
+- name: Install yay (AUR helper)
+  ansible.builtin.pacman:
+    name: yay
+    state: present
+  when: _aur_packages | length > 0
+
+# --needed keeps it idempotent: installed packages are skipped and yay
+# prints "there is nothing to do". HOME is set explicitly because
+# become_user does not guarantee it for the helper's cache.
+- name: Install AUR packages
+  ansible.builtin.command: >-
+    yay -S --needed --noconfirm
+    {{ _aur_packages | join(' ') }}
+  become_user: "{{ workstation_user }}"
+  environment:
+    HOME: "/home/{{ workstation_user }}"
+  register: _aur_result
+  changed_when: "'there is nothing to do' not in _aur_result.stdout"
+  when: _aur_packages | length > 0
