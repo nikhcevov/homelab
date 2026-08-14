@@ -19,11 +19,17 @@ owrt_wireless_country: ""
 #     channel: auto
 #     htmode: HE20
 #     # disabled: true
+#     # options:            # extra radio-level options, rendered verbatim
+#     #   cell_density: 0
 #     ifaces:
 #       - ssid: MyAP
 #         encryption: sae-mixed             # WPA2/WPA3 transition
 #         key: "{{ vault_wireless_psk }}"   # ansible-vault encrypt_string
 #         # name: wifinet0  (default: wifinet<N>, positional — LuCI convention)
+#         # options:        # extra iface options (802.11r etc.), verbatim
+#         #   ieee80211r: 1
+#         #   ft_over_ds: 0
+#         #   ft_psk_generate_local: 1
 #         # network: lan  (default)
 #         # mode: ap      (default)
 #         # hidden: true

@@ -37,6 +37,46 @@ owrt_timezone_name: Europe/Moscow
 # Search domain for this site:
 owrt_dns_domain: krm.home.arpa
 
+# --- Wi-Fi ---
+# Mirrors the live config as of onboarding (WR3000S, MT7981 paths).
+# 802.11r (fast roaming between the radios) stays on; PSK from the vault.
+owrt_wireless_country: RU
+owrt_wireless_radios:
+  - name: radio0
+    path: platform/soc/18000000.wifi # 2.4 GHz
+    band: 2g
+    channel: "6"
+    htmode: HE20
+    options:
+      cell_density: 0
+    ifaces:
+      - name: default_radio0
+        ssid: KR_102
+        encryption: psk2
+        key: "{{ vault_wireless_psk_krm }}"
+        options:
+          multicast_to_unicast_all: 1
+          ieee80211r: 1
+          ft_over_ds: 0
+          ft_psk_generate_local: 1
+  - name: radio1
+    path: platform/soc/18000000.wifi+1 # 5 GHz
+    band: 5g
+    channel: "36"
+    htmode: HE80
+    options:
+      cell_density: 0
+    ifaces:
+      - name: default_radio1
+        ssid: KR_102
+        encryption: psk2
+        key: "{{ vault_wireless_psk_krm }}"
+        options:
+          multicast_to_unicast_all: 1
+          ieee80211r: 1
+          ft_over_ds: 0
+          ft_psk_generate_local: 1
+
 # --- Tailscale ---
 # Advertise this site's LAN to the tailnet (matches owrt_lan_*).
 tailscale_advertise_routes: "192.168.100.0/24"

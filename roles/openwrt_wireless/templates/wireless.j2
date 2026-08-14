@@ -13,6 +13,9 @@ config wifi-device '{{ radio.name }}'
 {% if radio.disabled | default(false) %}
 	option disabled '1'
 {% endif %}
+{% for opt, val in (radio.options | default({})).items() %}
+	option {{ opt }} '{{ val }}'
+{% endfor %}
 {% for iface in radio.ifaces | default([]) %}
 
 config wifi-iface '{{ iface.name | default('wifinet' ~ ns.i) }}'
@@ -28,6 +31,9 @@ config wifi-iface '{{ iface.name | default('wifinet' ~ ns.i) }}'
 {% if iface.hidden | default(false) %}
 	option hidden '1'
 {% endif %}
+{% for opt, val in (iface.options | default({})).items() %}
+	option {{ opt }} '{{ val }}'
+{% endfor %}
 {% endfor %}
 
 {% endfor %}
