@@ -1,0 +1,38 @@
+---
+# Wi-Fi (role: openwrt_wireless). Deploys /etc/config/wireless.
+# Opt-in per host: empty list = the role does nothing (routers without
+# radios, or Wi-Fi managed by hand). Radio paths are device-specific —
+# take them from the stock generated config on the device:
+#   cat /etc/config/wireless
+owrt_wireless_radios: []
+
+# Regulatory domain, rendered on every radio when set (ISO code, e.g. RU).
+# Empty = firmware default. Mind it on a travel router: it decides which
+# channels/txpower are legal; DFS channels on 5 GHz depend on it.
+owrt_wireless_country: ""
+
+# Per-host example (host_vars/router-*.yml):
+# owrt_wireless_radios:
+#   - name: radio0
+#     path: platform/soc/18000000.wifi      # MT7981: radio0 = 2.4 GHz
+#     band: 2g
+#     channel: auto
+#     htmode: HE20
+#     # disabled: true
+#     ifaces:
+#       - ssid: MyAP
+#         encryption: sae-mixed             # WPA2/WPA3 transition
+#         key: "{{ vault_wireless_psk }}"   # ansible-vault encrypt_string
+#         # name: wifinet0  (default: wifinet<N>, positional — LuCI convention)
+#         # network: lan  (default)
+#         # mode: ap      (default)
+#         # hidden: true
+#   - name: radio1
+#     path: platform/soc/18000000.wifi+1    # MT7981: radio1 = 5 GHz
+#     band: 5g
+#     channel: auto
+#     htmode: HE80
+#     ifaces:
+#       - ssid: MyAP
+#         encryption: sae-mixed
+#         key: "{{ vault_wireless_psk }}"

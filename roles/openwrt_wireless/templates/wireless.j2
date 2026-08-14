@@ -1,0 +1,33 @@
+# Managed by Ansible (role: openwrt_wireless). Manual changes will be overwritten.
+{% set ns = namespace(i=0) %}
+{% for radio in owrt_wireless_radios %}
+config wifi-device '{{ radio.name }}'
+	option type 'mac80211'
+	option path '{{ radio.path }}'
+	option band '{{ radio.band }}'
+	option channel '{{ radio.channel }}'
+	option htmode '{{ radio.htmode }}'
+{% if owrt_wireless_country | default('') | length > 0 %}
+	option country '{{ owrt_wireless_country }}'
+{% endif %}
+{% if radio.disabled | default(false) %}
+	option disabled '1'
+{% endif %}
+{% for iface in radio.ifaces | default([]) %}
+
+config wifi-iface '{{ iface.name | default('wifinet' ~ ns.i) }}'
+{% set ns.i = ns.i + 1 %}
+	option device '{{ radio.name }}'
+	option network '{{ iface.network | default('lan') }}'
+	option mode '{{ iface.mode | default('ap') }}'
+	option ssid '{{ iface.ssid }}'
+	option encryption '{{ iface.encryption | default('sae-mixed') }}'
+{% if iface.key is defined %}
+	option key '{{ iface.key }}'
+{% endif %}
+{% if iface.hidden | default(false) %}
+	option hidden '1'
+{% endif %}
+{% endfor %}
+
+{% endfor %}

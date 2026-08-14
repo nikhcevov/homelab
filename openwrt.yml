@@ -11,6 +11,7 @@
     - openwrt_packages
     - openwrt_ssh
     - openwrt_network
+    - openwrt_wireless
     - openwrt_firewall
     - openwrt_tailscale
     - role: openwrt_upgrades

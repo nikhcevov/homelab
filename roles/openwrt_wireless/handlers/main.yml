@@ -1,0 +1,3 @@
+---
+- name: Reload wifi
+  ansible.builtin.command: /sbin/wifi reload

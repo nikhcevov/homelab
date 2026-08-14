@@ -1,0 +1,14 @@
+---
+# Wi-Fi: radios + AP interfaces (UCI /etc/config/wireless). Opt-in per
+# host — hosts without radios leave owrt_wireless_radios empty and the
+# role is a no-op. Authoritative deploy: sta interfaces added on the road
+# (travelmate etc.) are overwritten on the next run.
+
+- name: Deploy wireless config
+  ansible.builtin.template:
+    src: wireless.j2
+    dest: /etc/config/wireless
+    mode: "0600" # contains the PSK
+    backup: true
+  notify: Reload wifi
+  when: owrt_wireless_radios | length > 0
