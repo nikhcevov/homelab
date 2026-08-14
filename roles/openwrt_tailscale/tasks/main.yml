@@ -26,6 +26,7 @@
   register: _tailscale_status
   changed_when: false
   failed_when: false
+  check_mode: false # read-only; must run in check mode too
 
 # When the node is not logged in, `tailscale status` exits non-zero and may
 # print plain text instead of JSON — the rc != 0 branch short-circuits the
