@@ -4,14 +4,14 @@ Self-hosted homelab infrastructure, managed entirely by Ansible. This repository
 
 Managed hosts (inventory groups):
 
-| Group          | Hosts                  | Playbook(s)                          | What runs there                                           |
-| -------------- | ---------------------- | ------------------------------------ | --------------------------------------------------------- |
-| `vps`          | edge-proxy             | `site.yml` (layered)                 | L4 SNI proxy (nginx stream) → home servers over Tailscale |
-| `vpn`          | vpn-nl                 | `vpn.yml`, `vpn-restore.yml`         | native 3x-ui + Caddy, nightly backups                     |
-| `mon`          | mon-1                  | `mon.yml`                            | native Uptime Kuma + Caddy, external watcher              |
-| `routers`      | router-alm, router-krm | `openwrt.yml`, `openwrt-upgrade.yml` | OpenWrt routers, Tailscale exit nodes                     |
-| `unraid`       | great-hornbill         | `unraid.yml`                         | central backup collector (pull model)                     |
-| `workstations` | starling               | `workstation.yml`                    | Arch/CachyOS dev desktops                                 |
+| Group          | Hosts                               | Playbook(s)                          | What runs there                                           |
+| -------------- | ----------------------------------- | ------------------------------------ | --------------------------------------------------------- |
+| `vps`          | edge-proxy                          | `site.yml` (layered)                 | L4 SNI proxy (nginx stream) → home servers over Tailscale |
+| `vpn`          | vpn-nl                              | `vpn.yml`, `vpn-restore.yml`         | native 3x-ui + Caddy, nightly backups                     |
+| `mon`          | mon-1                               | `mon.yml`                            | native Uptime Kuma + Caddy, external watcher              |
+| `routers`      | router-alm, router-krm, router-trvl | `openwrt.yml`, `openwrt-upgrade.yml` | OpenWrt routers, Tailscale exit nodes                     |
+| `unraid`       | great-hornbill                      | `unraid.yml`                         | central backup collector (pull model)                     |
+| `workstations` | starling                            | `workstation.yml`                    | Arch/CachyOS dev desktops                                 |
 
 The tailnet is the only management plane: every host is addressed by its MagicDNS name, day-0 (install OS, add one SSH key, `tailscale up`, disable key expiry) is the only manual step. Host IPs are deliberately not stored in the repo.
 
@@ -258,9 +258,11 @@ A fresh router has no Python: the play starts with `gather_facts: false` and `op
 
 **Exit nodes:** set `tailscale_advertise_exit_node: true` in the router's `host_vars` and re-run `openwrt.yml` (role passes `--advertise-exit-node`, firewall gets `tailscale → wan` forwarding). Two one-time admin-console steps remain: approve the exit route and disable key expiry. No automatic failover — clients pick a node explicitly; place nodes at different sites for real redundancy.
 
-**Exit-node client gateway** (inverse: a whole LAN behind an OpenWrt box exits via a chosen node — see ready-made `host_vars/router-gw.yml`): set `tailscale_exit_node: <node>` (+ `tailscale_exit_node_allow_lan_access: true`). The firewall role renders `lan → tailscale` masquerade automatically. Switch nodes by changing the var and re-running, or ad hoc: `tailscale set --exit-node=...`. VM notes: OpenWrt x86_64 combined image, two virtio NICs (eth0 = WAN, eth1 = LAN).
+**Exit-node client gateway** (inverse: a whole LAN behind an OpenWrt box exits via a chosen node — e.g. the router-trvl travel router): set `tailscale_exit_node: <node>` (+ `tailscale_exit_node_allow_lan_access: true`). The firewall role renders `lan → tailscale` masquerade automatically. Switch nodes by changing the var and re-running, or ad hoc: `tailscale set --exit-node=...`.
 
 **Upgrades:** daily checks are notify-only (`openwrt_upgrades` → ntfy). To apply: `ansible-playbook openwrt-upgrade.yml` (apk packages); add `-e owrt_firmware_upgrade=true` for firmware via `owut` — the router **reboots**, the play fires async and returns immediately. Re-run `openwrt.yml` afterwards if configs drifted.
+
+**Wi-Fi:** opt-in per host via `owrt_wireless_radios` (`group_vars/routers/wireless.yml` documents the format; radio `path` values are device-specific — copy them from the stock `/etc/config/wireless`). The PSK lives in the vault (`vault_wireless_psk`). The deploy is authoritative: uplink sta interfaces added on the road (travelmate, hotel Wi-Fi) get wiped on the next run — keep those ad hoc.
 
 | Role              | Configures                                                                                    |
 | ----------------- | --------------------------------------------------------------------------------------------- |
@@ -268,6 +270,7 @@ A fresh router has no Python: the play starts with `gather_facts: false` and `op
 | openwrt_packages  | extra apk packages (`owrt_packages`)                                                          |
 | openwrt_ssh       | dropbear (key-only), root `authorized_keys`                                                   |
 | openwrt_network   | `/etc/config/network` + `/etc/config/dhcp` (LAN bridge, WAN, DHCP, DNS)                       |
+| openwrt_wireless  | `/etc/config/wireless` (radios + AP SSIDs, PSK from vault); opt-in per host                   |
 | openwrt_firewall  | `/etc/config/firewall`, tailscale zone + subnet/exit forwarding, flow offloading, extra rules |
 | openwrt_tailscale | tailscale via apk, tailnet auth, exit node (same var names as the Debian role)                |
 | openwrt_upgrades  | daily notify-only update check (apk + owut) → ntfy                                            |

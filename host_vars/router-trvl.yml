@@ -1,0 +1,64 @@
+---
+# router-trvl — Cudy TR3000 v1 (MT7981, 256 MB), travel router.
+# Per-host overrides. Shared defaults: group_vars/routers/.
+# Anything defined here wins over group_vars.
+
+# --- Identity ---
+# Hostname on the device and in the tailnet (default: inventory name).
+# owrt_hostname: router-trvl
+# tailscale_hostname: router-trvl
+
+# --- Network ---
+# LAN IP of this router (used by /etc/config/network).
+owrt_lan_ip: 192.168.102.1
+# TR3000 has no DSA switch: two standalone GMACs — eth0 = 2.5G WAN,
+# eth1 = 1G LAN (same layout as router-alm). Per OpenWrt board.d:
+# cudy,tr3000-256mb-v1 -> ucidef_set_interfaces_lan_wan eth1 eth0.
+owrt_lan_bridge_ports:
+  - eth1
+owrt_wan_device: eth0
+
+# --- Location ---
+owrt_timezone_name: Europe/Moscow
+
+# --- DNS ---
+# Search domain for this site:
+owrt_dns_domain: trvl.home.arpa
+
+# --- Wi-Fi ---
+# MT7981 DBDC paths; verify against the stock config on the device:
+#   cat /etc/config/wireless
+# PSK comes from the vault: add it once with
+#   ansible-vault encrypt_string '<psk>' --name vault_wireless_psk
+# and append to group_vars/all/vault.yml.
+# owrt_wireless_country: RU   # regulatory domain (channels/DFS)
+owrt_wireless_radios:
+  - name: radio0
+    path: platform/soc/18000000.wifi # 2.4 GHz
+    band: 2g
+    channel: auto
+    htmode: HE20
+    ifaces:
+      - ssid: trvl
+        encryption: sae-mixed
+        key: "{{ vault_wireless_psk }}"
+  - name: radio1
+    path: platform/soc/18000000.wifi+1 # 5 GHz
+    band: 5g
+    channel: auto
+    htmode: HE80
+    ifaces:
+      - ssid: trvl
+        encryption: sae-mixed
+        key: "{{ vault_wireless_psk }}"
+
+# --- Tailscale ---
+# Advertise this site's LAN to the tailnet (matches owrt_lan_*).
+tailscale_advertise_routes: "192.168.102.0/24"
+# Exit node: full-tunnel internet via this WAN. Approved once in the
+# Tailscale admin console (Edit route settings), or autoApprovers.exitNode.
+# tailscale_advertise_exit_node: true
+# Alternative for a travel router — client of a home exit node (whole LAN
+# exits with the home IP):
+# tailscale_exit_node: router-alm
+# tailscale_exit_node_allow_lan_access: true
