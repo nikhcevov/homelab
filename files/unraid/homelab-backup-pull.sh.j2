@@ -45,8 +45,6 @@ RSYNC_SOURCES=(
 # OpenWrt routers: config backup streamed via sysupgrade -b over SSH.
 # Format: "<name>|<tailscale-ip>"
 ROUTERS=(
-	# TODO: tailscale IP after the router-srt re-flash + fresh tailnet
-	# registration (new node key => new 100.x address) — check admin console.
 	"router-srt|100.77.53.118"
 	# router-alm: backup SD card, normally offline — uncomment if rolled back.
 	# "router-alm|100.102.172.25"
