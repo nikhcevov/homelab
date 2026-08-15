@@ -54,7 +54,7 @@ owrt_wireless_radios:
     ifaces:
       - name: default_radio0
         ssid: KR_102
-        encryption: psk2
+        encryption: sae-mixed
         key: "{{ vault_wireless_psk_krm }}"
         options:
           multicast_to_unicast_all: 1
@@ -71,7 +71,7 @@ owrt_wireless_radios:
     ifaces:
       - name: default_radio1
         ssid: KR_102
-        encryption: psk2
+        encryption: sae-mixed
         key: "{{ vault_wireless_psk_krm }}"
         options:
           multicast_to_unicast_all: 1
