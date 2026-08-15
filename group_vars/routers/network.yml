@@ -32,6 +32,10 @@ owrt_dhcp_leasetime: 12h
 #   - { name: unraid, ip: 192.168.100.20, mac: "ac:1f:6b:f4:a4:18" }
 owrt_dhcp_hosts: []
 
+# Spread packet processing across CPU cores (RPS). Free on multicore
+# SoCs (MT7981), harmless on single-core.
+owrt_packet_steering: true
+
 # DNS: upstream resolvers dnsmasq forwards to, and the local domain.
 owrt_dns_servers:
   - 9.9.9.9 # Quad9 DNS

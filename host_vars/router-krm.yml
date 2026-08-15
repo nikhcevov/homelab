@@ -40,6 +40,8 @@ owrt_dns_domain: krm.home.arpa
 # --- Wi-Fi ---
 # Mirrors the live config as of onboarding (WR3000S, MT7981 paths).
 # 802.11r (fast roaming between the radios) stays on; PSK from the vault.
+# sae-mixed: WPA3 for capable clients, WPA2 fallback for the rest —
+# same PSK, no client reconfiguration needed.
 owrt_wireless_country: RU
 owrt_wireless_radios:
   - name: radio0
@@ -83,3 +85,8 @@ tailscale_advertise_routes: "192.168.100.0/24"
 # Exit node: full-tunnel internet via this WAN. Approved once in the
 # Tailscale admin console (Edit route settings), or autoApprovers.exitNode.
 tailscale_advertise_exit_node: true
+
+# --- Firewall ---
+# MT7981 WED: NAT/forwarding bypasses the CPU. Incompatible with SQM and
+# per-flow netfilter rules (offloaded flows skip them) — we have neither.
+owrt_flow_offloading_hw: true

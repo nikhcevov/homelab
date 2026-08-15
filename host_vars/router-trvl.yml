@@ -52,6 +52,11 @@ owrt_wireless_radios:
         encryption: sae-mixed
         key: "{{ vault_wireless_psk }}"
 
+# --- Firewall ---
+# MT7981 WED: NAT/forwarding bypasses the CPU. Incompatible with SQM and
+# per-flow netfilter rules (offloaded flows skip them) — we have neither.
+owrt_flow_offloading_hw: true
+
 # --- Tailscale ---
 # Advertise this site's LAN to the tailnet (matches owrt_lan_*).
 tailscale_advertise_routes: "192.168.102.0/24"
