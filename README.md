@@ -258,7 +258,9 @@ A fresh router has no Python: the play starts with `gather_facts: false` and `op
 
 **Exit nodes:** set `tailscale_advertise_exit_node: true` in the router's `host_vars` and re-run `openwrt.yml` (role passes `--advertise-exit-node`, firewall gets `tailscale → wan` forwarding). Two one-time admin-console steps remain: approve the exit route and disable key expiry. No automatic failover — clients pick a node explicitly; place nodes at different sites for real redundancy.
 
-**Exit-node client gateway** (inverse: a whole LAN behind an OpenWrt box exits via a chosen node — e.g. the router-trvl travel router): set `tailscale_exit_node: <node>` (+ `tailscale_exit_node_allow_lan_access: true`). The firewall role renders `lan → tailscale` masquerade automatically. Switch nodes by changing the var and re-running, or ad hoc: `tailscale set --exit-node=...`.
+**Exit-node client gateway** (inverse: a whole LAN behind an OpenWrt box exits via a chosen node): set `tailscale_exit_node: <node>` (+ `tailscale_exit_node_allow_lan_access: true`). The firewall role renders `lan → tailscale` masquerade automatically. Switch nodes by changing the var and re-running, or ad hoc: `tailscale set --exit-node=...`.
+
+**Per-device exit node + kill switch** (router-trvl): `owrt_network_rules` slot netifd `ip rule`s in front of tailscaled's blanket `5270: from all lookup 52` — only the MacBook's /32 looks up table 52, backed by an `unreachable` rule so a dead tunnel means no internet (never a WAN fallback); the rest of the LAN preempts 5270 with a direct `main` lookup. Belt and suspenders: a firewall REJECT for the MacBook's IP into the wan zone. Requires a fixed DHCP lease (and Private Wi-Fi Address = Fixed on macOS).
 
 **Upgrades:** daily checks are notify-only (`openwrt_upgrades` → ntfy). To apply: `ansible-playbook openwrt-upgrade.yml` (apk packages); add `-e owrt_firmware_upgrade=true` for firmware via `owut` — the router **reboots**, the play fires async and returns immediately. Re-run `openwrt.yml` afterwards if configs drifted.
 

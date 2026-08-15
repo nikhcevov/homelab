@@ -63,7 +63,56 @@ tailscale_advertise_routes: "192.168.102.0/24"
 # Exit node: full-tunnel internet via this WAN. Approved once in the
 # Tailscale admin console (Edit route settings), or autoApprovers.exitNode.
 # tailscale_advertise_exit_node: true
-# Alternative for a travel router — client of a home exit node (whole LAN
-# exits with the home IP):
-# tailscale_exit_node: router-alm
-# tailscale_exit_node_allow_lan_access: true
+
+# --- Policy routing: MacBook-only exit node with kill switch ---
+# Only the MacBook rides the exit node; the rest of the LAN stays direct
+# on the WAN. tailscaled installs a blanket `5270: from all lookup 52`
+# when tailscale_exit_node is set — the rules below slot in front of it
+# (tailscaled occupies 5210/5230/5250 fwmark rules; 5255-5260 are free).
+tailscale_exit_node: router-krm
+# Keeps throw routes for the local subnet in table 52, so local traffic
+# (and the MacBook's) is not eaten by the tunnel's default route.
+tailscale_exit_node_allow_lan_access: true
+
+owrt_network_rules:
+  - comment: MacBook -> exit node (table 52 is tailscaled's)
+    priority: 5255
+    src: "192.168.102.50/32"
+    lookup: "52"
+  - comment: MacBook -> local LAN stays direct (table 52 throws fall through)
+    priority: 5256
+    src: "192.168.102.50/32"
+    dest: "192.168.102.0/24"
+    lookup: main
+  - comment: Kill switch — no tunnel route, no WAN fallback
+    priority: 5257
+    src: "192.168.102.50/32"
+    action: unreachable
+  - comment: Replies to tailnet peers keep working (subnet router)
+    priority: 5259
+    src: "192.168.102.0/24"
+    dest: "100.64.0.0/10"
+    lookup: "52"
+  - comment: Everyone else on the LAN bypasses the tunnel
+    priority: 5260
+    src: "192.168.102.0/24"
+    lookup: main
+
+owrt_firewall_rules:
+  # Belt and suspenders: if the ip rules are ever flushed, the MacBook
+  # must not leak onto the WAN.
+  - {
+      name: KillSwitch-MacBook-WAN,
+      src: lan,
+      dest: wan,
+      src_ip: 192.168.102.50,
+      proto: all,
+      target: REJECT,
+    }
+
+# --- DHCP ---
+# Fixed lease so the policy rules above can match by IP. Private Wi-Fi
+# Address = Fixed on the MacBook: stable, but regenerated on macOS
+# reinstall — update the MAC here then.
+owrt_dhcp_hosts:
+  - { name: macbook, ip: 192.168.102.50, mac: "a2:b6:27:9e:00:bd" }

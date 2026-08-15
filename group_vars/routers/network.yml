@@ -36,6 +36,12 @@ owrt_dhcp_hosts: []
 # SoCs (MT7981), harmless on single-core.
 owrt_packet_steering: true
 
+# Policy routing rules, rendered as `config rule` sections (netifd
+# `ip rule`). Keys: priority, src, optional dest, lookup (table name/
+# number) or action (e.g. unreachable). See host_vars/router-trvl.yml
+# for a per-device exit-node + kill-switch example.
+owrt_network_rules: []
+
 # DNS: upstream resolvers dnsmasq forwards to, and the local domain.
 owrt_dns_servers:
   - 9.9.9.9 # Quad9 DNS
