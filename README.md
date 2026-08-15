@@ -248,11 +248,17 @@ Deploy: day-0 → DNS A record for the Kuma domain (`vault_kuma_domain`) → `an
 
 Identical OpenWrt routers (`routers` group), managed end-to-end by `openwrt.yml` over the tailnet. Config is authoritative — roles deploy whole `/etc/config/*` files, manual `uci` edits get overwritten. Per-host deltas (LAN IP, exit-node flags) live in `host_vars/router-*.yml`.
 
-Day-0 (manual): flash OpenWrt, set root password, add your SSH key to dropbear, then `apk add tailscale tailscaled && service tailscale enable && service tailscale start && tailscale up` → disable key expiry. Then:
+Day-0 (manual, over LAN — no tailnet yet):
 
-1. Drop your public key into `files/ssh/` and reference it in `ssh_authorized_keys` (`group_vars/routers/ssh.yml`) — the role takes over `authorized_keys` authoritatively.
-2. Check `owrt_lan_bridge_ports` (`group_vars/routers/network.yml`) against the hardware (`ip link` — DSA port names vary).
-3. `ansible-playbook openwrt.yml`
+1. Flash OpenWrt, set root password.
+2. Set the hostname to the inventory name (`router-srt`) and the LAN IP/subnet from the host's `host_vars` (`owrt_lan_ip`) — LuCI or `uci`, your choice. The roles will re-apply both authoritatively, but a correct hostname now means the tailnet node gets the right name on first join.
+3. Add your SSH key to dropbear (`/etc/dropbear/authorized_keys`).
+4. Drop the same public key into `files/ssh/` and reference it in `ssh_authorized_keys` (`group_vars/routers/ssh.yml`) — the role takes over `authorized_keys` authoritatively.
+5. Check `owrt_lan_bridge_ports` (`group_vars/routers/network.yml`) against the hardware (`ip link` — DSA port names vary).
+6. Point the inventory at the LAN directly, temporarily: `router-srt ansible_host=192.168.103.1 ansible_user=root`.
+7. `ansible-playbook openwrt.yml --limit router-srt` — the `openwrt_tailscale` role installs tailscale and joins the tailnet itself (auth key from the vault); no manual `tailscale up`.
+8. In the Tailscale admin console: disable key expiry, approve the subnet route and exit node.
+9. Switch the inventory line back to the MagicDNS form (`router-srt ansible_host="router-srt.{{ tailnet_domain }}" ...`) — from now on management is tailnet-only.
 
 A fresh router has no Python: the play starts with `gather_facts: false` and `openwrt_common` installs full `python3` via `raw` (apk), then gathers facts.
 
