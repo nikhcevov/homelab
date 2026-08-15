@@ -1,42 +1,27 @@
 ---
-# router-alm — per-host overrides. Shared defaults: group_vars/routers/.
-# Anything defined here wins over group_vars.
+# router-alm — BACKUP SD card with the old working config (kept as a
+# ready-to-boot spare; the active router is router-srt). The whole file is
+# commented out on purpose: the host is also commented out in
+# inventory/hosts.ini, so Ansible never reads this. To roll back: insert
+# the card, boot, uncomment the host in inventory — these vars then apply
+# as-is (they match what's already on the card).
 
 # --- Identity ---
-# Hostname on the device and in the tailnet (default: inventory name).
 # owrt_hostname: router-alm
 # tailscale_hostname: router-alm
 
 # --- Network ---
-# LAN IP of this router (used by /etc/config/network).
-owrt_lan_ip: 192.168.101.1
-# Non-default LAN size:
-# owrt_lan_netmask: "255.255.255.0"
-# This device has no DSA switch: plain eth0 (WAN) / eth1 (LAN).
-owrt_lan_bridge_ports:
-  - eth1
-owrt_wan_device: eth0
-# WAN behind another ISP router with a static address:
-# owrt_wan_proto: static
+# owrt_lan_ip: 192.168.101.1
+# owrt_lan_bridge_ports:
+#   - eth1
+# owrt_wan_device: eth0
 
 # --- Location ---
-owrt_timezone_name: Europe/Moscow
+# owrt_timezone_name: Europe/Moscow
 
 # --- DNS ---
-# Local/regional resolvers, if different from group default:
-owrt_dns_domain: alm.home.arpa
+# owrt_dns_domain: alm.home.arpa
 
 # --- Tailscale ---
-# Advertise this site's LAN to the tailnet (matches owrt_lan_*).
-tailscale_advertise_routes: "192.168.101.0/24"
-# Exit node: full-tunnel internet via this WAN. Approved once in the
-# Tailscale admin console (Edit route settings), or autoApprovers.exitNode.
-tailscale_advertise_exit_node: true
-# If this device becomes a dedicated exit node (no local LAN served),
-# tailscale_advertise_routes above can go away; the LAN/DHCP config is
-# then simply unused.
-
-# --- Firewall ---
-# Extra rules only on this router:
-# owrt_firewall_rules:
-#   - { name: Allow-SSH-WAN, src: wan, proto: tcp, dest_port: 22, target: ACCEPT }
+# tailscale_advertise_routes: "192.168.101.0/24"
+# tailscale_advertise_exit_node: true

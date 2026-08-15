@@ -13,7 +13,7 @@ tailscale_advertise_routes: ""
 
 # Do NOT accept subnet routes by default: both machines are mostly at
 # home, i.e. INSIDE the advertised segments (192.168.100.0/24 +
-# 192.168.101.0/24) — accepted routes hijack locally-routed traffic into
+# 192.168.103.0/24) — accepted routes hijack locally-routed traffic into
 # tailscale's table-52 path, which loops through the advertising router
 # and dies. Enable per-host in host_vars only if a machine spends real
 # time away from home and needs the remote segments.

@@ -4,7 +4,7 @@
 # this playbook actually applies them.
 #
 # Usage:
-#   ansible-playbook openwrt-upgrade.yml [--limit router-alm]
+#   ansible-playbook openwrt-upgrade.yml [--limit router-srt]
 #     # apk packages only
 #   ansible-playbook openwrt-upgrade.yml -e owrt_firmware_upgrade=true
 #     # + firmware via owut; the router REBOOTS and the SSH session drops

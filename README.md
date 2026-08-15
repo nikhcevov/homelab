@@ -9,7 +9,7 @@ Managed hosts (inventory groups):
 | `vps`          | edge-proxy                          | `site.yml` (layered)                 | L4 SNI proxy (nginx stream) → home servers over Tailscale |
 | `vpn`          | vpn-nl                              | `vpn.yml`, `vpn-restore.yml`         | native 3x-ui + Caddy, nightly backups                     |
 | `mon`          | mon-1                               | `mon.yml`                            | native Uptime Kuma + Caddy, external watcher              |
-| `routers`      | router-alm, router-krm, router-trvl | `openwrt.yml`, `openwrt-upgrade.yml` | OpenWrt routers, Tailscale exit nodes                     |
+| `routers`      | router-srt, router-krm, router-trvl | `openwrt.yml`, `openwrt-upgrade.yml` | OpenWrt routers, Tailscale exit nodes                     |
 | `unraid`       | great-hornbill                      | `unraid.yml`                         | central backup collector (pull model)                     |
 | `workstations` | starling                            | `workstation.yml`                    | Arch/CachyOS dev desktops                                 |
 

@@ -12,7 +12,7 @@
 # LAN IP of this router (used by /etc/config/network).
 owrt_lan_ip: 192.168.102.1
 # TR3000 has no DSA switch: two standalone GMACs — eth0 = 2.5G WAN,
-# eth1 = 1G LAN (same layout as router-alm). Per OpenWrt board.d:
+# eth1 = 1G LAN (same layout as router-srt). Per OpenWrt board.d:
 # cudy,tr3000-256mb-v1 -> ucidef_set_interfaces_lan_wan eth1 eth0.
 owrt_lan_bridge_ports:
   - eth1

@@ -1,0 +1,44 @@
+---
+# router-srt — per-host overrides. Shared defaults: group_vars/routers/.
+# Anything defined here wins over group_vars.
+
+# --- Identity ---
+# Hostname on the device and in the tailnet (default: inventory name).
+# owrt_hostname: router-srt
+# tailscale_hostname: router-srt
+
+# --- Network ---
+# LAN IP of this router (used by /etc/config/network).
+# NOTE: 192.168.101.1 stays reserved for the router-alm backup SD card
+# (commented-out host in inventory + host_vars/router-alm.yml).
+owrt_lan_ip: 192.168.103.1
+# Non-default LAN size:
+# owrt_lan_netmask: "255.255.255.0"
+# This device has no DSA switch: plain eth0 (WAN) / eth1 (LAN).
+owrt_lan_bridge_ports:
+  - eth1
+owrt_wan_device: eth0
+# WAN behind another ISP router with a static address:
+# owrt_wan_proto: static
+
+# --- Location ---
+owrt_timezone_name: Europe/Moscow
+
+# --- DNS ---
+# Local/regional resolvers, if different from group default:
+owrt_dns_domain: srt.home.arpa
+
+# --- Tailscale ---
+# Advertise this site's LAN to the tailnet (matches owrt_lan_*).
+tailscale_advertise_routes: "192.168.103.0/24"
+# Exit node: full-tunnel internet via this WAN. Approved once in the
+# Tailscale admin console (Edit route settings), or autoApprovers.exitNode.
+tailscale_advertise_exit_node: true
+# If this device becomes a dedicated exit node (no local LAN served),
+# tailscale_advertise_routes above can go away; the LAN/DHCP config is
+# then simply unused.
+
+# --- Firewall ---
+# Extra rules only on this router:
+# owrt_firewall_rules:
+#   - { name: Allow-SSH-WAN, src: wan, proto: tcp, dest_port: 22, target: ACCEPT }
