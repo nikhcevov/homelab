@@ -49,6 +49,7 @@ workstation_packages:
     - base-devel
     - dotnet-sdk-8.0
     - git
+    - ghostty
     - meld
     - mkcert
     - neovim
@@ -57,6 +58,7 @@ workstation_packages:
     - shellcheck
     - sops
     - sshuttle
+    - zed
 
 # AUR: empty by design — only for packages genuinely unavailable in the
 # official repos. The arch_packages role skips its AUR tasks while this
