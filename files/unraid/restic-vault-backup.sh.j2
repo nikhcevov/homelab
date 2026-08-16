@@ -1,0 +1,143 @@
+#!/bin/bash
+#name=Restic vault backup
+#description=Weekly restic backup of photos+backup shares to the vault pool
+#arrayStarted=true
+#
+# restic-vault-backup — weekly local backup of the photos and backup shares
+# into a restic repository on the single-disk "vault" pool (btrfs, no
+# parity, no shares — the disk sleeps between runs).
+#
+# Install (Unraid):
+#   1. Main -> Add Pool: name "vault", one disk, btrfs. No shares on it.
+#   2. Settings -> User Scripts -> Schedule: weekly, "0 6 * * 0" — part of
+#      the Sunday chain: mover 00:00, CA Appdata Backup 04:00, this 06:00,
+#      parity check (monthly) 08:00. Restic must not scan while the mover
+#      works: it renames files mid-scan, which turns into spurious
+#      "file vanished" warnings. The array is already awake from the mover
+#      run; the vault disk wakes up only for this script.
+#   3. restic binary + repo password are deployed by unraid.yml (binary
+#      pinned at /boot/extra/restic, password root-only at
+#      /boot/config/restic/password). /boot is vfat + noexec, so this
+#      script stages the binary into /usr/local/bin (ramdisk) before use.
+#      The password also lives in this repo's vault (vault_restic_password)
+#      — keep a copy in a password manager too: without it the repository
+#      is unrecoverable, and the flash drive is itself a failure domain.
+#
+# Sources are read via /mnt/user/<share> (the FUSE union), so cache->array
+# mover state is transparent — every file is seen regardless of which
+# layer it physically sits on. The source is strictly read-only for
+# restic; nothing is ever deleted from the shares.
+#
+# Restore:
+#   cp /boot/extra/restic /usr/local/bin/restic && chmod 755 /usr/local/bin/restic
+#   export RESTIC_REPOSITORY=/mnt/vault/restic
+#   export RESTIC_PASSWORD_FILE=/boot/config/restic/password
+#   /usr/local/bin/restic snapshots
+#   /usr/local/bin/restic restore latest --target /mnt/user/restore
+#   # or browse interactively:
+#   /usr/local/bin/restic mount /mnt/disks/restic-mount
+#
+# Alerting: single state key next to the script on the flash drive; ntfy
+# fires only on OK<->FAIL transitions, like homelab-backup-pull.
+
+set -uo pipefail
+
+# --- config ---------------------------------------------------------------
+POOL_MOUNT="/mnt/vault"
+BACKUP_PATHS=("/mnt/user/photos" "/mnt/user/backup")
+KEEP_WEEKLY=8
+KEEP_MONTHLY=6
+
+NTFY_URL="{{ ntfy_url }}"
+NTFY_TOPIC_ALERTS="{{ ntfy_topic_alerts }}"
+NTFY_TOPIC_INFO="{{ ntfy_topic_info }}"
+# --------------------------------------------------------------------------
+
+RESTIC_STORED=/boot/extra/restic
+RESTIC=/usr/local/bin/restic
+export RESTIC_REPOSITORY="$POOL_MOUNT/restic"
+export RESTIC_PASSWORD_FILE=/boot/config/restic/password
+export RESTIC_COMPRESSION=auto
+LOG_TAG="restic-vault-backup"
+STATE_DIR="$(cd "$(dirname "$0")" && pwd)/.state"
+
+log() { echo "[$LOG_TAG] $*"; logger -t "$LOG_TAG" "$*"; }
+
+send_ntfy() {
+	local severity=$1 title=$2 tags=$3 message=$4 topic priority
+	case "$severity" in
+	alert) topic="$NTFY_TOPIC_ALERTS"; priority=high ;;
+	info) topic="$NTFY_TOPIC_INFO"; priority=default ;;
+	esac
+	curl --fail --show-error --silent --max-time 10 --retry 2 \
+		-H "Title: [GREAT-HORNBILL] $title" \
+		-H "Priority: $priority" \
+		-H "Tags: $tags" \
+		-d "$message" \
+		"${NTFY_URL%/}/$topic" >/dev/null || log "WARN ntfy send failed ($title)"
+}
+
+notify_transition() {
+	local key=$1 status=$2 title=$3 message=$4
+	local file="$STATE_DIR/$key.state" prev=""
+	[ -f "$file" ] && prev=$(cat "$file")
+	[ "$prev" = "$status" ] && return 0
+	if [ -z "$prev" ] && [ "$status" = ok ]; then
+		echo "$status" >"$file"
+		return 0
+	fi
+	if [ "$status" = fail ]; then
+		send_ntfy alert "$title" "warning,package" "$message"
+	else
+		send_ntfy info "$title" "white_check_mark,package" "$message"
+	fi
+	echo "$status" >"$file"
+}
+
+fail() {
+	log "FAIL $*"
+	notify_transition restic-vault fail "Vault backup FAILED" "⚠️ $*"
+	exit 1
+}
+
+mkdir -p "$STATE_DIR"
+mountpoint -q "$POOL_MOUNT" || fail "pool not mounted at $POOL_MOUNT"
+[ -s "$RESTIC_PASSWORD_FILE" ] || fail "password file missing/empty at $RESTIC_PASSWORD_FILE (deploy: ansible-playbook unraid.yml)"
+
+# /boot (flash) is vfat and mounted noexec on current Unraid — stage the
+# pinned binary into the ramdisk and run it from there.
+if [ ! -x "$RESTIC" ] || ! cmp -s "$RESTIC_STORED" "$RESTIC" 2>/dev/null; then
+	[ -f "$RESTIC_STORED" ] || fail "restic binary missing at $RESTIC_STORED (deploy: ansible-playbook unraid.yml)"
+	mkdir -p /usr/local/bin
+	cp "$RESTIC_STORED" "$RESTIC.tmp" && chmod 755 "$RESTIC.tmp" && mv "$RESTIC.tmp" "$RESTIC" \
+		|| fail "failed to stage restic into /usr/local/bin"
+	log "staged $RESTIC_STORED -> $RESTIC ($("$RESTIC" version))"
+fi
+
+# First run: initialise the repository.
+if ! "$RESTIC" snapshots >/dev/null 2>&1; then
+	log "initialising repository at $RESTIC_REPOSITORY"
+	out=$("$RESTIC" init 2>&1) || fail "restic init failed: $out"
+fi
+
+# Drop stale locks left by interrupted runs (safe: this is the only writer).
+"$RESTIC" unlock >/dev/null 2>&1 || true
+
+log "backup: ${BACKUP_PATHS[*]}"
+if ! out=$("$RESTIC" backup --tag weekly "${BACKUP_PATHS[@]}" 2>&1); then
+	fail "restic backup failed: $(tail -n 5 <<<"$out" | tr '\n' ' ')"
+fi
+log "backup done: $(grep -E '^(Files|Dirs|Added)' <<<"$out" | tr '\n' ' ')"
+
+log "forget+prune (keep ${KEEP_WEEKLY} weekly / ${KEEP_MONTHLY} monthly)"
+out=$("$RESTIC" forget --tag weekly \
+	--keep-weekly "$KEEP_WEEKLY" --keep-monthly "$KEEP_MONTHLY" --prune 2>&1) \
+	|| fail "restic forget --prune failed: $(tail -n 5 <<<"$out" | tr '\n' ' ')"
+
+# Metadata integrity check (fast). Full data verification comes from the
+# monthly btrfs scrub of the pool plus an occasional manual
+# `restic check --read-data-subset=10%`.
+out=$("$RESTIC" check 2>&1) || fail "restic check failed: $(tail -n 5 <<<"$out" | tr '\n' ' ')"
+
+log "OK"
+notify_transition restic-vault ok "Vault backup recovered" "✅ weekly restic backup OK again"

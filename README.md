@@ -303,6 +303,14 @@ Setup:
 
 Restore: VPS DBs — copy the tarball back and follow the role's restore path (`vpn-restore.yml`); routers — upload in LuCI _Backup/Flash Firmware_ or `sysupgrade -r`.
 
+### Local weekly copy → vault pool (restic)
+
+The `photos` and `backup` shares are copied weekly into a restic repository on `vault`, a single-disk btrfs pool (no parity, no shares — the disk spins down between runs). Sources are read via `/mnt/user/<share>` (FUSE union), so cache→array mover state is transparent; the source is strictly read-only, nothing is ever deleted from the shares.
+
+Script `files/unraid/restic-vault-backup.sh.j2`, deployed by `unraid.yml` together with the pinned restic binary (stored at `/boot/extra/restic`, staged into `/usr/local/bin` at runtime — `/boot` is vfat+noexec) and the repo password (`/boot/config/restic/password`, root-only; master copy: `vault_restic_password` in the vault — keep another copy in a password manager). Retention: 8 weekly + 6 monthly snapshots (`forget --prune`); every run ends with `restic check` (metadata). Schedule: one Sunday-night chain so the array wakes once and the vault disk only for restic — mover 00:00 (Settings → Scheduler), CA Appdata Backup 04:00 (plugin GUI, incl. flash), homelab-backup-pull 05:00 (daily as usual), restic-vault-backup 06:00 (User Scripts), parity check monthly 08:00 (Settings → Scheduler; monthly is by day-of-month — use the Parity Check Tuning plugin for "first Sunday"/incremental checks). Restic must not scan while the mover works (renames mid-scan → spurious warnings), hence the 06:00 slot after the 04:00 appdata backup.
+
+Restore: `cp /boot/extra/restic /usr/local/bin/restic && chmod 755 /usr/local/bin/restic`, then `export RESTIC_REPOSITORY=/mnt/vault/restic RESTIC_PASSWORD_FILE=/boot/config/restic/password` and `restic snapshots` / `restore latest --target ...` (details in the script header).
+
 ---
 
 ## Workstations (Arch/CachyOS)
