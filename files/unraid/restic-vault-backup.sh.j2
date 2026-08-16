@@ -44,7 +44,21 @@ set -uo pipefail
 
 # --- config ---------------------------------------------------------------
 POOL_MOUNT="/mnt/vault"
-BACKUP_PATHS=("/mnt/user/photos" "/mnt/user/backup")
+
+# Include list on purpose: only these paths are backed up. Immich thumbs/
+# and encoded-video/ are regenerable (rebuilt via Admin -> Jobs after a
+# restore); frigate/ is not wanted at all.
+# Tradeoff vs an exclude list: NEW folders next to these are NOT protected
+# automatically — the watchdog below logs a WARN for unexpected top-level
+# entries, so check the syslog after adding new services into the shares.
+BACKUP_PATHS=(
+	"/mnt/user/backup"
+	"/mnt/user/photos/immich/backups"   # postgres dumps: albums, faces, metadata
+	"/mnt/user/photos/immich/library"   # originals
+	"/mnt/user/photos/immich/profile"   # avatars
+	"/mnt/user/photos/immich/upload"    # originals in flight
+)
+
 KEEP_WEEKLY=8
 KEEP_MONTHLY=6
 
@@ -123,6 +137,25 @@ fi
 # Drop stale locks left by interrupted runs (safe: this is the only writer).
 "$RESTIC" unlock >/dev/null 2>&1 || true
 
+# Watchdog: with an include list, new top-level folders are silently
+# unprotected — flag anything unexpected (syslog only, not a failure).
+check_expected() {
+	local dir=$1 entry known k
+	shift
+	for entry in "$dir"/*; do
+		[ -e "$entry" ] || continue
+		known=0
+		for k in "$@"; do
+			[ "${entry##*/}" = "$k" ] && known=1 && break
+		done
+		[ "$known" = 0 ] && log "WARN unexpected entry, NOT in backup config: $entry"
+	done
+}
+check_expected /mnt/user/photos immich frigate
+check_expected /mnt/user/photos/immich backups encoded-video library profile thumbs upload
+
+# NB: avoid bash array-count expansions here — a dollar-brace-hash sequence
+# opens a Jinja comment and breaks template rendering.
 log "backup: ${BACKUP_PATHS[*]}"
 if ! out=$("$RESTIC" backup --tag weekly "${BACKUP_PATHS[@]}" 2>&1); then
 	fail "restic backup failed: $(tail -n 5 <<<"$out" | tr '\n' ' ')"
