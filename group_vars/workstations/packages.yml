@@ -1,14 +1,17 @@
 ---
 # Declarative package state (role: arch_packages).
 #
-# Intentionally SMALL: the dev-environment baseline that must be identical
-# on PC and laptop. GUI/desktop/hardware packages come from the CachyOS
-# install and are deliberately NOT managed here — a short list is a
-# feature: easy to read, easy to keep machines in sync. Adding a tool to
-# your daily setup? Add it here too, so the other machine gets it.
+# Intentionally SMALL: the baseline that must be identical on PC and
+# laptop. Desktop/hardware packages come from the CachyOS install and are
+# deliberately NOT managed here — a short list is a feature: easy to
+# read, easy to keep machines in sync. GUI exceptions that are part of
+# the daily setup (browser, mail, messenger) live in `productivity`.
+# Adding a tool to your daily setup? Add it here too, so the other
+# machine gets it.
 workstation_enabled_groups:
   - base
   - dev
+  - productivity
 
 workstation_packages:
   # CLI environment: shell, prompt, everyday tools.
@@ -60,10 +63,20 @@ workstation_packages:
     - sshuttle
     - zed
 
-# AUR: empty by design — only for packages genuinely unavailable in the
-# official repos. The arch_packages role skips its AUR tasks while this
+  # Everyday GUI apps: browser, mail, messenger.
+  # brave-bin comes from the CachyOS repo (AUR on plain Arch — move it to
+  # workstation_aur_packages if a non-CachyOS machine joins this group).
+  # zed lives in dev — it's an editor, not productivity.
+  productivity:
+    - brave-bin
+    - telegram-desktop
+    - thunderbird
+
+# AUR: empty for now — only for packages genuinely unavailable in the
+# configured repos. The arch_packages role skips its AUR tasks while this
 # is empty; the yay mechanism (passwordless `sudo pacman` drop-in) stays
 # ready for when it's needed.
 workstation_aur_packages:
   base: []
   dev: []
+  productivity: []
