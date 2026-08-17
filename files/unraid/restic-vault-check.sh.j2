@@ -1,0 +1,118 @@
+#!/bin/bash
+#name=Restic vault deep check
+#description=Monthly restic check --read-data-subset of the vault repo
+#arrayStarted=true
+#
+# restic-vault-check — monthly data-integrity verification of the vault
+# restic repository. The vault pool is XFS (no data checksumming, no
+# scrub), so bit-rot detection relies on restic itself: every run
+# re-reads a random subset of pack files and verifies their crypto
+# hashes. Statistically the whole repo is verified every ~10 months at
+# the default 10%. After any SMART warning or an unclean shutdown of
+# the vault disk, run a full check manually instead:
+#
+#   cp /boot/extra/restic /usr/local/bin/restic && chmod 755 /usr/local/bin/restic
+#   export RESTIC_REPOSITORY=/mnt/vault/restic
+#   export RESTIC_PASSWORD_FILE=/boot/config/restic/password
+#   /usr/local/bin/restic check --read-data
+#
+# Install (Unraid):
+#   Settings -> User Scripts -> Schedule: monthly, "0 8 1 * *"
+#   (1st of month 08:00; the vault disk wakes once, the array is not
+#   touched by this script at all).
+#
+# Alerting: state key "restic-vault-check" next to the script on the
+# flash drive; ntfy fires only on OK<->FAIL transitions, like
+# restic-vault-backup.
+
+set -uo pipefail
+
+# --- config ---------------------------------------------------------------
+POOL_MOUNT="/mnt/vault"
+READ_DATA_SUBSET="10%"
+
+NTFY_URL="{{ ntfy_url }}"
+NTFY_TOPIC_ALERTS="{{ ntfy_topic_alerts }}"
+NTFY_TOPIC_INFO="{{ ntfy_topic_info }}"
+# --------------------------------------------------------------------------
+
+RESTIC_STORED=/boot/extra/restic
+RESTIC=/usr/local/bin/restic
+export RESTIC_REPOSITORY="$POOL_MOUNT/restic"
+export RESTIC_PASSWORD_FILE=/boot/config/restic/password
+LOG_TAG="restic-vault-check"
+STATE_DIR="$(cd "$(dirname "$0")" && pwd)/.state"
+
+log() { echo "[$LOG_TAG] $*"; logger -t "$LOG_TAG" "$*"; }
+
+send_ntfy() {
+	local severity=$1 title=$2 tags=$3 message=$4 topic priority
+	case "$severity" in
+	alert) topic="$NTFY_TOPIC_ALERTS"; priority=high ;;
+	info) topic="$NTFY_TOPIC_INFO"; priority=default ;;
+	esac
+	curl --fail --show-error --silent --max-time 10 --retry 2 \
+		-H "Title: [GREAT-HORNBILL] $title" \
+		-H "Priority: $priority" \
+		-H "Tags: $tags" \
+		-d "$message" \
+		"${NTFY_URL%/}/$topic" >/dev/null || log "WARN ntfy send failed ($title)"
+}
+
+notify_transition() {
+	local key=$1 status=$2 title=$3 message=$4
+	local file="$STATE_DIR/$key.state" prev=""
+	[ -f "$file" ] && prev=$(cat "$file")
+	[ "$prev" = "$status" ] && return 0
+	if [ -z "$prev" ] && [ "$status" = ok ]; then
+		echo "$status" >"$file"
+		return 0
+	fi
+	if [ "$status" = fail ]; then
+		send_ntfy alert "$title" "warning,package" "$message"
+	else
+		send_ntfy info "$title" "white_check_mark,package" "$message"
+	fi
+	echo "$status" >"$file"
+}
+
+fail() {
+	log "FAIL $*"
+	notify_transition restic-vault-check fail "Vault repo check FAILED" "⚠️ $*"
+	exit 1
+}
+
+mkdir -p "$STATE_DIR"
+mountpoint -q "$POOL_MOUNT" || fail "pool not mounted at $POOL_MOUNT"
+[ -s "$RESTIC_PASSWORD_FILE" ] || fail "password file missing/empty at $RESTIC_PASSWORD_FILE (deploy: ansible-playbook unraid.yml)"
+
+# /boot (flash) is vfat and mounted noexec on current Unraid — stage the
+# pinned binary into the ramdisk and run it from there.
+if [ ! -x "$RESTIC" ] || ! cmp -s "$RESTIC_STORED" "$RESTIC" 2>/dev/null; then
+	[ -f "$RESTIC_STORED" ] || fail "restic binary missing at $RESTIC_STORED (deploy: ansible-playbook unraid.yml)"
+	mkdir -p /usr/local/bin
+	cp "$RESTIC_STORED" "$RESTIC.tmp" && chmod 755 "$RESTIC.tmp" && mv "$RESTIC.tmp" "$RESTIC" \
+		|| fail "failed to stage restic into /usr/local/bin"
+	log "staged $RESTIC_STORED -> $RESTIC ($("$RESTIC" version))"
+fi
+
+# Non-exclusive locks: compatible with a running backup, blocked only
+# while prune holds the exclusive lock (same night window, unlikely).
+"$RESTIC" unlock >/dev/null 2>&1 || true
+
+# NB: restic check has no machine-readable progress (no --json; the
+# progress bar is TTY-only). Off-TTY it stays silent until done — so we
+# log phase durations and the final output lines instead.
+log "metadata check"
+start=$(date +%s)
+out=$("$RESTIC" check 2>&1) || fail "restic check failed: $(tail -n 5 <<<"$out" | tr '\n' ' ')"
+log "metadata OK ($(( ($(date +%s) - start) / 60 )) min)"
+
+log "data check: re-reading a random $READ_DATA_SUBSET of packs"
+log "runs silent until done; on a multi-TB repo expect tens of minutes"
+start=$(date +%s)
+out=$("$RESTIC" check --read-data-subset="$READ_DATA_SUBSET" 2>&1) \
+	|| fail "restic check --read-data-subset failed: $(tail -n 5 <<<"$out" | tr '\n' ' ')"
+while IFS= read -r l; do [ -n "$l" ] && log "check: $l"; done <<<"$out"
+log "OK ($READ_DATA_SUBSET of pack data verified, $(( ($(date +%s) - start) / 60 )) min)"
+notify_transition restic-vault-check ok "Vault repo check recovered" "✅ monthly restic check OK again ($READ_DATA_SUBSET verified)"

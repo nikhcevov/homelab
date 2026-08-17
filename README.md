@@ -289,6 +289,21 @@ Notes: changing `owrt_lan_ip` drops a LAN-based SSH session mid-run — manage o
 
 ## Backups → Unraid
 
+### Weekly schedule (Sunday-night chain)
+
+One chain so the array wakes once a night and the `vault` pool disk only for restic:
+
+| Time                | Task                                                                                                                                                                    | Where configured               |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| Sun 00:00           | Mover (cache→array; up to ~1 TB to drain, 4 h headroom)                                                                                                                 | Settings → Scheduler → Mover   |
+| Sun 04:00           | CA Appdata Backup (appdata + flash) into the `backup` share                                                                                                             | plugin GUI                     |
+| daily 05:00         | `homelab-backup-pull` (VPS archives + router configs)                                                                                                                   | User Scripts GUI (`0 5 * * *`) |
+| Sun 06:00           | `restic-vault-backup` → vault pool (captures the fresh 04:00/05:00 data)                                                                                                | User Scripts GUI (`0 6 * * 0`) |
+| monthly 08:00 (1st) | `restic-vault-check` — `restic check --read-data-subset=10%` on the vault repo (XFS pool: no scrub, so bit-rot detection is restic's job; ~full coverage in ~10 months) | User Scripts GUI (`0 8 1 * *`) |
+| monthly 08:00       | Parity check (day-of-month in the GUI, e.g. the 1st; for "first Sunday"/incremental use the Parity Check Tuning plugin)                                                 | Settings → Scheduler           |
+
+Restic must not scan while the mover works (renames mid-scan → spurious "file vanished" errors), hence the ordering.
+
 Unraid **pulls** every host's backups over the tailnet (script `files/unraid/homelab-backup-pull.sh.j2`, deployed into the User Scripts plugin by `unraid.yml`; schedule set in the plugin GUI). Pull model on purpose — hosts hold no Unraid credentials, so a compromised host cannot delete or encrypt its own backups.
 
 What gets pulled: `rsync` of `/opt/*-backup/archives/` from the VPS hosts (vpn/kuma, own 14-day rotation), and `sysupgrade -b` streamed over SSH from each router into dated tarballs (30-day retention). Every source is tracked in a state file: ntfy fires only on transitions (OK→FAIL alerts, FAIL→OK info).
@@ -305,9 +320,9 @@ Restore: VPS DBs — copy the tarball back and follow the role's restore path (`
 
 ### Local weekly copy → vault pool (restic)
 
-The `photos` and `backup` shares are copied weekly into a restic repository on `vault`, a single-disk btrfs pool (no parity, no shares — the disk spins down between runs). Sources are read via `/mnt/user/<share>` (FUSE union), so cache→array mover state is transparent; the source is strictly read-only, nothing is ever deleted from the shares.
+The `photos` and `backup` shares are copied weekly into a restic repository on `vault`, a single-disk XFS pool (no parity, no shares — the disk spins down between runs). Sources are read via `/mnt/user/<share>` (FUSE union), so cache→array mover state is transparent; the source is strictly read-only, nothing is ever deleted from the shares.
 
-Script `files/unraid/restic-vault-backup.sh.j2`, deployed by `unraid.yml` together with the pinned restic binary (stored at `/boot/extra/restic`, staged into `/usr/local/bin` at runtime — `/boot` is vfat+noexec) and the repo password (`/boot/config/restic/password`, root-only; master copy: `vault_restic_password` in the vault — keep another copy in a password manager). Retention: 8 weekly + 6 monthly snapshots (`forget --prune`); every run ends with `restic check` (metadata). Include list (see `BACKUP_PATHS` in the script): the `backup` share plus Immich `library/`, `upload/`, `backups/` (postgres dumps), `profile/`; Immich `thumbs/`/`encoded-video/` are regenerable and `frigate/` is skipped entirely. Tradeoff: new top-level folders are NOT protected automatically — the script logs a WARN for unexpected entries, so check the syslog after adding new services. Schedule: one Sunday-night chain so the array wakes once and the vault disk only for restic — mover 00:00 (Settings → Scheduler), CA Appdata Backup 04:00 (plugin GUI, incl. flash), homelab-backup-pull 05:00 (daily as usual), restic-vault-backup 06:00 (User Scripts), parity check monthly 08:00 (Settings → Scheduler; monthly is by day-of-month — use the Parity Check Tuning plugin for "first Sunday"/incremental checks). Restic must not scan while the mover works (renames mid-scan → spurious warnings), hence the 06:00 slot after the 04:00 appdata backup.
+Script `files/unraid/restic-vault-backup.sh.j2`, deployed by `unraid.yml` together with the pinned restic binary (stored at `/boot/extra/restic`, staged into `/usr/local/bin` at runtime — `/boot` is vfat+noexec) and the repo password (`/boot/config/restic/password`, root-only; master copy: `vault_restic_password` in the vault — keep another copy in a password manager). Retention: 8 weekly + 6 monthly snapshots (`forget --prune`); every run ends with `restic check` (metadata). Include list (see `BACKUP_PATHS` in the script): the `backup` share plus Immich `library/`, `upload/`, `backups/` (postgres dumps), `profile/`; Immich `thumbs/`/`encoded-video/` are regenerable and `frigate/` is skipped entirely. Tradeoff: new top-level folders are NOT protected automatically — the script logs a WARN for unexpected entries, so check the syslog after adding new services. Runs in the Sunday-night chain (table above). Data integrity: the pool is XFS (no checksumming/scrub), so a second user script `files/unraid/restic-vault-check.sh.j2` runs monthly (`check --read-data-subset=10%`, random subset each run — full coverage in ~10 months; full `restic check --read-data` manually after SMART warnings or unclean shutdowns of the vault disk).
 
 Restore: `cp /boot/extra/restic /usr/local/bin/restic && chmod 755 /usr/local/bin/restic`, then `export RESTIC_REPOSITORY=/mnt/vault/restic RESTIC_PASSWORD_FILE=/boot/config/restic/password` and `restic snapshots` / `restore latest --target ...` (details in the script header). After restoring Immich, re-run its thumbnail/transcode jobs to rebuild the excluded `thumbs/` and `encoded-video/`.
 

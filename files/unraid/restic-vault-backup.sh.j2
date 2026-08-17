@@ -114,6 +114,47 @@ fail() {
 	exit 1
 }
 
+# --- restic --json output parsing (no jq on Unraid) ------------------------
+json_field() { sed -n "s/.*\"$1\":\([0-9.]*\).*/\1/p"; }
+
+# restic backup --json emits one JSON object per line: periodic "status"
+# updates, "error" entries (e.g. files vanished mid-scan) and a final
+# "summary". Log errors immediately, progress throttled to once a minute.
+report_progress() {
+	local line last=0 now pct bd tb fd tf eta
+	while IFS= read -r line; do
+		case "$line" in
+		*'"message_type":"error"'*)
+			log "restic error: $(printf '%s' "$line" | sed -n 's/.*"message":"\([^"]*\)".*/\1/p')"
+			;;
+		*'"message_type":"status"'*)
+			now=$(date +%s)
+			[ $((now - last)) -lt 60 ] && continue
+			last=$now
+			pct=$(printf '%s' "$line" | json_field percent_done)
+			bd=$(printf '%s' "$line" | json_field bytes_done)
+			tb=$(printf '%s' "$line" | json_field total_bytes)
+			fd=$(printf '%s' "$line" | json_field files_done)
+			tf=$(printf '%s' "$line" | json_field total_files)
+			eta=$(printf '%s' "$line" | json_field seconds_remaining)
+			log "$(awk -v p="$pct" -v bd="$bd" -v tb="$tb" -v fd="$fd" -v tf="$tf" -v e="$eta" \
+				'BEGIN { printf "progress: %.0f%% (%.1f/%.1f GiB, %d/%d files), ETA %dm", \
+					p*100, bd/2^30, tb/2^30, fd, tf, e/60 }')"
+			;;
+		*'"message_type":"summary"'*)
+			log "summary: new=$(printf '%s' "$line" | json_field files_new) \
+changed=$(printf '%s' "$line" | json_field files_changed) \
+added=$(printf '%s' "$line" | json_field data_added | awk '{printf "%.1f GiB", $1/2^30}') \
+processed=$(printf '%s' "$line" | json_field total_bytes_processed | awk '{printf "%.1f GiB", $1/2^30}')"
+			;;
+		?*)
+			# non-JSON lines: fatal errors, panics — always worth logging
+			log "restic: $line"
+			;;
+		esac
+	done
+}
+
 mkdir -p "$STATE_DIR"
 mountpoint -q "$POOL_MOUNT" || fail "pool not mounted at $POOL_MOUNT"
 [ -s "$RESTIC_PASSWORD_FILE" ] || fail "password file missing/empty at $RESTIC_PASSWORD_FILE (deploy: ansible-playbook unraid.yml)"
@@ -157,19 +198,18 @@ check_expected /mnt/user/photos/immich backups encoded-video library profile thu
 # NB: avoid bash array-count expansions here — a dollar-brace-hash sequence
 # opens a Jinja comment and breaks template rendering.
 log "backup: ${BACKUP_PATHS[*]}"
-if ! out=$("$RESTIC" backup --tag weekly "${BACKUP_PATHS[@]}" 2>&1); then
-	fail "restic backup failed: $(tail -n 5 <<<"$out" | tr '\n' ' ')"
+if ! "$RESTIC" backup --tag weekly --json "${BACKUP_PATHS[@]}" 2>&1 | report_progress; then
+	fail "restic backup failed (details logged above)"
 fi
-log "backup done: $(grep -E '^(Files|Dirs|Added)' <<<"$out" | tr '\n' ' ')"
 
 log "forget+prune (keep ${KEEP_WEEKLY} weekly / ${KEEP_MONTHLY} monthly)"
 out=$("$RESTIC" forget --tag weekly \
 	--keep-weekly "$KEEP_WEEKLY" --keep-monthly "$KEEP_MONTHLY" --prune 2>&1) \
 	|| fail "restic forget --prune failed: $(tail -n 5 <<<"$out" | tr '\n' ' ')"
 
-# Metadata integrity check (fast). Full data verification comes from the
-# monthly btrfs scrub of the pool plus an occasional manual
-# `restic check --read-data-subset=10%`.
+# Metadata integrity check (fast). Full data verification is a separate
+# monthly user script (restic-vault-check: check --read-data-subset) —
+# the pool is XFS, so there is no btrfs scrub to rely on.
 out=$("$RESTIC" check 2>&1) || fail "restic check failed: $(tail -n 5 <<<"$out" | tr '\n' ' ')"
 
 log "OK"

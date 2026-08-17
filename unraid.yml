@@ -8,6 +8,7 @@
 #   CA Appdata Backup (plugin GUI)   weekly Sun 04:00, incl. flash backup
 #   homelab-backup-pull              daily  05:00 (User Scripts GUI)
 #   restic-vault-backup              weekly Sun 06:00 (User Scripts GUI)
+#   restic-vault-check               monthly 1st 08:00 (User Scripts GUI)
 #   parity check (Settings->Scheduler) monthly 08:00
 - name: Configure Unraid backup collector
   hosts: unraid
@@ -21,6 +22,9 @@
       - name: restic-vault-backup
         description: Weekly restic backup of photos+backup shares to the vault pool
         template: files/unraid/restic-vault-backup.sh.j2
+      - name: restic-vault-check
+        description: Monthly deep restic check (read-data-subset) of the vault repo
+        template: files/unraid/restic-vault-check.sh.j2
     restic_version: "0.17.3"
   tasks:
     # The templates embed ntfy topics from the vault — keep task output
