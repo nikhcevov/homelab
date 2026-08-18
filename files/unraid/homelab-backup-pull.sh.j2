@@ -36,10 +36,20 @@ NTFY_TOPIC_INFO="{{ ntfy_topic_info }}"
 
 # Subfolders are named explicitly: tailscale IPs can change, names must
 # not. VPS hosts: rsync the archives dir produced by the *_backup roles.
-# Format: "<name>|<tailscale-ip>|<remote-dir>"
+# Format: "<name>|<tailscale-ip>|<remote-dir>[|<ssh-user>[|<rsync-path>]]"
+# (user default: root, rsync-path default: rsync; use "sudo rsync" when
+# the ssh user is unprivileged but has passwordless sudo, e.g. HA add-ons)
 RSYNC_SOURCES=(
 	"vpn-nl|100.100.146.5|/opt/vpn-backup/archives/"
 	"mon-1|100.107.77.74|/opt/kuma-backup/archives/"
+	# ha-krm: Home Assistant instance at the krm site. Local backups in
+	# /backup, mirrored as-is. HA's own automatic-backup retention governs
+	# what exists there; --delete keeps this copy in sync. Requires the
+	# "Advanced SSH & Web Terminal" add-on with files/ssh/great-hornbill.pub
+	# in authorized_keys and rsync available (add-on `packages: [rsync]`).
+	# SSH user is the add-on's `username` (HAOS has no root SSH); sudo
+	# rsync because /backup is root-owned.
+	"ha-krm|100.66.142.69|/backup/|boss|sudo rsync"
 )
 
 # OpenWrt routers: config backup streamed via sysupgrade -b over SSH.
@@ -93,17 +103,19 @@ notify_transition() {
 
 mkdir -p "$DEST" "$STATE_DIR"
 
-# --- VPS artifacts (rsync mirror; source-side rotation applies) ---
+# --- rsync mirrors (source-side rotation applies) ---
 for entry in "${RSYNC_SOURCES[@]}"; do
-	IFS='|' read -r name host dir <<<"$entry"
+	IFS='|' read -r name host dir user rpath <<<"$entry"
+	user=${user:-root}
+	rpath=${rpath:-rsync}
 	target="$DEST/$name"
 	mkdir -p "$target"
-	if rsync -a --delete -e "ssh ${SSH_OPTS[*]}" "root@$host:$dir" "$target/" >>/dev/null 2>&1; then
-		log "OK rsync $name ($host:$dir) -> $target"
+	if rsync -a --delete --rsync-path="$rpath" -e "ssh ${SSH_OPTS[*]}" "$user@$host:$dir" "$target/" >>/dev/null 2>&1; then
+		log "OK rsync $name ($user@$host:$dir) -> $target"
 		notify_transition "rsync-$name" ok "Backup pull recovered" "✅ rsync $name OK again ($host)"
 	else
-		log "FAIL rsync $name ($host)"
-		notify_transition "rsync-$name" fail "Backup pull FAILED" "⚠️ rsync $name failed ($host:$dir)"
+		log "FAIL rsync $name ($user@$host)"
+		notify_transition "rsync-$name" fail "Backup pull FAILED" "⚠️ rsync $name failed ($user@$host:$dir)"
 	fi
 done
 

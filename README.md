@@ -306,7 +306,7 @@ Restic must not scan while the mover works (renames mid-scan → spurious "file 
 
 Unraid **pulls** every host's backups over the tailnet (script `files/unraid/homelab-backup-pull.sh.j2`, deployed into the User Scripts plugin by `unraid.yml`; schedule set in the plugin GUI). Pull model on purpose — hosts hold no Unraid credentials, so a compromised host cannot delete or encrypt its own backups.
 
-What gets pulled: `rsync` of `/opt/*-backup/archives/` from the VPS hosts (vpn/kuma, own 14-day rotation), and `sysupgrade -b` streamed over SSH from each router into dated tarballs (30-day retention). Every source is tracked in a state file: ntfy fires only on transitions (OK→FAIL alerts, FAIL→OK info).
+What gets pulled: `rsync` of `/opt/*-backup/archives/` from the VPS hosts (vpn/kuma, own 14-day rotation), `rsync` of `/backup/` from Home Assistant (`ha-krm`; its own automatic-backup retention applies — note HA encrypts backups by default, so the copies stay encrypted too: keep the encryption key in a password manager), and `sysupgrade -b` streamed over SSH from each router into dated tarballs (30-day retention). Every source is tracked in a state file: ntfy fires only on transitions (OK→FAIL alerts, FAIL→OK info).
 
 Setup:
 
@@ -315,6 +315,7 @@ Setup:
 3. Fill in `RSYNC_SOURCES` / `ROUTERS` / `DEST` in the script template.
 4. `ansible-playbook unraid.yml` (raw + base64 — Unraid has no Python), then set the schedule in Settings → User Scripts and run once manually.
 5. Re-run `openwrt.yml` / `mon.yml` / `vpn.yml` so the great-hornbill key is authorized on the sources.
+6. Home Assistant (`ha-krm`): install the _Advanced SSH & Web Terminal_ add-on, put `files/ssh/great-hornbill.pub` into its `authorized_keys` option, clear the password, make sure `rsync` is present (`packages: [rsync]` add-on option), then put the instance's tailscale IP into the `ha-krm` entry in `RSYNC_SOURCES` and uncomment it. Backups land in `/mnt/user/backup/homelab/ha-krm` and are picked up by the weekly `restic-vault-backup` like the rest of the `backup` share.
 
 Restore: VPS DBs — copy the tarball back and follow the role's restore path (`vpn-restore.yml`); routers — upload in LuCI _Backup/Flash Firmware_ or `sysupgrade -r`.
 
