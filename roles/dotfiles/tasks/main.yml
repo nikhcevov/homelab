@@ -17,8 +17,10 @@
     path: "/home/{{ workstation_user }}/.config/chezmoi/chezmoi.toml"
   register: _chezmoi_config
 
+# --force as below: a fresh GNOME install already ships files chezmoi
+# manages (e.g. ~/.config/gtk-3.0/settings.ini) — don't prompt, overwrite.
 - name: Initialize and apply dotfiles
-  ansible.builtin.command: chezmoi init --apply "{{ dotfiles_chezmoi_repo }}"
+  ansible.builtin.command: chezmoi init --apply --force "{{ dotfiles_chezmoi_repo }}"
   become_user: "{{ workstation_user }}"
   environment:
     HOME: "/home/{{ workstation_user }}"
@@ -27,8 +29,12 @@
 # Pull + apply on every run (git pull inside the configured sourceDir).
 # Always reported as ok: chezmoi's output does not tell us reliably what
 # changed (same convention as the tailscale role's `tailscale set`).
+# --force: overwrite files modified locally since the last apply (GTK
+# rewrites ~/.config/gtk-3.0/settings.ini at runtime) instead of prompting
+# — there is no TTY under Ansible, so a prompt means a failed run.
+# The dotfiles repo is the source of truth by design.
 - name: Update and apply dotfiles
-  ansible.builtin.command: chezmoi update
+  ansible.builtin.command: chezmoi update --force
   become_user: "{{ workstation_user }}"
   environment:
     HOME: "/home/{{ workstation_user }}"
