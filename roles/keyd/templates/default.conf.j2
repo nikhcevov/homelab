@@ -1,0 +1,30 @@
+# Managed by Ansible (roles/keyd) — local edits will be overwritten.
+#
+# Caps Lock acts as Hyper (Ctrl+Alt+Shift+Super) on every keyboard EXCEPT
+# the devices excluded via keyd_excluded_ids (group_vars/workstations/keyd.yml).
+# `hyper` is defined below as a custom modifier layer (C-M-A-S); tap-hold
+# variant if ever wanted: capslock = overload(hyper, esc).
+
+[ids]
+*
+{% for id in keyd_excluded_ids -%}
+-{{ id }}
+{% endfor %}
+
+[main]
+capslock = layer(hyper)
+
+# Custom modifier layer: Caps held = C-M-A-S active. Keys bound below
+# emit plain Ctrl combos (apps never see Hyper); UNBOUND keys still get
+# the full C-M-A-S set, so Hyper+<key> stays usable for custom global
+# shortcuts in KDE. Not predefined by keyd — must be declared like this.
+[hyper:C-M-A-S]
+c = C-c
+v = C-v
+x = C-x
+z = C-z
+S-z = C-S-z
+a = C-a
+f = C-f
+s = C-s
+w = C-w

@@ -1,0 +1,4 @@
+---
+# Devices keyd must NOT grab, as vendor:product IDs — e.g. the external
+# keyboard that handles its own remapping. Override per group/host.
+keyd_excluded_ids: []

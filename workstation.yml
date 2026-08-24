@@ -7,7 +7,7 @@
 # fixed — both come from arch_common/ssh below):
 #   ansible-playbook workstation.yml -c local --limit starling --ask-become-pass
 # Afterwards workstations are managed over the tailnet like every other
-# group. Partial runs: --tags packages|docker|dotfiles|syncthing|tailscale.
+# group. Partial runs: --tags packages|docker|dotfiles|syncthing|tailscale|keyd.
 # Full system upgrade (rolling release, deliberate operation):
 #   ansible-playbook workstation.yml -e arch_system_upgrade=true
 - name: Configure Arch workstations
@@ -17,6 +17,9 @@
     - { role: arch_common, tags: [common] }
     - { role: ssh, tags: [ssh] }
     - { role: tailscale, tags: [tailscale] }
+    # keyd: Caps Lock = Hyper on all keyboards except the excluded IDs
+    # (group_vars/workstations/keyd.yml) — device-based, service stays on.
+    - { role: keyd, tags: [keyd] }
     # packages before dotfiles: the tools the configs describe (bat,
     # eza, fzf, starship...) should exist when chezmoi applies them.
     - { role: arch_packages, tags: [packages] }

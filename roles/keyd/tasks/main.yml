@@ -1,0 +1,23 @@
+---
+# keyd: system-level key remapping (Caps Lock = Hyper) below the desktop
+# environment, so it works in every app/WM/compositor. Per-device
+# filtering happens in the config ([ids] section): the service is always
+# on and excluded keyboards are passed through untouched.
+
+- name: Install keyd
+  ansible.builtin.pacman:
+    name: keyd
+    state: present
+
+- name: Deploy keyd config
+  ansible.builtin.template:
+    src: default.conf.j2
+    dest: /etc/keyd/default.conf
+    mode: "0644"
+  notify: Restart keyd
+
+- name: Ensure keyd is running and enabled
+  ansible.builtin.service:
+    name: keyd
+    state: started
+    enabled: true
