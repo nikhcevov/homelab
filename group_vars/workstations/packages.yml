@@ -72,11 +72,13 @@ workstation_packages:
     - telegram-desktop
     - thunderbird
 
-# AUR: empty for now — only for packages genuinely unavailable in the
-# configured repos. The arch_packages role skips its AUR tasks while this
-# is empty; the yay mechanism (passwordless `sudo pacman` drop-in) stays
-# ready for when it's needed.
+# AUR: only packages genuinely unavailable in the configured repos.
+# handy-bin: offline speech-to-text; kwtype-git: KDE Wayland virtual
+# keyboard (kde-fake-input) that handy types with — wtype/dotool don't
+# deliver input under KWin. Both are used identically on all machines.
 workstation_aur_packages:
   base: []
   dev: []
-  productivity: []
+  productivity:
+    - handy-bin
+    - kwtype-git
