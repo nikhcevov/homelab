@@ -341,7 +341,24 @@ Desktops (`workstations` group) managed by `workstation.yml` — same model: dec
 | `~/Documents`                      | Syncthing (user service, only this folder)  |
 | Large/shared files                 | Unraid directly                             |
 
-Roles: `arch_common` (optional `-Syu` via `-e arch_system_upgrade=true`, timezone/locale, NetworkManager → systemd-resolved fix for MagicDNS), `ssh`, `tailscale` (day-0 `tailscale up` is manual), `keyd` (Caps Lock = Hyper; Hyper+C/V/X/Z/A/F/S/W → plain Ctrl combos; device exclusion list in `group_vars/workstations/keyd.yml` — the external keyboard is passed through on any machine), `arch_packages` (AUR via yay: handy-bin + kwtype-git), `docker` (re-login once for the group), `dotfiles` (chezmoi init + update every run; set `dotfiles_chezmoi_repo`), `syncthing` (one-time GUI pairing at `http://127.0.0.1:8384`).
+Roles: `arch_common` (optional `-Syu` via `-e arch_system_upgrade=true`, timezone/locale, NetworkManager → systemd-resolved fix for MagicDNS), `ssh`, `tailscale` (day-0 `tailscale up` is manual), `keyd` (Caps Lock = Hyper, no Ctrl mirroring — every Caps+<key> emits C-M-A-S+<key> for KDE global shortcuts; device exclusion list in `group_vars/workstations/keyd.yml` — the external keyboard is passed through on any machine), `arch_packages` (AUR via yay: handy-bin + kwtype-git), `docker` (re-login once for the group), `dotfiles` (chezmoi init + update every run; set `dotfiles_chezmoi_repo`), `syncthing` (one-time GUI pairing at `http://127.0.0.1:8384`).
+
+**Caps (Hyper) shortcuts.** keyd turns held Caps Lock into C-M-A-S, so every `Caps+<key>` is a conflict-free combo. The bindings themselves live in KDE (`~/.config/kglobalshortcutsrc`, chezmoi-managed) and in Handy's own settings — this table is the reference, not the source of truth:
+
+| Shortcut      | Action                               | Where bound          |
+| ------------- | ------------------------------------ | -------------------- |
+| `Caps+Space`  | Switch to next keyboard layout       | KDE Layout Switcher  |
+| `Caps+F`      | Walk through windows (Alt+Tab-style) | KWin                 |
+| `Caps+G`      | Walk through windows of current app  | KWin                 |
+| `Caps+Q`      | Close window                         | KWin                 |
+| `Caps+M`      | Maximize window                      | KWin                 |
+| `Caps+R`      | KRunner / system search              | KRunner              |
+| `Caps+V`      | Clipboard history at cursor          | Klipper              |
+| `Caps+Return` | Terminal (Ghostty)                   | KDE service shortcut |
+| `Caps+P`      | Screenshot (Spectacle)               | KDE service shortcut |
+| `Caps+D`      | Dictation (transcribe)               | Handy settings       |
+
+Logic: left-hand home row (`F/G/Q/M`) = window management, `R/V/D` = system tools, `Space/Return` = most frequent actions. KDE defaults (Alt+Tab, Alt+F4, Print, Alt+F2) are kept alongside. Plain Ctrl is untouched — no mirroring onto Caps.
 
 **Bootstrap a fresh machine:** install OS + user → `sudo pacman -S git ansible openssh tailscale` → `tailscale up` (disable key expiry) → add to `[workstations]` + optional `host_vars/<name>.yml` → `ansible-playbook workstation.yml --limit <name> --ask-become-pass`. Day-0 on the machine hosting this repo: `ansible-playbook workstation.yml -c local --limit starling --ask-become-pass`. Partial runs: `--tags packages|docker|dotfiles|syncthing|tailscale|keyd`.
 

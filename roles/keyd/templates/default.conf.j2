@@ -14,17 +14,9 @@
 [main]
 capslock = layer(hyper)
 
-# Custom modifier layer: Caps held = C-M-A-S active. Keys bound below
-# emit plain Ctrl combos (apps never see Hyper); UNBOUND keys still get
-# the full C-M-A-S set, so Hyper+<key> stays usable for custom global
-# shortcuts in KDE. Not predefined by keyd — must be declared like this.
+# Custom modifier layer: Caps held = C-M-A-S active. Every key emits the
+# full C-M-A-S set, so Caps+<key> is a conflict-free combo for global
+# shortcuts in KDE (kglobalshortcutsrc). No Ctrl mirroring on purpose —
+# plain Ctrl is fine to press directly. Not predefined by keyd — must be
+# declared like this.
 [hyper:C-M-A-S]
-c = C-c
-v = C-v
-x = C-x
-z = C-z
-S-z = C-S-z
-a = C-a
-f = C-f
-s = C-s
-w = C-w
