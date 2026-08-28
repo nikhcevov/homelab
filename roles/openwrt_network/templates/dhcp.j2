@@ -15,6 +15,11 @@ config dnsmasq
 	option readethers '1'
 	option leasefile '/tmp/dhcp.leases'
 	option resolvfile '/tmp/resolv.conf.d/resolv.conf.auto'
+	# Explicit upstreams only (list server below): ignore DNS learned via
+	# WAN DHCP. dnsmasq prefers the fastest responder, so a broken
+	# upstream proxy (e.g. a home router returning FORMERR to EDNS
+	# queries) would poison all forwarding.
+	option noresolv '1'
 	option nonwildcard '1'
 	option localservice '{{ owrt_dns_localservice | default(true) | ternary('1', '0') }}'
 	option ednspacket_max '1232'

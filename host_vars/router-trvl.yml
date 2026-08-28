@@ -24,6 +24,12 @@ owrt_timezone_name: Europe/Moscow
 # --- DNS ---
 # Search domain for this site:
 owrt_dns_domain: trvl.home.arpa
+# Resolve through router-srt's dnsmasq over the tailnet, not locally:
+# answers (CDN localization, resolver egress) must look like they come
+# from the srt site, same as the MacBook's exit-node traffic. Cost: all
+# DNS on this LAN depends on the tailnet + router-srt being up.
+owrt_dns_servers:
+  - 100.77.53.118 # router-srt
 
 # --- Wi-Fi ---
 # MT7981 DBDC paths; verify against the stock config on the device:
@@ -64,55 +70,33 @@ tailscale_advertise_routes: "192.168.102.0/24"
 # Tailscale admin console (Edit route settings), or autoApprovers.exitNode.
 # tailscale_advertise_exit_node: true
 
-# --- Policy routing: MacBook-only exit node with kill switch ---
-# Only the MacBook rides the exit node; the rest of the LAN stays direct
-# on the WAN. tailscaled installs a blanket `5270: from all lookup 52`
-# when tailscale_exit_node is set — the rules below slot in front of it
-# (tailscaled occupies 5210/5230/5250 fwmark rules; 5255-5260 are free).
-tailscale_exit_node: router-krm
-# Keeps throw routes for the local subnet in table 52, so local traffic
-# (and the MacBook's) is not eaten by the tunnel's default route.
+# --- Full-tunnel exit node: the whole LAN exits via router-srt ---
+# tailscaled installs a blanket `5270: from all lookup 52` when an exit
+# node is set — every LAN client rides the tunnel, no per-device policy
+# routing needed (this router serves only the MacBook anyway).
+tailscale_exit_node: router-srt
+# Keeps throw routes for the local subnet in table 52, so LAN traffic
+# is not eaten by the tunnel's default route.
 tailscale_exit_node_allow_lan_access: true
 
+# Kill switch: no lan -> wan forwarding at all. If tailscaled or the
+# exit node dies, the LAN has no internet — never a silent WAN fallback.
+# The firewall role renders lan -> tailscale masquerade automatically
+# when tailscale_exit_node is set.
+owrt_firewall_lan_wan_forwarding: false
+
+# The blanket 5270 rule also catches the router's OWN traffic (apk, NTP,
+# ntfy). Pin the management plane to the direct WAN: it must not depend
+# on the exit node being up (and downloads.openwrt.org/Fastly is blocked
+# from the srt egress anyway). Only LAN client traffic is forced into
+# the tunnel. Locally originated packets match iif lo.
 owrt_network_rules:
-  - comment: MacBook -> exit node (table 52 is tailscaled's)
-    priority: 5255
-    src: "192.168.102.50/32"
-    lookup: "52"
-  - comment: MacBook -> local LAN stays direct (table 52 throws fall through)
-    priority: 5256
-    src: "192.168.102.50/32"
-    dest: "192.168.102.0/24"
-    lookup: main
-  - comment: Kill switch — no tunnel route, no WAN fallback
-    priority: 5257
-    src: "192.168.102.50/32"
-    action: unreachable
-  - comment: Replies to tailnet peers keep working (subnet router)
-    priority: 5259
-    src: "192.168.102.0/24"
+  - comment: router -> tailnet peers (e.g. DNS via router-srt) stays in the tunnel
+    priority: 5264
+    in: lo
     dest: "100.64.0.0/10"
     lookup: "52"
-  - comment: Everyone else on the LAN bypasses the tunnel
-    priority: 5260
-    src: "192.168.102.0/24"
+  - comment: router -> internet direct via WAN (management plane)
+    priority: 5265
+    in: lo
     lookup: main
-
-owrt_firewall_rules:
-  # Belt and suspenders: if the ip rules are ever flushed, the MacBook
-  # must not leak onto the WAN.
-  - {
-      name: KillSwitch-MacBook-WAN,
-      src: lan,
-      dest: wan,
-      src_ip: 192.168.102.50,
-      proto: all,
-      target: REJECT,
-    }
-
-# --- DHCP ---
-# Fixed lease so the policy rules above can match by IP. Private Wi-Fi
-# Address = Fixed on the MacBook: stable, but regenerated on macOS
-# reinstall — update the MAC here then.
-owrt_dhcp_hosts:
-  - { name: macbook, ip: 192.168.102.50, mac: "a2:b6:27:9e:00:bd" }

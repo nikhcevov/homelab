@@ -45,9 +45,14 @@ config interface 'wan6'
 # {{ rule.comment | default('policy rule') }}
 config rule
 	option priority '{{ rule.priority }}'
+{% if rule.src is defined %}
 	option src '{{ rule.src }}'
+{% endif %}
 {% if rule.dest is defined %}
 	option dest '{{ rule.dest }}'
+{% endif %}
+{% if rule['in'] is defined %}
+	option in '{{ rule['in'] }}'
 {% endif %}
 {% if rule.lookup is defined %}
 	option lookup '{{ rule.lookup }}'

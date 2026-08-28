@@ -24,9 +24,15 @@ config zone
 	option masq '1'
 	option mtu_fix '1'
 
+{% if owrt_firewall_lan_wan_forwarding | default(true) | bool %}
 config forwarding
 	option src 'lan'
 	option dest 'wan'
+{% else %}
+# Kill switch: no lan -> wan forwarding (owrt_firewall_lan_wan_forwarding
+# is false). LAN reaches the internet only via the tailscale zone, so a
+# dead tailscaled/exit node means no internet — never a WAN fallback.
+{% endif %}
 
 {% if owrt_firewall_tailscale_zone | bool %}
 # Tailscale zone. Device-based, so it works even though tailscale0 only
@@ -171,6 +177,12 @@ config rule
 {% endif %}
 {% if rule.src_ip is defined %}
 	option src_ip '{{ rule.src_ip }}'
+{% endif %}
+{% if rule.src_mac is defined %}
+	option src_mac '{{ rule.src_mac }}'
+{% endif %}
+{% if rule.family is defined %}
+	option family '{{ rule.family }}'
 {% endif %}
 	option target '{{ rule.target | default("ACCEPT") }}'
 {% endfor %}
