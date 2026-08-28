@@ -1,0 +1,13 @@
+# Managed by Ansible (roles/kde_lock_layout) — local edits will be overwritten.
+[Unit]
+Description=Force English keyboard layout when the screen locks
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/kde-lock-layout.sh
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target

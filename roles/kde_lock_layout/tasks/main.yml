@@ -1,0 +1,58 @@
+---
+# KDE lock-layout watcher: with multiple keyboard layouts the lock
+# screen keeps the LAST ACTIVE one, so a quick password typed after
+# opening the lid lands in Russian. A session-level script watches the
+# org.freedesktop.ScreenSaver ActiveChanged D-Bus signal and switches to
+# kde_lock_layout_target ("us") on every lock.
+#
+# Runs as a systemd --user service bound to graphical-session.target —
+# it needs the user's session bus, so a system service cannot do this.
+
+- name: Create directories for the watcher
+  ansible.builtin.file:
+    path: "/home/{{ workstation_user }}/{{ item }}"
+    state: directory
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_user }}"
+    mode: "0755"
+  loop:
+    - .local/bin
+    - .config/systemd/user
+
+- name: Install the lock-layout watcher script
+  ansible.builtin.template:
+    src: kde-lock-layout.sh.j2
+    dest: "/home/{{ workstation_user }}/.local/bin/kde-lock-layout.sh"
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_user }}"
+    mode: "0755"
+  register: _kde_layout_script
+
+- name: Install the systemd user unit
+  ansible.builtin.template:
+    src: kde-lock-layout.service.j2
+    dest: "/home/{{ workstation_user }}/.config/systemd/user/kde-lock-layout.service"
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_user }}"
+    mode: "0644"
+  register: _kde_layout_unit
+
+- name: Get the workstation user's uid
+  ansible.builtin.command: "id -u {{ workstation_user }}"
+  register: _kde_layout_uid
+  changed_when: false
+
+# User-manager operations need XDG_RUNTIME_DIR pointing at the user's
+# runtime dir. Assumes the user is logged in when the playbook runs
+# (true for interactive workstations); otherwise just enable manually:
+#   systemctl --user enable --now kde-lock-layout.service
+- name: Enable and (re)start the kde-lock-layout user service
+  ansible.builtin.systemd_service:
+    name: kde-lock-layout.service
+    scope: user
+    enabled: true
+    daemon_reload: true
+    state: "{{ 'restarted' if (_kde_layout_script.changed or _kde_layout_unit.changed) else 'started' }}"
+  become_user: "{{ workstation_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ _kde_layout_uid.stdout }}"

@@ -1,0 +1,4 @@
+---
+# xkb layout name forced on screen lock (first match in KDE's layout
+# list wins, so "us" also matches "us(intl)" etc.).
+kde_lock_layout_target: "us"

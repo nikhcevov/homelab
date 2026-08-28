@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Managed by Ansible (roles/kde_lock_layout) — local edits will be overwritten.
+#
+# Force the "{{ kde_lock_layout_target }}" keyboard layout every time the
+# screen locks, so the password prompt always starts in English.
+set -u
+
+TARGET="{{ kde_lock_layout_target }}"
+
+# Plasma 6 ships qdbus6 (qt6-tools); qdbus is the Qt5 name.
+qdbus_call() {
+  if command -v qdbus6 >/dev/null 2>&1; then
+    qdbus6 "$@"
+  elif command -v qdbus >/dev/null 2>&1; then
+    qdbus "$@"
+  else
+    return 1
+  fi
+}
+
+# Short names of all layouts, in KDE's list order. Plasma 6 returns
+# a(sss) structs — printable only with --literal; Plasma 5 returned a
+# plain string list, which the else-branch handles.
+list_layout_names() {
+  local out
+  out=$(qdbus_call --literal org.kde.keyboard /Layouts org.kde.KeyboardLayouts.getLayoutsList 2>/dev/null)
+  if [[ "$out" == *'(sss)'* ]]; then
+    grep -oP '\(sss\) "\K[^"]+' <<<"$out"
+  else
+    qdbus_call org.kde.keyboard /Layouts org.kde.KeyboardLayouts.getLayoutsList 2>/dev/null
+  fi
+}
+
+# Index of the target layout in KDE's layout list (order follows
+# kxkbrc LayoutList, which we don't want to hardcode).
+layout_index() {
+  local i=0 l
+  while IFS= read -r l; do
+    [[ "$l" == "$TARGET"* ]] && { echo "$i"; return; }
+    i=$((i + 1))
+  done < <(list_layout_names)
+  echo 0
+}
+
+switch_layout() {
+  local idx
+  idx=$(layout_index)
+  # setLayout's boolean reply would litter the journal — discard it.
+  qdbus_call org.kde.keyboard /Layouts org.kde.KeyboardLayouts.setLayout "$idx" >/dev/null \
+    || busctl --user call org.kde.keyboard /Layouts org.kde.KeyboardLayouts setLayout u "$idx" >/dev/null
+}
+
+# KDE emits this signal on the session bus when the screen (un)locks.
+dbus-monitor --session "type='signal',interface='org.freedesktop.ScreenSaver',member='ActiveChanged'" |
+  while IFS= read -r line; do
+    case "$line" in
+      *"boolean true"*) switch_layout ;;
+    esac
+  done
