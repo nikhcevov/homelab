@@ -13,3 +13,4 @@ ssh_dropbear_interface: ""
 ssh_authorized_keys:
   - starling.pub
   - great-hornbill.pub
+  - little-raven.pub
