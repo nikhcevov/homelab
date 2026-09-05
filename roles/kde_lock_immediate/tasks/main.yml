@@ -1,0 +1,32 @@
+---
+# KDE lock screen shows only the clock after wake until a keypress — and
+# the fingerprint reader (fprintd) stays inactive until the password
+# prompt appears, so unlocking is "open lid, wait, press key, THEN touch
+# the sensor". This role patches LockScreenUi.qml to raise the password UI
+# (and start PAM/fprintd) the moment the lock screen loads:
+# open the lid -> touch the sensor -> done.
+#
+# The file belongs to the plasma-workspace package and is reset on every
+# upgrade, so a pacman hook re-applies the patch after each transaction.
+
+- name: Install the lock screen patch script
+  ansible.builtin.template:
+    src: kde-lock-immediate.sh.j2
+    dest: /usr/local/bin/kde-lock-immediate
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the pacman hook that re-applies the patch
+  ansible.builtin.template:
+    src: kde-lock-immediate.hook.j2
+    dest: /etc/pacman.d/hooks/kde-lock-immediate.hook
+    owner: root
+    group: root
+    mode: "0644"
+
+# The script prints "patched ..." only when it actually edits the file.
+- name: Apply the lock screen patch now
+  ansible.builtin.command: /usr/local/bin/kde-lock-immediate
+  register: _kde_lock_immediate
+  changed_when: "'patched' in _kde_lock_immediate.stdout"

@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Managed by Ansible (roles/kde_lock_immediate) — local edits will be overwritten.
+#
+# Patch kscreenlocker's LockScreenUi.qml so the password UI is raised (and
+# PAM/fprintd starts listening) as soon as the lock screen appears, instead
+# of waiting for a keypress. Stock behaviour: uiVisible stays false and
+# authenticator.startAuthenticating() only runs on the first input event,
+# so the fingerprint reader is dead on the initial clock screen.
+#
+# Idempotent; re-applied by a pacman hook after every plasma-workspace
+# install/upgrade.
+set -euo pipefail
+
+QML="{{ kde_lock_immediate_qml }}"
+
+if [[ ! -f "$QML" ]]; then
+  echo "kde-lock-immediate: $QML not found, skipping" >&2
+  exit 0
+fi
+
+if grep -qF 'lockScreenRoot.uiVisible = true;' "$QML"; then
+  exit 0  # already patched
+fi
+
+if ! grep -qF 'Component.onCompleted: launchAnimation.start();' "$QML"; then
+  echo "kde-lock-immediate: patch target not found in $QML — the file changed upstream, this script needs updating" >&2
+  exit 1
+fi
+
+# Setting uiVisible triggers onUiVisibleChanged, which both raises the
+# password UI and calls authenticator.startAuthenticating() (fprintd on).
+sed -i 's|^\( *\)Component\.onCompleted: launchAnimation\.start();$|\1Component.onCompleted: {\n\1    launchAnimation.start();\n\1    lockScreenRoot.uiVisible = true;\n\1}|' "$QML"
+
+echo "kde-lock-immediate: patched $QML"

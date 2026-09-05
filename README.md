@@ -360,7 +360,9 @@ Roles: `arch_common` (optional `-Syu` via `-e arch_system_upgrade=true`, timezon
 
 Logic: left-hand home row (`F/G/Q/M`) = window management, `R/V/D` = system tools, `Space/Return` = most frequent actions. KDE defaults (Alt+Tab, Alt+F4, Print, Alt+F2) are kept alongside. Plain Ctrl is untouched — no mirroring onto Caps.
 
-**Bootstrap a fresh machine:** install OS + user → `sudo pacman -S git ansible openssh tailscale` → `tailscale up` (disable key expiry) → add to `[workstations]` + optional `host_vars/<name>.yml` → `ansible-playbook workstation.yml --limit <name> --ask-become-pass`. Day-0 on the machine hosting this repo: `ansible-playbook workstation.yml -c local --limit starling --ask-become-pass`. Partial runs: `--tags packages|docker|dotfiles|syncthing|tailscale|keyd`.
+**Bootstrap a fresh machine:** install OS + user → `sudo pacman -S git ansible openssh tailscale` → `tailscale up` (disable key expiry) → add to `[workstations]` + optional `host_vars/<name>.yml` → `ansible-playbook workstation.yml --limit <name> --ask-become-pass`. Day-0 on the machine hosting this repo: `ansible-playbook workstation.yml -c local --limit starling --ask-become-pass`. Partial runs: `--tags packages|docker|dotfiles|syncthing|tailscale|keyd|layout|lockscreen`.
+
+**fprintd gotcha (little-raven):** `/etc/pam.d/sudo` puts `pam_fprintd.so` first, so a non-interactive `sudo` (Ansible become) waits for a FINGER before it ever prints the password prompt — the run appears stuck at Gathering Facts and dies with "Timed out waiting for become success". When that happens, just touch the fingerprint reader; the become password typed at the start is then not even used.
 
 ---
 

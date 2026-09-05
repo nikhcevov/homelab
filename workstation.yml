@@ -7,7 +7,7 @@
 # fixed — both come from arch_common/ssh below):
 #   ansible-playbook workstation.yml -c local --limit starling --ask-become-pass
 # Afterwards workstations are managed over the tailnet like every other
-# group. Partial runs: --tags packages|docker|dotfiles|syncthing|tailscale|keyd|layout.
+# group. Partial runs: --tags packages|docker|dotfiles|syncthing|tailscale|keyd|layout|lockscreen.
 # Full system upgrade (rolling release, deliberate operation):
 #   ansible-playbook workstation.yml -e arch_system_upgrade=true
 - name: Configure Arch workstations
@@ -28,5 +28,8 @@
     # kde_lock_layout: switch to the "us" layout on every screen lock,
     # so the password prompt never starts in Russian.
     - { role: kde_lock_layout, tags: [layout] }
+    # kde_lock_immediate: raise the password prompt (and start fprintd)
+    # the moment the lock screen appears — open lid, touch sensor, done.
+    - { role: kde_lock_immediate, tags: [lockscreen] }
     # syncthing syncs ONLY ~/Documents; ~/Projects moves via git.
     - { role: syncthing, tags: [syncthing] }

@@ -1,0 +1,13 @@
+# Managed by Ansible (roles/kde_lock_immediate) — local edits will be overwritten.
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = plasma-workspace
+
+[Action]
+Description = Re-applying KDE lock screen immediate-unlock patch...
+When = PostTransaction
+Exec = /usr/local/bin/kde-lock-immediate
+Depends = bash
+Depends = sed

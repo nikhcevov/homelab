@@ -1,0 +1,3 @@
+---
+# Lock screen UI file shipped by plasma-workspace (Plasma 6 path).
+kde_lock_immediate_qml: /usr/share/plasma/shells/org.kde.plasma.desktop/contents/lockscreen/LockScreenUi.qml
