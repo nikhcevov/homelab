@@ -1,0 +1,64 @@
+---
+# Laptop power tuning (see docs/laptop-power.md). Off by default —
+# enable per-host in host_vars/<laptop>/power.yml:
+#   laptop_power_enabled: true
+# Everything here is either profile-scoped (via power-profiles-daemon)
+# or an idle-power knob, so the `performance` profile keeps full speed.
+laptop_power_enabled: false
+
+# Battery name under /sys/class/power_supply/.
+laptop_power_battery: BAT0
+
+# PCIe ASPM link-state policy (tmpfiles write at boot, applied at
+# runtime too). Idle-power knob: link power states, not throughput.
+laptop_power_aspm_policy: powersave
+
+# HDA codec sleep timeout (seconds). The codec is a fixed ~0.5-1 W
+# drain when kept awake (CachyOS default is 0 = never sleeps).
+laptop_power_audio_power_save: 1
+
+# Disable CPU turbo while the power-saver profile is active. ppd has no
+# hooks, so a tiny watcher (ppd-saver-extras.service) tracks
+# ActiveProfile on the system bus and restores turbo on every other
+# profile — `performance` and `balanced` are unaffected.
+laptop_power_saver_disable_turbo: true
+
+# Wi-Fi power save ONLY while power-saver is active (same watcher).
+# Off in balanced/performance: PS can add ping jitter, and there is no
+# reason to pay for it when battery life is not the goal. A companion
+# NetworkManager dispatcher script re-applies the profile-appropriate
+# state on every (re)connect.
+laptop_power_saver_wifi_powersave: true
+laptop_power_wifi_iface: wlan0
+
+# power-saver: hard ceilings. CPU % of max frequency (60% ≈ 3 GHz on the
+# i7-1355U — plenty for desktop/browsing) and iGPU cap in MHz (RP0 is
+# 1300). These ARE deliberate slowdowns — the point of the profile.
+laptop_power_saver_cpu_max_perf_pct: 60
+laptop_power_saver_gpu_max_mhz: 500
+
+# performance: floors, faster ramp under load (idle cost in this
+# profile only). CPU % of max, iGPU min MHz (RPn is 100).
+laptop_power_perf_cpu_min_perf_pct: 25
+laptop_power_perf_gpu_min_mhz: 400
+
+# PCI runtime PM for classes that idle most of the time (network
+# controllers 0x02*, NVMe 0x010802). Host bridge / LPC / DPTF stay
+# awake. Caveat: breaks Wake-on-LAN for the Ethernet port.
+laptop_power_pci_runtime_pm: true
+
+# sched-ext via scx_loader: default scheduler + boot mode. CachyOS ships
+# a PATCHED power-profiles-daemon that switches the scheduler mode on
+# profile change (power-saver -> PowerSave, balanced -> Auto,
+# performance -> Gaming), so per-profile scheduling needs no watcher
+# logic. scx_lavd fits all three: Gaming = --performance, PowerSave =
+# --powersave + core compaction, Auto = autopilot by CPU utilization.
+laptop_power_scx_loader: true
+laptop_power_scx_sched: scx_lavd
+laptop_power_scx_mode: Auto
+
+# ThinkPad charge thresholds (battery longevity, not runtime). Set
+# end=100 if a full charge matters more than cell wear.
+laptop_power_charge_thresholds: true
+laptop_power_charge_start_threshold: 75
+laptop_power_charge_end_threshold: 80

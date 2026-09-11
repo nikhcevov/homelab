@@ -1,0 +1,4 @@
+# Managed by Ansible (roles/laptop_power) — local edits will be overwritten.
+# Codec sleep at module-load time (tmpfiles.d/laptop-power.conf applies
+# the same values at boot for the already-loaded module).
+options snd_hda_intel power_save={{ laptop_power_audio_power_save }} power_save_controller=Y

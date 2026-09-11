@@ -1,0 +1,12 @@
+# Managed by Ansible (roles/laptop_power) — local edits will be overwritten.
+[Unit]
+Description=Power-saver profile extras (turbo off, Wi-Fi power save)
+After=power-profiles-daemon.service
+
+[Service]
+ExecStart=/usr/local/bin/ppd-saver-extras
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

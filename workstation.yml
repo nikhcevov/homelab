@@ -7,7 +7,7 @@
 # fixed — both come from arch_common/ssh below):
 #   ansible-playbook workstation.yml -c local --limit starling --ask-become-pass
 # Afterwards workstations are managed over the tailnet like every other
-# group. Partial runs: --tags packages|docker|dotfiles|syncthing|tailscale|keyd|layout|lockscreen.
+# Partial runs: --tags packages|docker|dotfiles|syncthing|tailscale|keyd|layout|lockscreen|power.
 # Full system upgrade (rolling release, deliberate operation):
 #   ansible-playbook workstation.yml -e arch_system_upgrade=true
 - name: Configure Arch workstations
@@ -31,5 +31,14 @@
     # kde_lock_immediate: raise the password prompt (and start fprintd)
     # the moment the lock screen appears — open lid, touch sensor, done.
     - { role: kde_lock_immediate, tags: [lockscreen] }
+    # laptop_power: battery tuning gated per-host (host_vars/*/power.yml,
+    # laptop_power_enabled) — idle-power knobs + a watcher that applies
+    # extras (turbo off, Wi-Fi power save) only in the power-saver
+    # profile. See docs/laptop-power.md.
+    - {
+        role: laptop_power,
+        tags: [power],
+        when: laptop_power_enabled | default(false) | bool,
+      }
     # syncthing syncs ONLY ~/Documents; ~/Projects moves via git.
     - { role: syncthing, tags: [syncthing] }

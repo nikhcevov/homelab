@@ -1,0 +1,16 @@
+# Managed by Ansible (roles/laptop_power) — local edits will be overwritten.
+# systemd-tmpfiles(5) `w` lines: written at boot AND on playbook runs
+# (tasks run `systemd-tmpfiles --create` on change), so no reboot needed.
+
+# HDA codec sleep (modprobe.d covers module-load time; this covers boot).
+w /sys/module/snd_hda_intel/parameters/power_save - - - - {{ laptop_power_audio_power_save }}
+w /sys/module/snd_hda_intel/parameters/power_save_controller - - - - Y
+
+# PCIe ASPM link-state policy.
+w /sys/module/pcie_aspm/parameters/policy - - - - {{ laptop_power_aspm_policy }}
+
+{% if laptop_power_charge_thresholds | bool %}
+# ThinkPad charge thresholds (start must stay below end — order matters).
+w /sys/class/power_supply/{{ laptop_power_battery }}/charge_control_start_threshold - - - - {{ laptop_power_charge_start_threshold }}
+w /sys/class/power_supply/{{ laptop_power_battery }}/charge_control_end_threshold - - - - {{ laptop_power_charge_end_threshold }}
+{% endif %}

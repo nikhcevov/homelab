@@ -1,0 +1,175 @@
+---
+# Laptop power tuning (docs/laptop-power.md). Everything here is either
+# profile-scoped (via power-profiles-daemon) or an idle-power knob, so
+# the `performance` profile keeps full speed. No TLP/auto-cpufreq — they
+# fight ppd, which is what KDE's profile switcher drives.
+#
+# Runtime state is applied through ONE tmpfiles.d file (also re-applied
+# by systemd-tmpfiles-setup at boot), so a playbook run converges the
+# live system without a reboot.
+
+- name: HDA codec sleep — module-load-time option
+  ansible.builtin.template:
+    src: snd-hda-powersave.conf.j2
+    dest: /etc/modprobe.d/snd-hda-powersave.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Boot-time and runtime power knobs (ASPM, audio, charge thresholds)
+  ansible.builtin.template:
+    src: laptop-power.conf.j2
+    dest: /etc/tmpfiles.d/laptop-power.conf
+    owner: root
+    group: root
+    mode: "0644"
+  register: _laptop_power_tmpfiles
+
+- name: Apply the power knobs to the running system
+  ansible.builtin.command:
+    cmd: systemd-tmpfiles --create /etc/tmpfiles.d/laptop-power.conf
+  when: _laptop_power_tmpfiles.changed
+
+# --- Cleanup of the previous iteration (v1): global Wi-Fi PS + the
+# --- turbo-only watcher. Remove these tasks once all laptops converged.
+
+- name: Remove the global Wi-Fi power-save config (now profile-scoped)
+  ansible.builtin.file:
+    path: /etc/NetworkManager/conf.d/50-wifi-powersave.conf
+    state: absent
+  register: _laptop_power_nm_removed
+
+- name: Reload NetworkManager after removing the global PS config
+  ansible.builtin.command:
+    cmd: nmcli general reload
+  when: _laptop_power_nm_removed.changed
+
+- name: Stop and disable the old turbo-only watcher
+  ansible.builtin.systemd_service:
+    name: ppd-saver-turbo.service
+    enabled: false
+    state: stopped
+  failed_when: false
+
+- name: Remove the old turbo-only watcher artifacts
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/ppd-saver-turbo.service
+    - /usr/local/bin/ppd-saver-turbo
+
+# --- Profile-scoped extras: turbo off + Wi-Fi power save, ONLY while
+# --- power-saver is active.
+
+- name: Install the power-saver extras watcher
+  ansible.builtin.template:
+    src: ppd-saver-extras.sh.j2
+    dest: /usr/local/bin/ppd-saver-extras
+    owner: root
+    group: root
+    mode: "0755"
+  register: _laptop_power_watcher
+  when: laptop_power_saver_disable_turbo | bool or laptop_power_saver_wifi_powersave | bool
+
+- name: Install the extras watcher systemd unit
+  ansible.builtin.template:
+    src: ppd-saver-extras.service.j2
+    dest: /etc/systemd/system/ppd-saver-extras.service
+    owner: root
+    group: root
+    mode: "0644"
+  register: _laptop_power_unit
+  when: laptop_power_saver_disable_turbo | bool or laptop_power_saver_wifi_powersave | bool
+
+- name: Enable and (re)start the extras watcher
+  ansible.builtin.systemd_service:
+    name: ppd-saver-extras.service
+    enabled: true
+    daemon_reload: true
+    state: "{{ 'restarted' if (_laptop_power_watcher.changed or _laptop_power_unit.changed) else 'started' }}"
+  when: laptop_power_saver_disable_turbo | bool or laptop_power_saver_wifi_powersave | bool
+
+# iwlwifi resets power_save to off on every re-association — without
+# this the watcher state would silently vanish on reconnect.
+- name: Install the NetworkManager dispatcher for Wi-Fi power save
+  ansible.builtin.template:
+    src: ppd-wifi-powersave-dispatcher.sh.j2
+    dest: /etc/NetworkManager/dispatcher.d/50-ppd-wifi-powersave
+    owner: root
+    group: root
+    mode: "0755"
+  when: laptop_power_saver_wifi_powersave | bool
+
+# Runtime PM for network + NVMe PCI devices (they ship with
+# power/control=on, i.e. never sleep). Idle-only knob.
+- name: Install the PCI runtime PM udev rule
+  ansible.builtin.template:
+    src: pci-runtime-pm.rules.j2
+    dest: /etc/udev/rules.d/99-pci-runtime-pm.rules
+    owner: root
+    group: root
+    mode: "0644"
+  register: _laptop_power_udev
+  when: laptop_power_pci_runtime_pm | bool
+
+- name: Reload udev rules
+  ansible.builtin.command:
+    cmd: udevadm control --reload
+  when: _laptop_power_udev.changed | default(false)
+
+# Trigger replays "add" for present devices, so the rule applies without
+# a reboot. Exact class matches: Ethernet, Wi-Fi, NVMe.
+- name: Apply runtime PM to present PCI devices
+  ansible.builtin.command:
+    cmd: "udevadm trigger --subsystem-match=pci --action=add --attr-match=class={{ item }}"
+  loop:
+    - "0x020000"
+    - "0x028000"
+    - "0x010802"
+  failed_when: false
+  when: _laptop_power_udev.changed | default(false)
+
+# sched-ext: CachyOS ships a PATCHED power-profiles-daemon that switches
+# the scx scheduler mode on profile change (saver -> PowerSave, balanced
+# -> Auto, performance -> Gaming) through scx_loader's D-Bus API. So the
+# stock unit is exactly right; all we need is a config picking the
+# default scheduler. The --auto drop-in from the previous iteration is
+# removed: --auto is an unrelated CPU-utilization trigger for lavd.
+- name: Remove the scx_loader --auto drop-in (wrong approach)
+  ansible.builtin.file:
+    path: /etc/systemd/system/scx_loader.service.d/auto.conf
+    state: absent
+  register: _laptop_power_scx_dropin_removed
+
+- name: Remove the empty scx_loader drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/scx_loader.service.d
+    state: absent
+
+- name: Create the scx_loader config directory
+  ansible.builtin.file:
+    path: /etc/scx_loader
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: laptop_power_scx_loader | bool
+
+- name: Install the scx_loader config (default scheduler + boot mode)
+  ansible.builtin.template:
+    src: scx-loader-config.toml.j2
+    dest: /etc/scx_loader/config.toml
+    owner: root
+    group: root
+    mode: "0644"
+  register: _laptop_power_scx_config
+  when: laptop_power_scx_loader | bool
+
+- name: Enable and (re)start scx_loader
+  ansible.builtin.systemd_service:
+    name: scx_loader.service
+    enabled: true
+    daemon_reload: true
+    state: "{{ 'restarted' if (_laptop_power_scx_config.changed | default(false)) or (_laptop_power_scx_dropin_removed.changed | default(false)) else 'started' }}"
+  when: laptop_power_scx_loader | bool

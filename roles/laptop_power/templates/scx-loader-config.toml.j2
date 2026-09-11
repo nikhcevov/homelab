@@ -1,0 +1,10 @@
+# Managed by Ansible (roles/laptop_power) — local edits will be overwritten.
+# Lookup order: /etc/scx_loader/config.toml wins over /usr/share template.
+# Per-mode args stay at scx_loader's built-in presets — override here only
+# if a mode misbehaves (see docs/laptop-power.md, "sched-ext").
+
+# Scheduler started at boot; mode follows the power profile afterwards
+# (CachyOS-patched power-profiles-daemon switches it: power-saver ->
+# PowerSave, balanced -> Auto, performance -> Gaming).
+default_sched = "{{ laptop_power_scx_sched }}"
+default_mode = "{{ laptop_power_scx_mode }}"

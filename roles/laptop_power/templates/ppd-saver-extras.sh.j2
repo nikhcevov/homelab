@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# Managed by Ansible (roles/laptop_power) — local edits will be overwritten.
+#
+# power-profiles-daemon has no per-profile hooks, so watch ActiveProfile
+# on the system bus and apply per-profile extras:
+#   power-saver:  turbo off, CPU/GPU ceilings, Wi-Fi power save on
+#   performance:  CPU/GPU floors (faster ramp), everything else default
+#   balanced/*:   explicit kernel defaults — switching OUT of a tuned
+#                 profile always reverts every knob we own
+# Fail-open: if the watcher is down, the system keeps its current state.
+set -u
+
+PSTATE=/sys/devices/system/cpu/intel_pstate
+WIFI_IFACE="{{ laptop_power_wifi_iface }}"
+
+# GPU limits are applied to every card present and the "default" values
+# are read back from the hardware (RP0 = fused max, RPn = fused min), so
+# balanced restores whatever the GPU shipped with — nothing hardcoded,
+# and a UHD->Xe (dual-channel) change makes no difference to this code.
+gpu_set() { # $1 = max MHz or "" (=RP0), $2 = min MHz or "" (=RPn)
+    local card max min
+    for card in /sys/class/drm/card*/; do
+        [ -e "$card/gt_max_freq_mhz" ] || continue
+        max="$1"; min="$2"
+        [ -n "$max" ] || max="$(cat "$card/gt_RP0_freq_mhz")"
+        [ -n "$min" ] || min="$(cat "$card/gt_RPn_freq_mhz")"
+        echo "$min" > "$card/gt_min_freq_mhz"
+        echo "$max" > "$card/gt_max_freq_mhz"
+    done
+}
+
+apply() {
+    profile="$(powerprofilesctl get 2>/dev/null || echo unknown)"
+    case "$profile" in
+        power-saver)
+{% if laptop_power_saver_disable_turbo | bool %}
+            echo 1 > "$PSTATE/no_turbo"
+{% endif %}
+            echo 0 > "$PSTATE/min_perf_pct"
+{% if laptop_power_saver_cpu_max_perf_pct | int < 100 %}
+            echo {{ laptop_power_saver_cpu_max_perf_pct }} > "$PSTATE/max_perf_pct"
+{% endif %}
+{% if laptop_power_saver_gpu_max_mhz | int > 0 %}
+            gpu_set {{ laptop_power_saver_gpu_max_mhz }} ""
+{% endif %}
+{% if laptop_power_saver_wifi_powersave | bool %}
+            iw dev "$WIFI_IFACE" set power_save on 2>/dev/null || true
+{% endif %}
+            ;;
+        performance)
+{% if laptop_power_saver_disable_turbo | bool %}
+            echo 0 > "$PSTATE/no_turbo"
+{% endif %}
+{% if laptop_power_perf_cpu_min_perf_pct | int > 0 %}
+            echo {{ laptop_power_perf_cpu_min_perf_pct }} > "$PSTATE/min_perf_pct"
+{% endif %}
+            echo 100 > "$PSTATE/max_perf_pct"
+{% if laptop_power_perf_gpu_min_mhz | int > 0 %}
+            gpu_set "" {{ laptop_power_perf_gpu_min_mhz }}
+{% endif %}
+{% if laptop_power_saver_wifi_powersave | bool %}
+            iw dev "$WIFI_IFACE" set power_save off 2>/dev/null || true
+{% endif %}
+            ;;
+        *)
+            # balanced and anything else: kernel defaults, nothing less.
+{% if laptop_power_saver_disable_turbo | bool %}
+            echo 0 > "$PSTATE/no_turbo"
+{% endif %}
+            echo 0 > "$PSTATE/min_perf_pct"
+            echo 100 > "$PSTATE/max_perf_pct"
+            gpu_set "" ""
+{% if laptop_power_saver_wifi_powersave | bool %}
+            iw dev "$WIFI_IFACE" set power_save off 2>/dev/null || true
+{% endif %}
+            ;;
+    esac
+}
+
+# Initial state (ppd may not be up yet — the monitor below catches the
+# first profile switch regardless).
+apply
+
+# PropertiesChanged fires on every profile switch; apply() is idempotent.
+gdbus monitor --system --dest net.hadess.PowerProfiles |
+    while read -r line; do
+        case "$line" in
+            *PropertiesChanged*) apply ;;
+        esac
+    done

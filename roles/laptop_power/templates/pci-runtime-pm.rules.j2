@@ -1,0 +1,7 @@
+# Managed by Ansible (roles/laptop_power) — local edits will be overwritten.
+# Runtime PM for PCI classes that idle most of the time: network
+# controllers (0x02*: Wi-Fi, Ethernet) and NVMe (0x010802). Host bridge,
+# LPC/eSPI and the DPTF participant deliberately stay awake. Idle-power
+# knob only — link/device sleep, no throughput or clock limits.
+ACTION=="add", SUBSYSTEM=="pci", ATTR{class}=="0x02????", ATTR{power/control}="auto"
+ACTION=="add", SUBSYSTEM=="pci", ATTR{class}=="0x010802", ATTR{power/control}="auto"

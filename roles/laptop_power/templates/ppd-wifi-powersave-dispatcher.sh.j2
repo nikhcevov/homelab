@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Managed by Ansible (roles/laptop_power) — local edits will be overwritten.
+#
+# NetworkManager dispatcher: re-apply the profile-appropriate Wi-Fi
+# power-save state on every (re)connect — iwlwifi resets it to off on
+# re-association, which would silently undo the ppd-saver-extras watcher.
+set -u
+
+iface="$1"
+action="$2"
+
+[ "$action" = "up" ] || exit 0
+case "$iface" in
+    wlan* | wlp*) ;;
+    *) exit 0 ;;
+esac
+
+if [ "$(powerprofilesctl get 2>/dev/null)" = "power-saver" ]; then
+    iw dev "$iface" set power_save on
+else
+    iw dev "$iface" set power_save off
+fi

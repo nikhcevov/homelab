@@ -1,0 +1,5 @@
+---
+# little-raven is the laptop (ThinkPad, i7-1355U) — enable the
+# laptop_power role. Tuning lives in roles/laptop_power/defaults; see
+# docs/laptop-power.md.
+laptop_power_enabled: true
