@@ -11,7 +11,12 @@ laptop_power_battery: BAT0
 
 # PCIe ASPM link-state policy (tmpfiles write at boot, applied at
 # runtime too). Idle-power knob: link power states, not throughput.
-laptop_power_aspm_policy: powersave
+# powersupersave, NOT powersave: plain powersave leaves L1 substates
+# OFF on the NVMe link (L1SubCtl1 all "-"), and without L1.2 the CPU
+# package never reaches PC10 and the platform never enters S0ix during
+# s2idle — measured on T14 Gen4 (i7-1355U): ~5 W -> 0.94 W in suspend,
+# i.e. the difference between "dead by morning" and "-20% overnight".
+laptop_power_aspm_policy: powersupersave
 
 # HDA codec sleep timeout (seconds). The codec is a fixed ~0.5-1 W
 # drain when kept awake (CachyOS default is 0 = never sleeps).

@@ -1,0 +1,14 @@
+# Managed by Ansible (roles/kde_lock_immediate) — local edits will be overwritten.
+[Unit]
+Description=Raise the KDE lock screen prompt after resume
+After=suspend.target suspend-then-hibernate.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/true
+# Fires when suspend.target deactivates, i.e. right after resume.
+ExecStop=/usr/local/bin/kde-lock-raise
+
+[Install]
+WantedBy=suspend.target suspend-then-hibernate.target

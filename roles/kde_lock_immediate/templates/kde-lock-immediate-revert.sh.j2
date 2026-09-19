@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Managed by Ansible (roles/kde_lock_immediate) — local edits will be overwritten.
+#
+# One-shot cleanup: revert the old LockScreenUi.qml patch (superseded by
+# kde-lock-raise.service). Idempotent; runs on every playbook pass.
+set -euo pipefail
+
+QML="{{ kde_lock_immediate_qml }}"
+
+if [[ ! -f "$QML" ]]; then
+  echo "kde-lock-immediate-revert: $QML not found, skipping" >&2
+  exit 0
+fi
+
+if ! grep -qF 'lockScreenRoot.uiVisible = true;' "$QML"; then
+  exit 0  # not patched
+fi
+
+python3 - "$QML" <<'PYEOF'
+import re
+import sys
+
+path = sys.argv[1]
+with open(path) as f:
+    src = f.read()
+
+patched = re.compile(
+    r"(?m)^([ \t]*)Component\.onCompleted: \{\n"
+    r"\1    launchAnimation\.start\(\);\n"
+    r"\1    lockScreenRoot\.uiVisible = true;\n"
+    r"\1\}"
+)
+new, n = patched.subn(r"\1Component.onCompleted: launchAnimation.start();", src)
+if n:
+    with open(path, "w") as f:
+        f.write(new)
+    print(f"reverted {path}")
+else:
+    print(f"patch marker found but block did not match in {path} — check manually", file=sys.stderr)
+    sys.exit(1)
+PYEOF

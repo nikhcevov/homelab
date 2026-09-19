@@ -1,32 +1,60 @@
 ---
 # KDE lock screen shows only the clock after wake until a keypress — and
-# the fingerprint reader (fprintd) stays inactive until the password
-# prompt appears, so unlocking is "open lid, wait, press key, THEN touch
-# the sensor". This role patches LockScreenUi.qml to raise the password UI
-# (and start PAM/fprintd) the moment the lock screen loads:
-# open the lid -> touch the sensor -> done.
+# fprintd stays inactive until the password prompt appears, so stock
+# unlocking is "open lid, press a key, THEN touch the sensor".
 #
-# The file belongs to the plasma-workspace package and is reset on every
-# upgrade, so a pacman hook re-applies the patch after each transaction.
+# This role used to patch LockScreenUi.qml so the prompt (and fprintd)
+# came up the moment the lock screen LOADED. Bad idea: the lock screen
+# loads on lid close, BEFORE sleep, so fprintd held the fingerprint
+# reader open for the entire suspend — USB xHCI could never power-gate,
+# the platform never entered S0ix and the battery drained overnight in
+# s2idle (measured: slp_s0_residency_usec = 0, fprintd spawns at lock).
+#
+# Instead, kde-lock-raise.service is pulled in by suspend.target and its
+# ExecStop fires right after resume, simulating user activity so the
+# prompt (and fprintd) come up exactly when the lid opens. No QML patch,
+# no pacman hook, nothing to break on plasma-workspace upgrades.
 
-- name: Install the lock screen patch script
+- name: Install the after-resume prompt-raise script
   ansible.builtin.template:
-    src: kde-lock-immediate.sh.j2
-    dest: /usr/local/bin/kde-lock-immediate
+    src: kde-lock-raise.sh.j2
+    dest: /usr/local/bin/kde-lock-raise
     owner: root
     group: root
     mode: "0755"
 
-- name: Install the pacman hook that re-applies the patch
+- name: Install the after-resume prompt-raise service
   ansible.builtin.template:
-    src: kde-lock-immediate.hook.j2
-    dest: /etc/pacman.d/hooks/kde-lock-immediate.hook
+    src: kde-lock-raise.service.j2
+    dest: /etc/systemd/system/kde-lock-raise.service
     owner: root
     group: root
     mode: "0644"
 
-# The script prints "patched ..." only when it actually edits the file.
-- name: Apply the lock screen patch now
-  ansible.builtin.command: /usr/local/bin/kde-lock-immediate
-  register: _kde_lock_immediate
-  changed_when: "'patched' in _kde_lock_immediate.stdout"
+- name: Enable the after-resume prompt-raise service
+  ansible.builtin.systemd_service:
+    name: kde-lock-raise.service
+    enabled: true
+    daemon_reload: true
+
+- name: Remove the old QML patch script and pacman hook
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /usr/local/bin/kde-lock-immediate
+    - /etc/pacman.d/hooks/kde-lock-immediate.hook
+
+- name: Install the QML patch revert script
+  ansible.builtin.template:
+    src: kde-lock-immediate-revert.sh.j2
+    dest: /usr/local/bin/kde-lock-immediate-revert
+    owner: root
+    group: root
+    mode: "0755"
+
+# The script prints "reverted ..." only when it actually edits the file.
+- name: Revert the old QML patch if present
+  ansible.builtin.command: /usr/local/bin/kde-lock-immediate-revert
+  register: _kde_lock_immediate_revert
+  changed_when: "'reverted' in _kde_lock_immediate_revert.stdout"
