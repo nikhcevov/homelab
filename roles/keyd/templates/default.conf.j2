@@ -1,9 +1,9 @@
 # Managed by Ansible (roles/keyd) — local edits will be overwritten.
 #
-# Caps Lock acts as Hyper (Ctrl+Alt+Shift+Super) on every keyboard EXCEPT
-# the devices excluded via keyd_excluded_ids (group_vars/workstations/keyd.yml).
-# `hyper` is defined below as a custom modifier layer (C-M-A-S); tap-hold
-# variant if ever wanted: capslock = overload(hyper, esc).
+# Caps Lock acts as Left Ctrl, and Left Ctrl acts as Hyper
+# (Ctrl+Alt+Shift+Super) on every keyboard EXCEPT the devices excluded via
+# keyd_excluded_ids (group_vars/workstations/keyd.yml).
+# `hyper` is defined below as a custom modifier layer (C-M-A-S).
 
 [ids]
 *
@@ -12,11 +12,12 @@
 {% endfor %}
 
 [main]
-capslock = layer(hyper)
+capslock = leftcontrol
+leftcontrol = layer(hyper)
 
-# Custom modifier layer: Caps held = C-M-A-S active. Every key emits the
-# full C-M-A-S set, so Caps+<key> is a conflict-free combo for global
-# shortcuts in KDE (kglobalshortcutsrc). No Ctrl mirroring on purpose —
-# plain Ctrl is fine to press directly. Not predefined by keyd — must be
-# declared like this.
+# Custom modifier layer: Left Ctrl held = C-M-A-S active. Every key emits
+# the full C-M-A-S set, so LCtrl+<key> is a conflict-free combo for global
+# shortcuts in KDE (kglobalshortcutsrc). Plain Ctrl is still available on
+# Caps Lock (capslock = leftcontrol above). Not predefined by keyd — must
+# be declared like this.
 [hyper:C-M-A-S]

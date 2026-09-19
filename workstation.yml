@@ -17,8 +17,9 @@
     - { role: arch_common, tags: [common] }
     - { role: ssh, tags: [ssh] }
     - { role: tailscale, tags: [tailscale] }
-    # keyd: Caps Lock = Hyper on all keyboards except the excluded IDs
-    # (group_vars/workstations/keyd.yml) — device-based, service stays on.
+    # keyd: Caps Lock = Left Ctrl, Left Ctrl = Hyper on all keyboards
+    # except the excluded IDs (group_vars/workstations/keyd.yml) —
+    # device-based, service stays on.
     - { role: keyd, tags: [keyd] }
     # packages before dotfiles: the tools the configs describe (bat,
     # eza, fzf, starship...) should exist when chezmoi applies them.

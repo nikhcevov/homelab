@@ -1,6 +1,7 @@
 ---
-# keyd: system-level key remapping (Caps Lock = Hyper) below the desktop
-# environment, so it works in every app/WM/compositor. Per-device
+# keyd: system-level key remapping (Caps Lock = Left Ctrl, Left Ctrl =
+# Hyper) below the desktop environment, so it works in every
+# app/WM/compositor. Per-device
 # filtering happens in the config ([ids] section): the service is always
 # on and excluded keyboards are passed through untouched.
 
