@@ -121,6 +121,49 @@ Firewall rules come from three merged sources: the SSH port, the static `ufw_rul
 
 Switching from root to an admin user: set `bootstrap_admin_user`(+`_ssh_keys`), run `bootstrap.yml`, switch `ansible_user` in inventory, set `sshd_permit_root_login: "no"`, re-run `site.yml`.
 
+### Tailscale access policy
+
+`files/tailscale/policy.json` is a standalone policy for the trusted-home model:
+member-owned devices, trusted home servers, and the approved routed home LANs
+retain full access; the edge can initiate only the proxy/game connections below.
+It is ordinary JSON, which the Tailscale policy editor accepts as HuJSON.
+Ansible does **not** apply this file.
+
+| Machine | Required tag | Edge access |
+| ------- | ------------ | ----------- |
+| `edge-proxy` | `tag:vps` only | Source of the restricted grants |
+| `great-hornbill` | `tag:home` | TCP 443, TCP 25565, UDP 24454 |
+| `ha-krm` | `tag:homeassistant` | TCP 443 |
+
+The `tag:vps` and `tag:home` assignments already exist. Reserve `tag:vps` for
+restricted edge machines, and `tag:home` for trusted Unraid backends. Never put a
+trusted-home tag on the edge: permissions from multiple tags are additive.
+Empty `tagOwners` lists leave assignment to tailnet owners/admins/network admins.
+
+The broad trusted grant deliberately includes **all invited tailnet members**,
+the two home tags, and the currently advertised LANs `192.168.100.0/24` through
+`192.168.103.0/24`. It also permits exit-node internet access. It does not approve
+new routes, grant shared outsiders access, or enable Tailscale SSH; native
+OpenSSH/Dropbear access remains subject to network grants and host SSH keys.
+Direct LAN traffic is outside Tailscale policy enforcement.
+
+Activation:
+
+1. Export the current policy from the [Access controls console](https://console.tailscale.com/admin/acls) for rollback.
+2. Add `"tag:homeassistant": []` to the **current** policy's `tagOwners`, retaining its other settings, and save.
+3. In [Machines](https://console.tailscale.com/admin/machines), assign `tag:homeassistant` to `ha-krm`. Tagging replaces its user identity; check any existing user-specific rules first.
+4. Paste `files/tailscale/policy.json` into Access controls. Preserve unrelated `ssh`, `autoApprovers`, or `nodeAttrs` settings if needed, but remove old broad `acls`/`grants` that would also allow the edge. Do not append this policy to an allow-all rule.
+5. Require the console validation and included TCP/UDP policy tests to pass before saving.
+6. Verify from the edge that backend 4743, SSH 22, SMB 445, and Unraid management 18080/18443 are unreachable, while proxy/game traffic and trusted-device SSH/direct access still work. Keep the HTTPS `/admin` restriction in Caddy: tailnet policy cannot filter HTTP paths.
+
+Rollback: restore the exported policy. If also reverting `ha-krm` to its original
+user-owned identity, re-authenticate it as that user; removing its final tag
+requires re-authentication, not merely deleting a tag in the console.
+
+Reference: [grants syntax](https://tailscale.com/docs/reference/syntax/grants),
+[policy tests](https://tailscale.com/docs/reference/syntax/policy-file#tests),
+and [tag identity](https://tailscale.com/docs/features/tags).
+
 ## Secrets
 
 In Git: templates, roles, inventory, playbooks, service/domain lists. **Never** plaintext: private keys, tokens, auth keys, passwords, real domains.
