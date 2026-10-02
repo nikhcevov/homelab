@@ -1,0 +1,88 @@
+{
+  "tagOwners": {
+    "tag:vps": [],
+    "tag:home": [],
+    "tag:homeassistant": []
+  },
+  "grants": [
+    {
+      "src": [
+        "autogroup:member",
+        "tag:home",
+        "tag:homeassistant",
+        "192.168.100.0/24",
+        "192.168.101.0/24",
+        "192.168.102.0/24",
+        "192.168.103.0/24"
+      ],
+      "dst": ["*", "autogroup:internet"],
+      "ip": ["*"]
+    },
+    {
+      "src": ["tag:vps"],
+      "dst": ["tag:home", "tag:homeassistant"],
+      "ip": ["tcp:443"]
+    },
+    {
+      "src": ["tag:vps"],
+      "dst": ["tag:home"],
+      "ip": ["tcp:25565", "udp:24454"]
+    }
+  ],
+  "tests": [
+    {
+      "src": "tag:vps",
+      "proto": "tcp",
+      "accept": [
+        "tag:home:443",
+        "tag:home:25565",
+        "tag:homeassistant:443"
+      ],
+      "deny": [
+        "tag:home:22",
+        "tag:home:80",
+        "tag:home:445",
+        "tag:home:4743",
+        "tag:home:18080",
+        "tag:home:18443",
+        "tag:home:24454",
+        "tag:homeassistant:22",
+        "tag:homeassistant:8123",
+        "192.168.100.1:22",
+        "192.168.101.1:22",
+        "192.168.102.1:22",
+        "192.168.103.1:22",
+        "1.1.1.1:443"
+      ]
+    },
+    {
+      "src": "tag:vps",
+      "proto": "udp",
+      "accept": ["tag:home:24454"],
+      "deny": [
+        "tag:home:443",
+        "tag:home:25565",
+        "tag:home:4743",
+        "tag:homeassistant:443"
+      ]
+    },
+    {
+      "src": "tag:home",
+      "proto": "tcp",
+      "accept": [
+        "tag:vps:22",
+        "tag:homeassistant:22",
+        "tag:homeassistant:8123"
+      ]
+    },
+    {
+      "src": "tag:homeassistant",
+      "proto": "tcp",
+      "accept": [
+        "tag:home:4743",
+        "tag:home:445",
+        "tag:vps:22"
+      ]
+    }
+  ]
+}

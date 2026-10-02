@@ -46,13 +46,32 @@
   loop_control:
     label: "{{ item.comment | default(item.port ~ '/' ~ (item.proto | default('tcp'))) }}"
 
+# UFW identifies a rule by port/protocol, so applying the same listener with
+# different comments on every run would keep changing that one rule.
+- name: Build unique proxy listen ports not covered by base rules
+  ansible.builtin.set_fact:
+    _ufw_proxy_ports: >-
+      {%- set ns = namespace(seen=[sshd_port | string ~ '/tcp'], ports=[]) -%}
+      {%- for rule in ufw_rules -%}
+      {%- set _ = ns.seen.append(rule.port | string ~ '/' ~ (rule.proto | default('tcp'))) -%}
+      {%- endfor -%}
+      {%- for item in services | default({}) | dict2items -%}
+      {%- set key = item.value.listen | string ~ '/' ~ (item.value.protocol | default('tcp')) -%}
+      {%- if key not in ns.seen -%}
+      {%- set _ = ns.seen.append(key) -%}
+      {%- set _ = ns.ports.append(item) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ ns.ports }}
+  when: ufw_open_service_ports | bool
+
 - name: Allow proxy service listen ports (from vars/proxy.yml)
   community.general.ufw:
     rule: allow
     port: "{{ item.value.listen }}"
     proto: "{{ item.value.protocol | default('tcp') }}"
     comment: "proxy: {{ item.key }}"
-  loop: "{{ services | default({}) | dict2items }}"
+  loop: "{{ _ufw_proxy_ports | default([]) }}"
   loop_control:
     label: "{{ item.key }}: {{ item.value.listen }}/{{ item.value.protocol | default('tcp') }}"
   when: ufw_open_service_ports | bool

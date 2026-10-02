@@ -1,0 +1,64 @@
+name: Tailscale policy
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    paths:
+      - files/tailscale/policy.json
+      - .github/workflows/tailscale.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate policy
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Require a same-repository PR
+        if: github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "Validate policy changes from a reviewed branch in this repository."
+          exit 1
+
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - uses: tailscale/gitops-acl-action@5a4a17f5708e9bf96f4ee915a95e9f83c2eebe1a
+        with:
+          oauth-client-id: ${{ vars.TS_TEST_CLIENT_ID }}
+          audience: ${{ vars.TS_TEST_AUDIENCE }}
+          tailnet: ${{ vars.TS_TAILNET }}
+          policy-file: files/tailscale/policy.json
+          action: test
+
+  apply:
+    name: Apply policy
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: tailscale-policy-apply
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - uses: tailscale/gitops-acl-action@5a4a17f5708e9bf96f4ee915a95e9f83c2eebe1a
+        with:
+          oauth-client-id: ${{ vars.TS_APPLY_CLIENT_ID }}
+          audience: ${{ vars.TS_APPLY_AUDIENCE }}
+          tailnet: ${{ vars.TS_TAILNET }}
+          policy-file: files/tailscale/policy.json
+          action: apply
