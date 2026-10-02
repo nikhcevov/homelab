@@ -3,7 +3,7 @@
 # MagicDNS names, so the node must join the tailnet before the proxy
 # layer is useful.
 #
-# Joining is a manual day-0 step (see README "First run"): the package
+# Joining is a manual day-0 step (see docs/getting-started.md "First run"): the package
 # is already installed by the time the auth check runs, so `tailscale up`
 # on the host is all that's left. vault_tailscale_auth_key remains as an
 # optional unattended path.

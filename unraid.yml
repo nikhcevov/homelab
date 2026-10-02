@@ -3,7 +3,7 @@
 # drive (/boot/config/plugins/user.scripts/scripts/<name>/{script,description}).
 # Unraid has no python, so everything goes through raw + base64;
 # idempotency is tracked via a .b64 marker next to the deployed file.
-# Scheduling is set outside this playbook (see README "Backups -> Unraid"):
+# Scheduling is set outside this playbook (see docs/backups-unraid.md):
 #   mover (Settings->Scheduler)      weekly Sun 00:00 (drain cache first)
 #   CA Appdata Backup (plugin GUI)   weekly Sun 04:00, incl. flash backup
 #   homelab-backup-pull              daily  05:00 (User Scripts GUI)

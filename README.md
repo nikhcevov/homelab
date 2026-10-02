@@ -1,413 +1,62 @@
 # homelab
 
-Self-hosted homelab infrastructure, managed entirely by Ansible. This repository is the single source of truth — all changes go through Git + Ansible, never manual edits on servers.
+Self-hosted homelab infrastructure. Git owns the desired infrastructure configuration: Ansible applies host configuration, and the Tailscale policy workflow applies tailnet access rules. Do not manually edit files owned by Ansible; the next deployment can overwrite them.
 
-Managed hosts (inventory groups):
+## Infrastructure
 
-| Group          | Hosts                               | Playbook(s)                          | What runs there                                           |
-| -------------- | ----------------------------------- | ------------------------------------ | --------------------------------------------------------- |
-| `vps`          | edge-proxy                          | `site.yml` (layered)                 | L4 SNI proxy (nginx stream) → home servers over Tailscale |
-| `vpn`          | vpn-nl                              | `vpn.yml`, `vpn-restore.yml`         | native 3x-ui + Caddy, nightly backups                     |
-| `mon`          | mon-1                               | `mon.yml`                            | native Uptime Kuma + Caddy, external watcher              |
-| `routers`      | router-srt, router-krm, router-trvl | `openwrt.yml`, `openwrt-upgrade.yml` | OpenWrt routers, Tailscale exit nodes                     |
-| `unraid`       | great-hornbill                      | `unraid.yml`                         | central backup collector (pull model)                     |
-| `workstations` | starling, blue-tit, little-raven    | `workstation.yml`                    | Arch/CachyOS dev desktops (little-raven = laptop)         |
+Playbooks target inventory groups. Active hosts and connection settings live in [inventory/hosts.ini](inventory/hosts.ini).
 
-The tailnet is the only management plane: every host is addressed by its MagicDNS name, day-0 (install OS, add one SSH key, `tailscale up`, disable key expiry) is the only manual step. Host IPs are deliberately not stored in the repo.
+| Group | Playbook(s) | Responsibility |
+| ----- | ----------- | -------------- |
+| `vps` | [site.yml](site.yml) | L4 SNI proxy over Tailscale; layered deployment |
+| `vpn` | [vpn.yml](vpn.yml), [vpn-restore.yml](vpn-restore.yml) | Native 3x-ui + Caddy, nightly backups |
+| `mon` | [mon.yml](mon.yml) | Native Uptime Kuma + Caddy, external watcher |
+| `routers` | [openwrt.yml](openwrt.yml), [openwrt-upgrade.yml](openwrt-upgrade.yml) | OpenWrt configuration and Tailscale exit nodes |
+| `unraid` | [unraid.yml](unraid.yml) | Backup collection and local restic snapshots |
+| `workstations` | [workstation.yml](workstation.yml) | Arch/CachyOS development environment |
+
+After bootstrap, the tailnet is the management plane. [Inventory](inventory/hosts.ini) uses MagicDNS names; router day-0 temporarily uses a LAN address. The [backup collector](files/unraid/homelab-backup-pull.sh.j2) separately stores Tailscale IPs for its SSH sources.
 
 ## Principles
 
 1. **Zero-trust edge.** The edge VPS stores no private data and forwards encrypted traffic only (L4 pass-through via `ssl_preread`, no TLS termination).
 2. **Declarative.** Desired state lives in YAML; configs are generated artifacts.
 3. **Idempotent.** Re-running any playbook on a converged host reports zero changes.
-4. **Restorable.** If a configuration cannot be rebuilt from this repo, it is an architecture bug.
+4. **Restorable.** Infrastructure configuration is rebuilt from this repo; application databases and user data are recovered from backups.
 5. **Minimal resources.** VPS layers run on 1 vCPU / 500 MB RAM. No Docker, no Prometheus.
 6. **Signal over noise.** Alerts only on state transitions, severity-based ntfy channels.
 
+## Configuration ownership
+
+- **Git + automation:** host configuration, service deployment, routing definitions, and [tailnet policy](files/tailscale/policy.json). The real edge routing map is local and gitignored; keep a separate protected copy.
+- **Application state:** VPN clients/settings, Kuma monitors, and media-stack settings live in their applications, not Ansible. Follow each application's configuration and backup procedure.
+- **Manual setup:** OS/day-0 bootstrap, DNS records, Tailscale machine tags and route approval, Unraid pool provisioning, and GUI schedules. Ansible does not recreate these steps.
+
+## Documentation
+
+| Guide | Scope |
+| ----- | ----- |
+| [Getting started](docs/getting-started.md) | Requirements, repository layout, VPS day-0, secrets |
+| [Edge VPS](docs/edge.md) | Layered deployment, routing, local render, operations, troubleshooting |
+| [Tailscale policy](docs/tailscale.md) | Tags, access rules, GitOps setup, apply and rollback |
+| [VPN VPS](docs/vpn.md) | Deployment, application-state ownership, backups and restore |
+| [Monitoring](docs/monitoring.md) | Internal cron/ntfy checks and external Kuma watcher |
+| [OpenWrt routers](docs/openwrt.md) | LAN bootstrap, exit nodes, Wi-Fi, upgrades and management |
+| [Unraid backups](docs/backups-unraid.md) | Collection, manual schedules, restic and recovery |
+| [Workstations](docs/workstations.md) | Bootstrap, chezmoi, keyboard/KDE behavior |
+| [Laptop power](docs/laptop-power.md) | Power profiles, measurements, caveats and removal |
+| [Media/Arr stack](docs/arr-stack.md) | Application configuration, media layout and maintenance |
+
+For the solo-maintainer workflow, documentation upkeep, and local checks, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Repository layout
 
-```
-├── site.yml                     edge VPS: full deployment (imports the 5 layers below)
-├── bootstrap.yml                layer 1: base system + ssh        ┐
-├── security.yml                 layer 2: ufw + fail2ban           │
-├── network.yml                  layer 3: tailscale                ├ each also standalone
-├── proxy.yml                    layer 4: nginx stream proxy       │
-├── services.yml                 layer 5: monitoring               ┘
-├── vpn.yml / vpn-restore.yml    VPN VPS deploy / restore
-├── mon.yml                      monitoring VPS deploy
-├── openwrt.yml / openwrt-upgrade.yml   routers deploy / package+firmware upgrade
-├── unraid.yml                   deploy backup-pull script to Unraid
-├── workstation.yml              Arch/CachyOS desktops
-├── test-render.yml              local nginx render test (no VPS needed)
-├── inventory/hosts.ini          all hosts, MagicDNS names only
-├── group_vars/<group>/          one file per concern (bootstrap, ssh, security, ...)
-├── host_vars/<host>.yml         per-host deltas and per-host vault secrets
-├── vars/proxy.yml               edge routing map (gitignored; see proxy.example.yml)
-├── roles/                       common, ssh, ufw, fail2ban, tailscale, nginx, monitoring,
-│                                xui, caddy, vpn_backup, kuma, kuma_backup, openwrt_*,
-│                                arch_common, arch_packages, keyd, docker, dotfiles, syncthing
-├── scripts/  cron/              monitoring checks (bash) + cron definition
-└── files/                       ssh public keys, Unraid backup-pull script
-```
-
-## Requirements
-
-- Control machine: `ansible-core`, then `ansible-galaxy collection install -r requirements.yml`.
-- Edge VPS: Debian 12, x86_64; VPN/mon VPS: Debian 13 / Ubuntu 24.04+. Python 3 is the only target requirement.
-- A Tailscale tailnet with MagicDNS; `tailnet_domain` set once in `group_vars/all/tailscale.yml`.
-- A reachable ntfy.sh topic for notifications.
-
-## First run (new VPS)
-
-**Day-0 (manual, once, on the host):**
-
-1. Provision the VPS with your SSH public key.
-2. Join the tailnet: `curl -fsSL https://tailscale.com/install.sh | sh && tailscale up --hostname=<name>`, open the login URL, then **disable key expiry** in the admin console — otherwise the node silently drops off the tailnet after 180 days.
-3. Convention: inventory name = tailscale hostname, so `ansible_host` needs no change.
-
-**On the control machine:**
-
-```bash
-ansible-galaxy collection install -r requirements.yml   # one-time
-ansible-vault encrypt_string 'the-secret' --name vault_ntfy_topic_info  # add secrets to group_vars/*/vault.yml
-cp vars/proxy.example.yml vars/proxy.yml && $EDITOR vars/proxy.yml      # edge routing map
-ansible-playbook site.yml        # or vpn.yml / mon.yml for those hosts
-```
-
-Extra SSH keys: drop the `.pub` into `files/ssh/` and list it in `bootstrap_root_ssh_keys` (`group_vars/<group>/bootstrap.yml`). Public keys belong in Git.
-
-## Edge VPS: layers
-
-`site.yml` imports five layers in order; each is also a standalone playbook. Layers depend left to right (proxy needs tailnet DNS; monitoring expects nginx). Bootstrap is safe to re-run anytime.
-
-```bash
-ansible-playbook site.yml        # everything, in order
-ansible-playbook proxy.yml       # just re-render and reload the proxy
-ansible-playbook security.yml    # just firewall + fail2ban
-```
-
-### `vars/proxy.yml` — the only file you edit for routing
-
-Adding a service = adding a block here + `ansible-playbook site.yml`. The nginx config and (via `ufw_open_service_ports: true`) the firewall rule are regenerated automatically.
-
-Schema (full annotated examples in `vars/proxy.example.yml`):
-
-| Field      | Required | Purpose                                                                          |
-| ---------- | -------- | -------------------------------------------------------------------------------- |
-| `listen`   | yes      | Port nginx listens on.                                                           |
-| `protocol` | no       | `tcp` (default) or `udp`.                                                        |
-| `sni`      | no       | TLS SNI hostnames routed here (tcp only, via `ssl_preread`).                     |
-| `default`  | no       | `true` = fallback backend for unknown SNI on this listener.                      |
-| `upstream` | yes      | One backend or a list: `host`, `port`, optional `backup`, `weight`, `max_fails`. |
-
-Rules (enforced by `roles/nginx/tasks/validate.yml` before anything is deployed):
-
-- SNI hostnames must be unique across all services.
-- Services sharing a listen port must **all** use SNI — or be a single plain forward.
-- SNI requires `protocol: tcp`; at most one `default: true` per listener (else first service wins).
-- Always use MagicDNS names (`host.tailnet.ts.net`), never raw `100.x` IPs.
-
-### `group_vars/vps/` — one file per concern
-
-| File             | Configures    | Highlights                                                                   |
-| ---------------- | ------------- | ---------------------------------------------------------------------------- |
-| `bootstrap.yml`  | common        | packages, timezone, locale, unattended-upgrades, extra root keys, admin user |
-| `ssh.yml`        | ssh           | `sshd_port` + auth modes — defined once, consumed by sshd, ufw and fail2ban  |
-| `security.yml`   | ufw, fail2ban | default policies, static rules, `ufw_open_service_ports`, ban policy         |
-| `tailscale.yml`  | tailscale     | hostname, optional auth key (from vault)                                     |
-| `monitoring.yml` | monitoring    | checked units, disk threshold/mounts, backup freshness, host prefix          |
-
-Firewall rules come from three merged sources: the SSH port, the static `ufw_rules` list, and the listen ports of every service in `vars/proxy.yml`.
-
-Switching from root to an admin user: set `bootstrap_admin_user`(+`_ssh_keys`), run `bootstrap.yml`, switch `ansible_user` in inventory, set `sshd_permit_root_login: "no"`, re-run `site.yml`.
-
-### Tailscale access policy
-
-`files/tailscale/policy.json` is a standalone policy for the trusted-home model:
-member-owned devices, trusted home servers, and the approved routed home LANs
-retain full access; the edge can initiate only the proxy/game connections below.
-It is ordinary JSON, which the Tailscale policy editor accepts as HuJSON.
-Ansible does **not** apply this file.
-
-| Machine | Required tag | Edge access |
-| ------- | ------------ | ----------- |
-| `edge-proxy` | `tag:vps` only | Source of the restricted grants |
-| `great-hornbill` | `tag:home` | TCP 443, TCP 25565, UDP 24454 |
-| `ha-krm` | `tag:homeassistant` | TCP 443 |
-
-The `tag:vps` and `tag:home` assignments already exist. Reserve `tag:vps` for
-restricted edge machines, and `tag:home` for trusted Unraid backends. Never put a
-trusted-home tag on the edge: permissions from multiple tags are additive.
-Empty `tagOwners` lists leave assignment to tailnet owners/admins/network admins.
-
-The broad trusted grant deliberately includes **all invited tailnet members**,
-the two home tags, and the currently advertised LANs `192.168.100.0/24` through
-`192.168.103.0/24`. It also permits exit-node internet access. It does not approve
-new routes, grant shared outsiders access, or enable Tailscale SSH; native
-OpenSSH/Dropbear access remains subject to network grants and host SSH keys.
-Direct LAN traffic is outside Tailscale policy enforcement.
-
-Activation:
-
-1. Export the current policy from the [Access controls console](https://console.tailscale.com/admin/acls) for rollback.
-2. Add `"tag:homeassistant": []` to the **current** policy's `tagOwners`, retaining its other settings, and save.
-3. In [Machines](https://console.tailscale.com/admin/machines), assign `tag:homeassistant` to `ha-krm`. Tagging replaces its user identity; check any existing user-specific rules first.
-4. Paste `files/tailscale/policy.json` into Access controls. Preserve unrelated `ssh`, `autoApprovers`, or `nodeAttrs` settings if needed, but remove old broad `acls`/`grants` that would also allow the edge. Do not append this policy to an allow-all rule.
-5. Require the console validation and included TCP/UDP policy tests to pass before saving.
-6. Verify from the edge that backend 4743, SSH 22, SMB 445, and Unraid management 18080/18443 are unreachable, while proxy/game traffic and trusted-device SSH/direct access still work. Keep the HTTPS `/admin` restriction in Caddy: tailnet policy cannot filter HTTP paths.
-
-Rollback: restore the exported policy. If also reverting `ha-krm` to its original
-user-owned identity, re-authenticate it as that user; removing its final tag
-requires re-authentication, not merely deleting a tag in the console.
-
-Reference: [grants syntax](https://tailscale.com/docs/reference/syntax/grants),
-[policy tests](https://tailscale.com/docs/reference/syntax/policy-file#tests),
-and [tag identity](https://tailscale.com/docs/features/tags).
-
-## Secrets
-
-In Git: templates, roles, inventory, playbooks, service/domain lists. **Never** plaintext: private keys, tokens, auth keys, passwords, real domains.
-
-Secrets live as inline `!vault` blocks (`ansible-vault encrypt_string`) — shared ones in `group_vars/all/vault.yml`, per-group in `group_vars/<group>/vault.yml`, per-host in `host_vars/<host>.yml`. Keys and comments stay readable in diffs; Ansible decrypts natively. The real routing map `vars/proxy.yml` is plaintext-gitignored (config, not credentials).
-
-The vault password lives in `.vault_pass` (gitignored, referenced by `ansible.cfg`) — keep it in your password manager; losing it means losing all secrets. Sanity check before pushing: `git grep -L '!vault' group_vars/ host_vars/` on files that should be encrypted.
-
-| Vault var                            | Where                      | Why                                                     |
-| ------------------------------------ | -------------------------- | ------------------------------------------------------- |
-| `vault_ntfy_topic_*`                 | `group_vars/all/vault.yml` | ntfy topic name = password                              |
-| `vault_tailscale_auth_key`           | `group_vars/all/vault.yml` | optional unattended tailnet join (empty = manual day-0) |
-| `vault_kuma_domain`                  | `group_vars/mon/vault.yml` | real Kuma domain                                        |
-| `vault_*_domain`, `vault_xui_*_path` | `host_vars/vpn-<cc>.yml`   | VPN domains + secret 3x-ui URL paths                    |
-
-## Local render test (no VPS needed)
-
-```bash
-ansible-playbook test-render.yml && cat /tmp/rendered-stream.conf
-```
-
-## Monitoring
-
-Two complementary layers:
-
-| Layer              | Where               | Covers                                                    |
-| ------------------ | ------------------- | --------------------------------------------------------- |
-| Uptime Kuma        | mon-1 (external)    | ports, HTTPS, certificates, ping — black-box, all hosts   |
-| cron + ntfy checks | each VPS (internal) | systemd units, containers, disk, updates, reboot, backups |
-
-Internal checks (same `monitoring` role on `vps`, `vpn`, `mon`; per-group config in `group_vars/<group>/monitoring.yml`) push to ntfy **only on state transitions**:
-
-| Check             | Interval | Alerts on                         | Severity |
-| ----------------- | -------- | --------------------------------- | -------- |
-| systemd services  | 15 min   | unit not active                   | critical |
-| docker containers | 15 min   | container not running             | critical |
-| disk usage        | 1 h      | usage > threshold                 | alert    |
-| security updates  | daily    | apt security updates available    | alert    |
-| reboot required   | daily    | `/var/run/reboot-required` exists | alert    |
-| backup freshness  | daily    | no archive / newest > 25 h old    | alert    |
-
-Empty lists disable a check. Notification channels are severity-first: `*-critical`, `*-alerts`, `*-info`. Kuma pushes to the same topics (configured once in the Kuma UI).
-
-## Operations
-
-```bash
-# health on the edge VPS
-sudo systemctl status nginx tailscaled fail2ban ssh
-sudo nginx -t && sudo ss -tlnp | grep nginx
-sudo ufw status verbose && sudo fail2ban-client status sshd
-tailscale status
-sudo bash /opt/homelab-monitoring/scripts/check-services.sh   # trigger a monitor manually
-```
-
-**Migrate the edge VPS:** provision + day-0 with the same hostname (same MagicDNS name, no inventory change) → `ansible-playbook site.yml` → switch DNS A/AAAA records. Home servers are untouched.
-
-## Security notes
-
-- No TLS termination on the edge VPS; certificates live only on home servers. Outbound to home only over Tailscale.
-- Port 80 returns 444; `server_tokens off`; stream access log disabled.
-- SSH key-only (`sshd_password_authentication: "no"`, root `prohibit-password`); sshd config validated with `sshd -t` before every apply; fail2ban watches the sshd journal.
-- Default firewall policy: deny incoming, allow outgoing.
-
-## Troubleshooting
-
-| Symptom                                | Look at                                                                         |
-| -------------------------------------- | ------------------------------------------------------------------------------- |
-| Playbook fails in validation tasks     | `vars/proxy.yml` — the assert message names the offending service.              |
-| `nginx -t` task fails                  | Rendered `/etc/nginx/stream.d/proxy.conf` on the VPS.                           |
-| Locked out after security layer        | Rules are added before ufw is enabled; check `sshd_port` vs `ansible_port`.     |
-| Tailscale auth task skips              | Node already connected, or empty auth key (day-0 manual join).                  |
-| Node fell off the tailnet              | Key expiry — re-run `tailscale up`, then disable expiry in the admin console.   |
-| Connection refused on a forwarded port | `ss -tlnp \| grep <port>`, `journalctl -u nginx`, `ufw status`.                 |
-| Wrong backend for a domain             | SNI hostname missing/duplicated in `vars/proxy.yml`; check the generated `map`. |
-| Backend unreachable                    | `nc -vz <host>.ts.net <port>` from the VPS; check Tailscale.                    |
-| No ntfy messages arrive                | Topics in `group_vars/*/monitoring.yml` + vault; run a check script manually.   |
-
----
-
-## VPN VPS
-
-Independent VPN gateway (`vpn` group): **native 3x-ui + Caddy**, ufw + fail2ban, nightly backups. No Docker and no dependency on the home lab — it works when the homelab is offline. The host joins the tailnet at day-0 (manual) so Ansible can reach it and Unraid can pull its backups; the playbook itself manages no tailscale settings.
-
-Responsibilities: 3x-ui = VPN/clients/subscriptions, Caddy = HTTPS/reverse proxy only (Reality traffic is **not** proxied), `vpn_backup` = backups, `vpn-restore.yml` = restores.
-
-```bash
-ansible-playbook vpn.yml                                                        # full deployment
-ansible-playbook vpn-restore.yml -e vpn_restore_archive=/path/to/archive.tar.gz # restore
-```
-
-Config in `group_vars/vpn/vpn.yml`, per-host domains/paths in `host_vars/vpn-<cc>.yml` (a second VPN server = copy that file + one inventory line):
-
-| Var                                       | Purpose                                                           |
-| ----------------------------------------- | ----------------------------------------------------------------- |
-| `xui_state`                               | `present` / `latest` (upgrade) / `absent` / `reinstalled`         |
-| `xui_version`                             | pin e.g. `v2.8.11`, empty = latest                                |
-| `xui_purge`                               | `absent` also removes `/etc/x-ui` (the database!)                 |
-| `xui_panel_port` / `xui_sub_port`         | proxied by Caddy via localhost, not exposed in UFW                |
-| `caddy_panel_domain` / `caddy_sub_domain` | from the vault                                                    |
-| `xui_tunnel_ports`                        | tunnel inbounds exposed in UFW (Reality, xhttp) — listen directly |
-| `vpn_backup_*`                            | backup dir, retention, cron time                                  |
-
-**The database is authoritative.** 3x-ui config (clients, UUIDs, Reality keys, subscriptions) lives only in its SQLite DB. Ansible never rewrites it — it is snapshotted (`sqlite3 .backup`, safe on a live DB) into backups and restored byte-for-byte. Panel/sub ports in `group_vars/vpn/vpn.yml` must match the DB settings (`webPort`/`subPort`) because Caddy proxies to them.
-
-**Backups:** nightly cron → `/opt/vpn-backup/archives/vpn-backup-*.tar.gz` with retention. Contents: `x-ui.db` snapshot, Caddyfile, `var/lib/caddy/` certificates (avoids Let's Encrypt re-issue after restore). Backups stay on the VPS; Unraid collects them (see below).
-
-**Restore (fresh VPS):** day-0 → `ansible-playbook vpn.yml` → `ansible-playbook vpn-restore.yml -e vpn_restore_archive=...`. Restore stops services, extracts into `/`, fixes ownership (`root` for the DB, `caddy` for Caddy data), starts everything.
-
----
-
-## Monitoring VPS
-
-Central external watcher (`mon` group): **native Uptime Kuma + Caddy** (Kuma pinned by `kuma_version`, Node.js + systemd, `127.0.0.1:3001` behind Caddy; UFW exposes only SSH/80/443). Answers "is the service reachable from the internet" while the per-host cron checks answer "is the host healthy inside".
-
-Deploy: day-0 → DNS A record for the Kuma domain (`vault_kuma_domain`) → `ansible-playbook mon.yml` → open the UI, create the admin account, add monitors and the ntfy channel.
-
-- Monitors and settings live in Kuma's SQLite DB (`/opt/uptime-kuma/data`) — managed via the UI, not Git. `kuma_backup` snapshots it nightly to `/opt/kuma-backup/archives` (same pattern as `vpn_backup`).
-- Restore: stop kuma, extract archive into `/`, `chown kuma:kuma .../kuma.db`, start kuma. Caddyfile and certificates are in the same archive.
-- The host watches itself via the same cron checks; there are no cron cross-checks between hosts — external watching is Kuma's job alone.
-- mon-1 accepts subnet routes (`tailscale_accept_routes: true`), so Kuma can poll router LAN services (see below).
-
----
-
-## OpenWrt routers
-
-Identical OpenWrt routers (`routers` group), managed end-to-end by `openwrt.yml` over the tailnet. Config is authoritative — roles deploy whole `/etc/config/*` files, manual `uci` edits get overwritten. Per-host deltas (LAN IP, exit-node flags) live in `host_vars/router-*.yml`.
-
-Day-0 (manual, over LAN — no tailnet yet):
-
-1. Flash OpenWrt, set root password.
-2. Set the hostname to the inventory name (`router-srt`) and the LAN IP/subnet from the host's `host_vars` (`owrt_lan_ip`) — LuCI or `uci`, your choice. The roles will re-apply both authoritatively, but a correct hostname now means the tailnet node gets the right name on first join.
-3. Add your SSH key to dropbear (`/etc/dropbear/authorized_keys`).
-4. Drop the same public key into `files/ssh/` and reference it in `ssh_authorized_keys` (`group_vars/routers/ssh.yml`) — the role takes over `authorized_keys` authoritatively.
-5. Check `owrt_lan_bridge_ports` (`group_vars/routers/network.yml`) against the hardware (`ip link` — DSA port names vary).
-6. Point the inventory at the LAN directly, temporarily: `router-srt ansible_host=192.168.103.1 ansible_user=root`.
-7. `ansible-playbook openwrt.yml --limit router-srt` — the `openwrt_tailscale` role installs tailscale and joins the tailnet itself (auth key from the vault); no manual `tailscale up`.
-8. In the Tailscale admin console: disable key expiry, approve the subnet route and exit node.
-9. Switch the inventory line back to the MagicDNS form (`router-srt ansible_host="router-srt.{{ tailnet_domain }}" ...`) — from now on management is tailnet-only.
-
-A fresh router has no Python: the play starts with `gather_facts: false` and `openwrt_common` installs full `python3` via `raw` (apk), then gathers facts.
-
-**Exit nodes:** set `tailscale_advertise_exit_node: true` in the router's `host_vars` and re-run `openwrt.yml` (role passes `--advertise-exit-node`, firewall gets `tailscale → wan` forwarding). Two one-time admin-console steps remain: approve the exit route and disable key expiry. No automatic failover — clients pick a node explicitly; place nodes at different sites for real redundancy.
-
-**Exit-node client gateway** (inverse: a whole LAN behind an OpenWrt box exits via a chosen node): set `tailscale_exit_node: <node>` (+ `tailscale_exit_node_allow_lan_access: true`). The firewall role renders `lan → tailscale` masquerade automatically. Switch nodes by changing the var and re-running, or ad hoc: `tailscale set --exit-node=...`.
-
-**Full-tunnel exit node + kill switch** (router-trvl): with `tailscale_exit_node` set, tailscaled's blanket `5270: from all lookup 52` sends the whole LAN through the exit node (router-srt). The kill switch is at the firewall zone level: `owrt_firewall_lan_wan_forwarding: false` removes the `lan → wan` forwarding entirely, so a dead tailscaled or exit node means no internet at all — never a silent WAN fallback. DNS is pinned to the exit site's resolver (`owrt_dns_servers: [100.77.53.118]`, dnsmasq on router-srt over the tailnet) so resolver egress and CDN localization match the exit location. For per-device policy routing instead, `owrt_network_rules` renders netifd `ip rule`s that slot in front of `5270`.
-
-**Upgrades:** daily checks are notify-only (`openwrt_upgrades` → ntfy). To apply: `ansible-playbook openwrt-upgrade.yml` (apk packages); add `-e owrt_firmware_upgrade=true` for firmware via `owut` — the router **reboots**, the play fires async and returns immediately. Re-run `openwrt.yml` afterwards if configs drifted.
-
-**Wi-Fi:** opt-in per host via `owrt_wireless_radios` (`group_vars/routers/wireless.yml` documents the format; radio `path` values are device-specific — copy them from the stock `/etc/config/wireless`). The PSK lives in the vault (`vault_wireless_psk`). The deploy is authoritative: uplink sta interfaces added on the road (travelmate, hotel Wi-Fi) get wiped on the next run — keep those ad hoc.
-
-| Role              | Configures                                                                                    |
-| ----------------- | --------------------------------------------------------------------------------------------- |
-| openwrt_common    | python3 bootstrap (via `raw`), hostname, timezone, NTP, sysctl                                |
-| openwrt_packages  | extra apk packages (`owrt_packages`)                                                          |
-| openwrt_ssh       | dropbear (key-only), root `authorized_keys`                                                   |
-| openwrt_network   | `/etc/config/network` + `/etc/config/dhcp` (LAN bridge, WAN, DHCP, DNS)                       |
-| openwrt_wireless  | `/etc/config/wireless` (radios + AP SSIDs, PSK from vault); opt-in per host                   |
-| openwrt_firewall  | `/etc/config/firewall`, tailscale zone + subnet/exit forwarding, flow offloading, extra rules |
-| openwrt_tailscale | tailscale via apk, tailnet auth, exit node (same var names as the Debian role)                |
-| openwrt_upgrades  | daily notify-only update check (apk + owut) → ntfy                                            |
-
-Notes: changing `owrt_lan_ip` drops a LAN-based SSH session mid-run — manage over the tailnet. For Kuma DNS monitors over the tailnet set `owrt_dns_localservice: false` (dnsmasq otherwise drops 100.64.0.0/10 queries); dropbear/dnsmasq bind to LAN only, so monitor LAN IPs (ride the advertised subnet route — approve it in the admin console).
-
----
-
-## Backups → Unraid
-
-### Weekly schedule (Sunday-night chain)
-
-One chain so the array wakes once a night and the `vault` pool disk only for restic:
-
-| Time                | Task                                                                                                                                                                    | Where configured               |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| Sun 00:00           | Mover (cache→array; up to ~1 TB to drain, 4 h headroom)                                                                                                                 | Settings → Scheduler → Mover   |
-| Sun 04:00           | CA Appdata Backup (appdata + flash) into the `backup` share                                                                                                             | plugin GUI                     |
-| daily 05:00         | `homelab-backup-pull` (VPS archives + router configs)                                                                                                                   | User Scripts GUI (`0 5 * * *`) |
-| Sun 06:00           | `restic-vault-backup` → vault pool (captures the fresh 04:00/05:00 data)                                                                                                | User Scripts GUI (`0 6 * * 0`) |
-| monthly 08:00 (1st) | `restic-vault-check` — `restic check --read-data-subset=10%` on the vault repo (XFS pool: no scrub, so bit-rot detection is restic's job; ~full coverage in ~10 months) | User Scripts GUI (`0 8 1 * *`) |
-| monthly 08:00       | Parity check (day-of-month in the GUI, e.g. the 1st; for "first Sunday"/incremental use the Parity Check Tuning plugin)                                                 | Settings → Scheduler           |
-
-Restic must not scan while the mover works (renames mid-scan → spurious "file vanished" errors), hence the ordering.
-
-Unraid **pulls** every host's backups over the tailnet (script `files/unraid/homelab-backup-pull.sh.j2`, deployed into the User Scripts plugin by `unraid.yml`; schedule set in the plugin GUI). Pull model on purpose — hosts hold no Unraid credentials, so a compromised host cannot delete or encrypt its own backups.
-
-What gets pulled: `rsync` of `/opt/*-backup/archives/` from the VPS hosts (vpn/kuma, own 14-day rotation), `rsync` of `/backup/` from Home Assistant (`ha-krm`; its own automatic-backup retention applies — note HA encrypts backups by default, so the copies stay encrypted too: keep the encryption key in a password manager), and `sysupgrade -b` streamed over SSH from each router into dated tarballs (30-day retention). Every source is tracked in a state file: ntfy fires only on transitions (OK→FAIL alerts, FAIL→OK info).
-
-Setup:
-
-1. On Unraid: `ssh-keygen -t ed25519 -C "great-hornbill"` (default path, empty passphrase), put the pubkey in `files/ssh/great-hornbill.pub` — referenced by routers' `ssh_authorized_keys` and VPS `bootstrap_root_ssh_keys`.
-2. One-time chicken-egg: authorize `starling.pub` on Unraid via `/boot/config/ssh/root/authorized_keys` (persists; `/root` is a ramdisk).
-3. Fill in `RSYNC_SOURCES` / `ROUTERS` / `DEST` in the script template.
-4. `ansible-playbook unraid.yml` (raw + base64 — Unraid has no Python), then set the schedule in Settings → User Scripts and run once manually.
-5. Re-run `openwrt.yml` / `mon.yml` / `vpn.yml` so the great-hornbill key is authorized on the sources.
-6. Home Assistant (`ha-krm`): install the _Advanced SSH & Web Terminal_ add-on, put `files/ssh/great-hornbill.pub` into its `authorized_keys` option, clear the password, make sure `rsync` is present (`packages: [rsync]` add-on option), then put the instance's tailscale IP into the `ha-krm` entry in `RSYNC_SOURCES` and uncomment it. Backups land in `/mnt/user/backup/homelab/ha-krm` and are picked up by the weekly `restic-vault-backup` like the rest of the `backup` share.
-
-Restore: VPS DBs — copy the tarball back and follow the role's restore path (`vpn-restore.yml`); routers — upload in LuCI _Backup/Flash Firmware_ or `sysupgrade -r`.
-
-### Local weekly copy → vault pool (restic)
-
-The `photos` and `backup` shares are copied weekly into a restic repository on `vault`, a single-disk XFS pool (no parity, no shares — the disk spins down between runs). Sources are read via `/mnt/user/<share>` (FUSE union), so cache→array mover state is transparent; the source is strictly read-only, nothing is ever deleted from the shares.
-
-Script `files/unraid/restic-vault-backup.sh.j2`, deployed by `unraid.yml` together with the pinned restic binary (stored at `/boot/extra/restic`, staged into `/usr/local/bin` at runtime — `/boot` is vfat+noexec) and the repo password (`/boot/config/restic/password`, root-only; master copy: `vault_restic_password` in the vault — keep another copy in a password manager). Retention: 8 weekly + 6 monthly snapshots (`forget --prune`); every run ends with `restic check` (metadata). Include list (see `BACKUP_PATHS` in the script): the `backup` share plus Immich `library/`, `upload/`, `backups/` (postgres dumps), `profile/`; Immich `thumbs/`/`encoded-video/` are regenerable and `frigate/` is skipped entirely. Tradeoff: new top-level folders are NOT protected automatically — the script logs a WARN for unexpected entries, so check the syslog after adding new services. Runs in the Sunday-night chain (table above). Data integrity: the pool is XFS (no checksumming/scrub), so a second user script `files/unraid/restic-vault-check.sh.j2` runs monthly (`check --read-data-subset=10%`, random subset each run — full coverage in ~10 months; full `restic check --read-data` manually after SMART warnings or unclean shutdowns of the vault disk).
-
-Restore: `cp /boot/extra/restic /usr/local/bin/restic && chmod 755 /usr/local/bin/restic`, then `export RESTIC_REPOSITORY=/mnt/vault/restic RESTIC_PASSWORD_FILE=/boot/config/restic/password` and `restic snapshots` / `restore latest --target ...` (details in the script header). After restoring Immich, re-run its thumbnail/transcode jobs to rebuild the excluded `thumbs/` and `encoded-video/`.
-
----
-
-## Workstations (Arch/CachyOS)
-
-Desktops (`workstations` group) managed by `workstation.yml` — same model: declarative lists in `group_vars/workstations/`, deltas in `host_vars/`, management over the tailnet. Goal: **identical dev environment**, not identical systems. GUI/desktop/hardware packages are deliberately NOT managed.
-
-| Layer                              | Tool                                        |
-| ---------------------------------- | ------------------------------------------- |
-| Dev packages                       | Ansible (`arch_packages`, base + dev lists) |
-| User config (fish, nvim, git, ...) | chezmoi + git (`dotfiles` role)             |
-| Source code (`~/Projects`)         | git + GitHub                                |
-| `~/Documents`                      | Syncthing (user service, only this folder)  |
-| Large/shared files                 | Unraid directly                             |
-
-Roles: `arch_common` (optional `-Syu` via `-e arch_system_upgrade=true`, timezone/locale, NetworkManager → systemd-resolved fix for MagicDNS), `ssh`, `tailscale` (day-0 `tailscale up` is manual), `keyd` (Caps Lock = Left Ctrl, Left Ctrl = Hyper — every LCtrl+<key> emits C-M-A-S+<key> for KDE global shortcuts; device exclusion list in `group_vars/workstations/keyd.yml` — the external keyboard is passed through on any machine), `arch_packages` (AUR via yay: handy-bin + kwtype-git), `docker` (re-login once for the group), `dotfiles` (chezmoi init + update every run; set `dotfiles_chezmoi_repo`), `laptop_power` (per-host gated battery tuning: idle-power knobs + turbo off only in the power-saver profile — docs/laptop-power.md), `syncthing` (one-time GUI pairing at `http://127.0.0.1:8384`).
-
-**Hyper (LCtrl) shortcuts.** keyd turns held Left Ctrl into C-M-A-S (Caps Lock in turn acts as plain Left Ctrl), so every `LCtrl+<key>` is a conflict-free combo. The bindings themselves live in KDE (`~/.config/kglobalshortcutsrc`, chezmoi-managed) and in Handy's own settings — this table is the reference, not the source of truth:
-
-| Shortcut       | Action                               | Where bound          |
-| -------------- | ------------------------------------ | -------------------- |
-| `LCtrl+Space`  | Switch to next keyboard layout       | KDE Layout Switcher  |
-| `LCtrl+F`      | Walk through windows (Alt+Tab-style) | KWin                 |
-| `LCtrl+G`      | Walk through windows of current app  | KWin                 |
-| `LCtrl+Q`      | Close window                         | KWin                 |
-| `LCtrl+M`      | Maximize window                      | KWin                 |
-| `LCtrl+R`      | KRunner / system search              | KRunner              |
-| `LCtrl+V`      | Clipboard history at cursor          | Klipper              |
-| `LCtrl+Return` | Terminal (Ghostty)                   | KDE service shortcut |
-| `LCtrl+P`      | Screenshot (Spectacle)               | KDE service shortcut |
-| `LCtrl+D`      | Dictation (transcribe)               | Handy settings       |
-
-Logic: left-hand home row (`F/G/Q/M`) = window management, `R/V/D` = system tools, `Space/Return` = most frequent actions. KDE defaults (Alt+Tab, Alt+F4, Print, Alt+F2) are kept alongside. Plain Ctrl lives on Caps Lock — nothing is lost, the two keys just swap roles.
-
-**Bootstrap a fresh machine:** install OS + user → `sudo pacman -S git ansible openssh tailscale` → `tailscale up` (disable key expiry) → add to `[workstations]` + optional `host_vars/<name>.yml` → `ansible-playbook workstation.yml --limit <name> --ask-become-pass`. Day-0 on the machine hosting this repo: `ansible-playbook workstation.yml -c local --limit starling --ask-become-pass`. Partial runs: `--tags packages|docker|dotfiles|syncthing|tailscale|keyd|layout|lockscreen|power`.
-
-**fprintd gotcha (little-raven):** `/etc/pam.d/sudo` puts `pam_fprintd.so` first, so a non-interactive `sudo` (Ansible become) waits for a FINGER before it ever prints the password prompt — the run appears stuck at Gathering Facts and dies with "Timed out waiting for become success". When that happens, just touch the fingerprint reader; the become password typed at the start is then not even used.
-
----
+- Root playbooks select hosts and compose roles; see the infrastructure table above.
+- [inventory/](inventory/), [group_vars/](group_vars/), and [host_vars/](host_vars/) define hosts, shared settings, and per-host deltas.
+- [roles/](roles/) owns host configuration and deployment behavior.
+- [vars/proxy.example.yml](vars/proxy.example.yml) documents the local, gitignored edge routing map.
+- [scripts/](scripts/), [cron/](cron/), and [files/](files/) hold monitoring checks, schedules, templates, SSH public keys, and tailnet policy.
+- [docs/](docs/) holds operational guides; the detailed file layout is in [Getting started](docs/getting-started.md#repository-layout).
 
 ## Non-goals
 

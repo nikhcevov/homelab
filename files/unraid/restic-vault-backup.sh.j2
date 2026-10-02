@@ -4,11 +4,11 @@
 #arrayStarted=true
 #
 # restic-vault-backup — weekly local backup of the photos and backup shares
-# into a restic repository on the single-disk "vault" pool (btrfs, no
+# into a restic repository on the single-disk "vault" pool (XFS, no
 # parity, no shares — the disk sleeps between runs).
 #
 # Install (Unraid):
-#   1. Main -> Add Pool: name "vault", one disk, btrfs. No shares on it.
+#   1. Provision the XFS "vault" pool; see docs/backups-unraid.md "Local weekly copy -> vault pool (restic)".
 #   2. Settings -> User Scripts -> Schedule: weekly, "0 6 * * 0" — part of
 #      the Sunday chain: mover 00:00, CA Appdata Backup 04:00, this 06:00,
 #      parity check (monthly) 08:00. Restic must not scan while the mover

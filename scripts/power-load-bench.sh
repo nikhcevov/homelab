@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Load power benchmark (docs/laptop-power-article-draft.md).
+# Load power benchmark (docs/laptop-power.md).
 #
 # Fixed-work test: encode N seconds of synthetic 1080p30 video with
 # libx264 (CPU-bound, no disk dependency). Compares profiles by the only

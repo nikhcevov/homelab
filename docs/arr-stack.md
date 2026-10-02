@@ -4,6 +4,8 @@
 [TRaSH Guides](https://trash-guides.info/), синхронизация профилей и кастомных
 форматов — через [Clonarr](https://github.com/ProphetSe7en/clonarr).
 
+[Обзор репозитория](../README.md) · [Резервные копии Unraid](backups-unraid.md).
+
 ## Архитектура
 
 Контент разделён на 4 инстанса (по рекомендации TRaSH для аниме — отдельные
@@ -41,28 +43,28 @@ graph TD
 
 ## Инстансы
 
-| Сервис          | Контент              | Root folder                  | Категория qbit | TRaSH-шаблон          |
-|-----------------|----------------------|------------------------------|----------------|-----------------------|
-| `sonarr`        | Обычные сериалы      | `/data/media/tv/`            | `tv`           | WEB-1080p / HD Bluray+WEB |
-| `sonarr-anime`  | Аниме-сериалы        | `/data/media/anime/series/`  | `tv-anime`     | `[Anime] Remux-1080p` |
-| `radarr`        | Обычные фильмы       | `/data/media/movies/`        | `movies`       | Remux+WEB-1080p       |
-| `radarr-anime`  | Полнометражное аниме | `/data/media/anime/movies/`  | `movies-anime` | `[Anime] Remux-1080p` |
+| Сервис | Контент | Root folder | Категория qbit | TRaSH-шаблон |
+| --- | --- | --- | --- | --- |
+| `sonarr` | Обычные сериалы | `/data/media/tv/` | `tv` | WEB-1080p / HD Bluray+WEB |
+| `sonarr-anime` | Аниме-сериалы | `/data/media/anime/series/` | `tv-anime` | `[Anime] Remux-1080p` |
+| `radarr` | Обычные фильмы | `/data/media/movies/` | `movies` | Remux+WEB-1080p |
+| `radarr-anime` | Полнометражное аниме | `/data/media/anime/movies/` | `movies-anime` | `[Anime] Remux-1080p` |
 
 Вспомогательные сервисы:
 
-| Сервис      | Назначение                                              |
-|-------------|---------------------------------------------------------|
-| `prowlarr`  | Индексаторы, синхронизация во все 4 инстанса            |
-| `clonarr`   | Синк TRaSH-профилей, CF, Quality Definitions, нейминга  |
-| `qbittorrent` | Download-клиент (через VPN/gluetun)                   |
-| `bazarr` (+ `-anime`) | Субтитры (опционально)                          |
+| Сервис | Назначение |
+| --- | --- |
+| `prowlarr` | Индексаторы, синхронизация во все 4 инстанса |
+| `clonarr` | Синк TRaSH-профилей, CF, Quality Definitions, нейминга |
+| `qbittorrent` | Download-клиент (через VPN/gluetun) |
+| `bazarr` (+ `-anime`) | Субтитры (опционально) |
 
 ## Файловая структура
 
 Общий share `/data` — единая точка монтирования во все контейнеры, чтобы
 работали hardlinks и atomic moves (см. TRaSH «Hardlinks and Atomic Moves»).
 
-```
+```text
 /data
 ├── torrents/                 # download-клиент
 │   ├── tv/
@@ -125,7 +127,7 @@ Clonarr → Media Management → File Naming.
 
 ### Аниме (sonarr-anime)
 
-```
+```text
 Series Folder:  {Series CleanTitleWithoutYear} {(Series Year)}
 Season Folder:  Season {season:00}
 Episode:        {Series CleanTitleWithoutYear} {(Series Year)} - S{season:00}E{episode:00} - {absolute:000} - {Episode CleanTitle:90} {[Custom Formats]}{[Quality Full]}{[Mediainfo AudioCodec}{ Mediainfo AudioChannels]}{MediaInfo AudioLanguages}{[MediaInfo VideoDynamicRangeType]}[{Mediainfo VideoCodec }{MediaInfo VideoBitDepth}bit]{-Release Group}

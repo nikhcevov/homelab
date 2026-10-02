@@ -4,9 +4,11 @@
 # the `performance` profile keeps full speed. No TLP/auto-cpufreq — they
 # fight ppd, which is what KDE's profile switcher drives.
 #
-# Runtime state is applied through ONE tmpfiles.d file (also re-applied
-# by systemd-tmpfiles-setup at boot), so a playbook run converges the
-# live system without a reboot.
+# Runtime ownership: tmpfiles applies ASPM/audio/charge settings at boot
+# and when its template changes; the watcher owns CPU/GPU/Wi-Fi profiles,
+# udev owns PCI runtime PM, and the NM dispatcher handles Wi-Fi reconnects.
+# An unchanged run does not reset every live knob. Disabling optional
+# installation tasks does not remove their previously deployed artifacts.
 
 - name: HDA codec sleep — module-load-time option
   ansible.builtin.template:

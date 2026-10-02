@@ -1,7 +1,7 @@
 ---
 # Dotfiles via chezmoi (role: dotfiles). The old stow repo
 # (ovchingus/dotfiles) is LEGACY — the source state was migrated to
-# chezmoi format (see README "Workstations"); push it and point this var
+# chezmoi format (see docs/workstations.md); push it and point this var
 # at the repo.
 #
 # chezmoi init --apply clones the source into ~/.local/share/chezmoi and

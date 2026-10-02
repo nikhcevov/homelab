@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Mixed fixed-TIME power benchmark (docs/laptop-power-article-draft.md).
+# Mixed fixed-TIME power benchmark (docs/laptop-power.md).
 #
 # Simulates bursty real-world work: every 60 s cycle = one load burst
 # (encode ~20 s of synthetic 1080p30 via libx264) + idle for the rest of

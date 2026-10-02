@@ -1,0 +1,4 @@
+{
+  // Operational commands, source links, and tables can exceed 80 columns.
+  "MD013": false
+}

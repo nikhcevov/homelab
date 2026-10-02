@@ -7,9 +7,9 @@
 # restic repository. The vault pool is XFS (no data checksumming, no
 # scrub), so bit-rot detection relies on restic itself: every run
 # re-reads a random subset of pack files and verifies their crypto
-# hashes. Statistically the whole repo is verified every ~10 months at
-# the default 10%. After any SMART warning or an unclean shutdown of
-# the vault disk, run a full check manually instead:
+# hashes. Random subsets can overlap: ten runs at the default 10% do not
+# guarantee full repository coverage. After any SMART warning or an
+# unclean shutdown of the vault disk, run a full check manually instead:
 #
 #   cp /boot/extra/restic /usr/local/bin/restic && chmod 755 /usr/local/bin/restic
 #   export RESTIC_REPOSITORY=/mnt/vault/restic
