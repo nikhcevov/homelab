@@ -8,6 +8,8 @@ Run commands from the repository root.
 
 Desktops (`workstations` group) managed by `playbooks/workstation.yml` — same model: declarative lists in `inventory/group_vars/workstations/`, deltas in `inventory/host_vars/`, management over the tailnet. Goal: **identical dev environment**, not identical systems. GUI/desktop/hardware packages are deliberately NOT managed.
 
+Active managed workstations: `starling` and `little-raven` (main operator PC).
+
 | Layer                              | Tool                                        |
 | ---------------------------------- | ------------------------------------------- |
 | Dev packages                       | Ansible (`arch_packages`, base + dev lists) |
