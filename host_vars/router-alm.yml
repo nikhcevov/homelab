@@ -1,27 +1,6 @@
 ---
-# router-alm — BACKUP SD card with the old working config (kept as a
-# ready-to-boot spare; the active router is router-srt). The whole file is
-# commented out on purpose: the host is also commented out in
-# inventory/hosts.ini, so Ansible never reads this. To roll back: insert
-# the card, boot, uncomment the host in inventory — these vars then apply
-# as-is (they match what's already on the card).
-
-# --- Identity ---
-# owrt_hostname: router-alm
-# tailscale_hostname: router-alm
-
-# --- Network ---
-# owrt_lan_ip: 192.168.101.1
-# owrt_lan_bridge_ports:
-#   - eth1
-# owrt_wan_device: eth0
-
-# --- Location ---
-# owrt_timezone_name: Europe/Moscow
-
-# --- DNS ---
-# owrt_dns_domain: alm.home.arpa
-
-# --- Tailscale ---
-# tailscale_advertise_routes: "192.168.101.0/24"
-# tailscale_advertise_exit_node: true
+# router-alm names the day-0 image written to a reserve SD card for
+# use if router-srt's active SD card fails. It is not a managed spare
+# or a snapshot of router-srt's current Ansible configuration.
+# No desired-state overrides are defined here; keep it out of inventory.
+# See docs/openwrt.md#reserve-sd-card.

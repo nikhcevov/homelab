@@ -47,4 +47,10 @@ Notes: changing `owrt_lan_ip` drops a LAN-based SSH session mid-run — manage o
 
 Dropbear is configured to listen on all interfaces for tailnet management, not only LAN; WAN access is controlled by the firewall. Its binding is defined by `ssh_dropbear_interface` in [router SSH variables](../group_vars/routers/ssh.yml). DNS listener settings are defined in the [dnsmasq template](../roles/openwrt_network/templates/dhcp.j2); do not infer them from the SSH binding.
 
+## Reserve SD card
+
+`router-alm` names an image written to a reserve SD card with day-0 setup, kept for use if `router-srt`'s active SD card fails. Its reserved LAN address is `192.168.101.1`. It is a bootstrap starting point, not a copy of `router-srt`'s current configuration or a fully managed spare.
+
+The image remains outside the active inventory and backup collection; no desired-state overrides are defined in `host_vars/router-alm.yml`. Booting it does not automatically restore the current deployment. Use the day-0 procedure above and the current `router-srt` configuration to prepare the replacement; merely uncommenting `router-alm` in inventory is not a recovery procedure.
+
 Related guides: [Tailscale](tailscale.md), [monitoring](monitoring.md), and [router backup collection and restore](backups-unraid.md).

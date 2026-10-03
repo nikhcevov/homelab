@@ -9,8 +9,8 @@
 
 # --- Network ---
 # LAN IP of this router (used by /etc/config/network).
-# NOTE: 192.168.101.1 stays reserved for the router-alm backup SD card
-# (commented-out host in inventory + host_vars/router-alm.yml).
+# NOTE: 192.168.101.1 stays reserved for the router-alm day-0 SD image
+# (not a managed host; see docs/openwrt.md#reserve-sd-card).
 owrt_lan_ip: 192.168.103.1
 # Non-default LAN size:
 # owrt_lan_netmask: "255.255.255.0"
