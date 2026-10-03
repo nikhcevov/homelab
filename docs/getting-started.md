@@ -11,7 +11,7 @@ Run commands from the repository root. These day-0 instructions cover VPS hosts;
 ```text
 ├── playbooks/                   flat entrypoints; run from the repository root
 │   ├── edge.yml                 edge VPS: imports the 5 sibling layers below
-│   ├── edge-bootstrap.yml       layer 1: base system + ssh        ┐
+│   ├── edge-bootstrap.yml       layer 1: OS hostname + base + ssh ┐
 │   ├── edge-security.yml        layer 2: ufw + fail2ban           │
 │   ├── edge-network.yml         layer 3: tailscale                ├ also standalone
 │   ├── edge-proxy.yml           layer 4: nginx stream proxy       │
@@ -21,7 +21,7 @@ Run commands from the repository root. These day-0 instructions cover VPS hosts;
 │   ├── openwrt.yml / openwrt-upgrade.yml   routers deploy / upgrade
 │   ├── unraid.yml               deploy backup scripts to Unraid
 │   ├── workstation.yml          Arch/CachyOS desktops
-│   └── test-render.yml          local nginx render (no VPS needed)
+│   └── proxy-render.yml         local nginx render (no VPS needed)
 ├── inventory/
 │   ├── hosts.ini                active hosts and groups; router day-0 uses LAN
 │   ├── group_vars/<group>/      one file per concern (bootstrap, ssh, security, ...)
@@ -30,6 +30,7 @@ Run commands from the repository root. These day-0 instructions cover VPS hosts;
 ├── requirements*                pinned controller and collection dependencies
 ├── vars/                        public proxy.example.yml; private proxy.yml (gitignored)
 ├── roles/                       configuration behavior; monitoring/files owns checks
+│   └── debian_common/           Debian-family (Debian/Ubuntu) baseline
 ├── files/                       shared SSH public keys, Unraid templates, tailnet policy
 ├── scripts/                     operator tools (laptop power benchmarks)
 ├── tests/                       offline Ansible gate
@@ -40,6 +41,16 @@ Inventory-adjacent variables load from `inventory/` even when a playbook is outs
 the repository. Group settings remain shared defaults; host variables override them.
 All entrypoints use the existing root `roles/` through `roles_path` in `ansible.cfg`.
 The private routing map stays at `vars/proxy.yml`, resolved explicitly from the plays.
+
+The edge inventory uses host `edge`, group `edge_nodes`, and
+`inventory/group_vars/edge_nodes/`. For the existing node, complete the
+[identity cutover](edge.md#existing-node-identity-cutover) before running the
+updated playbooks; these files describe desired identity, not verified live state.
+
+The [`debian_common` role](../roles/debian_common/tasks/main.yml) supplies the shared
+Debian-family (Debian/Ubuntu) baseline for edge, VPN, and monitoring hosts. Its
+configuration stays in each group's `bootstrap.yml` with the existing `bootstrap_*`
+variables; Arch and OpenWrt use their separate `arch_common` and `openwrt_common` roles.
 
 ## Requirements
 

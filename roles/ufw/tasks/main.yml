@@ -1,7 +1,7 @@
 ---
 # Declarative firewall. Rules come from three sources, merged:
-#   1. sshd_port (inventory/group_vars/edge/ssh.yml)      — SSH, always open
-#   2. ufw_rules (inventory/group_vars/edge/security.yml) — static base rules
+#   1. sshd_port (inventory/group_vars/edge_nodes/ssh.yml)      — SSH, always open
+#   2. ufw_rules (inventory/group_vars/edge_nodes/security.yml) — static base rules
 #   3. ufw_proxy_services listen ports        — supplied by the calling play
 # Order matters: all allow rules are in place BEFORE ufw is enabled,
 # so a first run never cuts the management connection.

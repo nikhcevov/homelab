@@ -4,7 +4,7 @@
 
 # Hostname shown in the tailnet (becomes <hostname>.<tailnet>.ts.net).
 # Intentionally matches the inventory name.
-tailscale_hostname: edge-proxy
+tailscale_hostname: "{{ inventory_hostname }}"
 
 # Auth key from the shared vault (inventory/group_vars/all/vault.yml).
 # Runs only while the node is unauthenticated; an authorized node gets its

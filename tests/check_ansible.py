@@ -104,7 +104,7 @@ def main():
             }
             if services is not None:
                 variables["services"] = services
-            result = run([str(PLAYBOOKS / "test-render.yml"), "-e", json.dumps(variables)])
+            result = run([str(PLAYBOOKS / "proxy-render.yml"), "-e", json.dumps(variables)])
             return result, output
 
         valid, _ = render("valid")
