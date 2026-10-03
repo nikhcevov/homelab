@@ -10,15 +10,10 @@ Run commands from the repository root. These day-0 instructions cover VPS hosts;
 
 ```text
 ├── playbooks/                   flat entrypoints; run from the repository root
-│   ├── edge.yml                 edge VPS: imports the 5 sibling layers below
-│   ├── edge-bootstrap.yml       layer 1: OS hostname + base + ssh ┐
-│   ├── edge-security.yml        layer 2: ufw + fail2ban           │
-│   ├── edge-network.yml         layer 3: tailscale                ├ also standalone
-│   ├── edge-proxy.yml           layer 4: nginx stream proxy       │
-│   ├── edge-services.yml        layer 5: monitoring               ┘
-│   ├── vpn.yml / vpn-restore.yml   VPN VPS deploy / restore
-│   ├── mon.yml                  monitoring VPS deploy
-│   ├── openwrt.yml / openwrt-upgrade.yml   routers deploy / upgrade
+│   ├── edge.yml                 edge VPS: bootstrap → security → network → proxy → services
+│   ├── vpn.yml                  VPN VPS setup/update; --tags restore for explicit recovery
+│   ├── mon.yml                  monitoring VPS setup/update
+│   ├── openwrt.yml              router setup/update; --tags upgrade for explicit upgrades
 │   ├── unraid.yml               deploy backup scripts to Unraid
 │   ├── workstation.yml          Arch/CachyOS desktops
 │   └── proxy-render.yml         local nginx render (no VPS needed)
@@ -41,6 +36,13 @@ Inventory-adjacent variables load from `inventory/` even when a playbook is outs
 the repository. Group settings remain shared defaults; host variables override them.
 All entrypoints use the existing root `roles/` through `roles_path` in `ansible.cfg`.
 The private routing map stays at `vars/proxy.yml`, resolved explicitly from the plays.
+
+There are six deployment playbooks, one per host type, plus the local-only
+`proxy-render.yml` utility. Use the same deployment command for initial setup and
+configuration updates. Edge stage tags are `bootstrap`, `security`, `network`,
+`proxy`, and `services`; routing changes need the full default run so firewall
+listeners and nginx reconcile together. VPN restore and router upgrades are
+never part of normal reconciliation; follow their guides for explicit maintenance.
 
 The edge inventory uses host `edge`, group `edge_nodes`, and
 `inventory/group_vars/edge_nodes/`. For the existing node, complete the

@@ -34,7 +34,7 @@ Setup:
 5. Re-run `playbooks/openwrt.yml` / `playbooks/mon.yml` / `playbooks/vpn.yml` so the great-hornbill key is authorized on the sources.
 6. Home Assistant (`ha-krm`): install the _Advanced SSH & Web Terminal_ add-on, put `files/ssh/great-hornbill.pub` into its `authorized_keys` option, clear the password, and install `rsync` (`packages: [rsync]` add-on option). The [collector's `RSYNC_SOURCES`](../files/unraid/homelab-backup-pull.sh.j2) already includes `ha-krm`; verify its Tailscale IP and add-on username (currently `boss`), and that `sudo rsync` works without a password for access to root-owned `/backup`. Backups land in `/mnt/user/backup/homelab/ha-krm` and are included in the weekly restic backup of the `backup` share.
 
-Restore: VPS DBs — copy the tarball back and follow the role's restore path (`playbooks/vpn-restore.yml`); routers — upload in LuCI _Backup/Flash Firmware_ or `sysupgrade -r`.
+Restore: VPS DBs — copy the tarball back, complete `playbooks/vpn.yml` setup first, then run `ansible-playbook playbooks/vpn.yml --tags restore -e vpn_restore_archive=/path/to/archive.tar.gz` (see [VPN restore](vpn.md)); routers — upload in LuCI _Backup/Flash Firmware_ or `sysupgrade -r`.
 
 ## Local weekly copy → vault pool (restic)
 

@@ -2,7 +2,7 @@
 
 [Repository overview](../README.md)
 
-Sources: [playbooks/openwrt.yml](../playbooks/openwrt.yml), [playbooks/openwrt-upgrade.yml](../playbooks/openwrt-upgrade.yml), [router variables](../inventory/group_vars/routers/).
+Sources: [playbooks/openwrt.yml](../playbooks/openwrt.yml), [router variables](../inventory/group_vars/routers/).
 
 Run commands from the repository root.
 
@@ -28,7 +28,7 @@ A fresh router has no Python: the play starts with `gather_facts: false` and `op
 
 **Full-tunnel exit node + kill switch** (router-trvl): with `tailscale_exit_node` set, tailscaled's blanket `5270: from all lookup 52` sends the whole LAN through the exit node (router-srt). The kill switch is at the firewall zone level: `owrt_firewall_lan_wan_forwarding: false` removes the `lan → wan` forwarding entirely, so a dead tailscaled or exit node means no internet at all — never a silent WAN fallback. DNS is pinned to the exit site's resolver (`owrt_dns_servers: [100.77.53.118]`, dnsmasq on router-srt over the tailnet) so resolver egress and CDN localization match the exit location. For per-device policy routing instead, `owrt_network_rules` renders netifd `ip rule`s that slot in front of `5270`.
 
-**Upgrades:** daily checks are notify-only (`openwrt_upgrades` → ntfy). To apply: `ansible-playbook playbooks/openwrt-upgrade.yml` (apk packages); add `-e owrt_firmware_upgrade=true` to check firmware via `owut`. When a different available version is detected, the play starts the upgrade asynchronously and returns without waiting for completion; the router **reboots**. Confirm it comes back before re-running `playbooks/openwrt.yml` if configs drifted. See the [upgrade playbook](../playbooks/openwrt-upgrade.yml).
+**Upgrades:** daily checks are notify-only (`openwrt_upgrades` → ntfy). Normal deployment and `--tags all` do not run maintenance upgrades. To apply: `ansible-playbook playbooks/openwrt.yml --tags upgrade` (apk packages only); add `-e owrt_firmware_upgrade=true` to also check firmware via `owut`. The upgrade tag does not run normal configuration roles. When a different available version is detected, the play starts the upgrade asynchronously and returns without waiting for completion; the router **reboots** and the **SSH session drops**. Confirm it comes back before re-running `playbooks/openwrt.yml` if configs drifted. See the explicit maintenance play in the [canonical playbook](../playbooks/openwrt.yml).
 
 **Wi-Fi:** opt-in per host via `owrt_wireless_radios` (`inventory/group_vars/routers/wireless.yml` documents the format; radio `path` values are device-specific — copy them from the stock `/etc/config/wireless`). The PSK lives in the vault (`vault_wireless_psk`). The deploy is authoritative: uplink sta interfaces added on the road (travelmate, hotel Wi-Fi) get wiped on the next run — keep those ad hoc.
 

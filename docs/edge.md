@@ -6,18 +6,32 @@ Sources: [playbooks/edge.yml](../playbooks/edge.yml), [routing example](../vars/
 
 Run commands from the repository root.
 
-## Deployment layers
+## Setup and updates
 
-`playbooks/edge.yml` imports five layers in order; each is also a standalone playbook. Every layer, including `playbooks/edge-network.yml`, targets only the `edge_nodes` group. VPN and monitoring hosts reconcile their own Tailscale configuration through `playbooks/vpn.yml` and `playbooks/mon.yml`. Layers depend left to right (proxy needs tailnet DNS; monitoring expects nginx). Bootstrap also reconciles the edge OS hostname to `inventory_hostname`; no other group's OS hostname is managed by this task.
+`playbooks/edge.yml` is the single Edge deployment entrypoint. It runs five plays
+in order: bootstrap, security, network, proxy, services. Each targets only
+`edge_nodes` and retains its own handler flush boundary. VPN and monitoring hosts
+reconcile Tailscale through `playbooks/vpn.yml` and `playbooks/mon.yml`. Stages
+depend left to right (proxy needs tailnet DNS; monitoring expects nginx).
+Bootstrap reconciles the edge OS hostname to `inventory_hostname`; no other
+group's OS hostname is managed by this task.
 
 ```bash
-ansible-playbook playbooks/edge.yml             # everything, in order
-ansible-playbook playbooks/edge-bootstrap.yml   # OS hostname + base system + SSH
-ansible-playbook playbooks/edge-security.yml    # firewall + fail2ban
-ansible-playbook playbooks/edge-network.yml     # Tailscale
-ansible-playbook playbooks/edge-proxy.yml       # re-render and reload the proxy
-ansible-playbook playbooks/edge-services.yml    # monitoring
+ansible-playbook playbooks/edge.yml                    # setup or update, all stages
+ansible-playbook playbooks/edge.yml --tags bootstrap   # OS hostname + base system + SSH
+ansible-playbook playbooks/edge.yml --tags security    # firewall + fail2ban
+ansible-playbook playbooks/edge.yml --tags network     # Tailscale
+ansible-playbook playbooks/edge.yml --tags proxy       # nginx only
+ansible-playbook playbooks/edge.yml --tags services    # monitoring
 ```
+
+Tags are optional focused reconciliation, not separate setup modes. Select several
+with `--tags network,services`; order remains fixed. For routing changes, run the
+full default command so both firewall listeners and proxy configuration update.
+Bootstrap, network, and services runs do not load the routing file. Security loads
+it only when `ufw_open_service_ports` is enabled; proxy loads it when selected.
+Both controller loads accept `-e proxy_vars_file=/absolute/path/to/routing.yml`
+(default `vars/proxy.yml`), and extra variables retain precedence over that file.
 
 The inventory group is `edge_nodes`; scoped runs use `--limit edge_nodes`.
 Its one host is `edge`, reached at `edge.{{ tailnet_domain }}` after the console
@@ -121,11 +135,11 @@ Rules (enforced by [`roles/nginx/tasks/validate.yml`](../roles/nginx/tasks/valid
 | `tailscale.yml`  | tailscale     | hostname, optional auth key (from vault)                                     |
 | `monitoring.yml` | monitoring    | checked units, disk threshold/mounts, backup freshness, host prefix          |
 
-Firewall rules come from three merged sources: the SSH port, the static `ufw_rules` list, and the listen ports of every service in `vars/proxy.yml`. The [`playbooks/edge-security.yml` play](../playbooks/edge-security.yml) loads that routing file only when `ufw_open_service_ports` is enabled and passes the same `services` map used by nginx to UFW as `ufw_proxy_services`. The [UFW role](../roles/ufw/tasks/main.yml) consumes this explicit mapping; it does not locate or read routing files. Enabled automatic ports require that input (a missing or non-mapping value fails instead of silently omitting proxy listeners). VPN and monitoring disable automatic proxy ports and need neither the routing file nor this input.
+Firewall rules come from three merged sources: the SSH port, the static `ufw_rules` list, and the listen ports of every service in `vars/proxy.yml`. The security play in [`playbooks/edge.yml`](../playbooks/edge.yml) loads that routing file only when `ufw_open_service_ports` is enabled and passes the same `services` map used by nginx to UFW as `ufw_proxy_services`. The [UFW role](../roles/ufw/tasks/main.yml) consumes this explicit mapping; it does not locate or read routing files. Enabled automatic ports require that input (a missing or non-mapping value fails instead of silently omitting proxy listeners). VPN and monitoring disable automatic proxy ports and need neither the routing file nor this input.
 
 Proxy listeners are deduplicated by port **and** protocol; omitted protocols default to TCP. Listeners already covered by SSH or static rules are excluded, and a shared SNI listener keeps the first service's `proxy: <service>` comment. Existing rules are not purged.
 
-Switching from root to an admin user: set `bootstrap_admin_user`(+`_ssh_keys`), run `playbooks/edge-bootstrap.yml`, switch `ansible_user` in inventory, set `sshd_permit_root_login: "no"`, re-run `playbooks/edge.yml`.
+Switching from root to an admin user: set `bootstrap_admin_user`(+`_ssh_keys`), run `ansible-playbook playbooks/edge.yml --tags bootstrap`, switch `ansible_user` in inventory, set `sshd_permit_root_login: "no"`, re-run `playbooks/edge.yml`.
 
 ## Local render test (no VPS needed)
 

@@ -6,14 +6,20 @@ Self-hosted homelab infrastructure. Git owns the desired infrastructure configur
 
 Playbooks target inventory groups. Active hosts and connection settings live in [inventory/hosts.ini](inventory/hosts.ini).
 
-| Group | Playbook(s) | Responsibility |
-| ----- | ----------- | -------------- |
-| `edge_nodes` | [playbooks/edge.yml](playbooks/edge.yml) | L4 SNI proxy over Tailscale; layered deployment |
-| `vpn` | [playbooks/vpn.yml](playbooks/vpn.yml), [playbooks/vpn-restore.yml](playbooks/vpn-restore.yml) | Native 3x-ui + Caddy, nightly backups |
+| Group | Deployment playbook | Responsibility |
+| ----- | ------------------- | -------------- |
+| `edge_nodes` | [playbooks/edge.yml](playbooks/edge.yml) | L4 SNI proxy over Tailscale; five ordered stages |
+| `vpn` | [playbooks/vpn.yml](playbooks/vpn.yml) | Native 3x-ui + Caddy, nightly backups; explicit restore tag |
 | `mon` | [playbooks/mon.yml](playbooks/mon.yml) | Native Uptime Kuma + Caddy, external watcher |
-| `routers` | [playbooks/openwrt.yml](playbooks/openwrt.yml), [playbooks/openwrt-upgrade.yml](playbooks/openwrt-upgrade.yml) | OpenWrt configuration and Tailscale exit nodes |
+| `routers` | [playbooks/openwrt.yml](playbooks/openwrt.yml) | OpenWrt configuration and Tailscale exit nodes; explicit upgrade tag |
 | `unraid` | [playbooks/unraid.yml](playbooks/unraid.yml) | Backup collection and local restic snapshots |
 | `workstations` | [playbooks/workstation.yml](playbooks/workstation.yml) | Arch/CachyOS development environment |
+
+Each host type has one setup/update playbook. Normal runs reconcile configuration;
+destructive maintenance is opt-in: VPN restore uses `--tags restore -e vpn_restore_archive=/path/to/archive.tar.gz`
+after setup, and router upgrades use `--tags upgrade` (add `-e owrt_firmware_upgrade=true`
+for firmware). [playbooks/proxy-render.yml](playbooks/proxy-render.yml) is a local-only
+verification utility, not another deployment entrypoint.
 
 After bootstrap, the tailnet is the management plane. [Inventory](inventory/hosts.ini) uses MagicDNS names; router day-0 temporarily uses a LAN address. The [backup collector](files/unraid/homelab-backup-pull.sh.j2) separately stores Tailscale IPs for its SSH sources.
 
@@ -27,9 +33,9 @@ remove it later only after confirming no device uses it.
 
 1. **Zero-trust edge.** The edge VPS stores no private data and forwards encrypted traffic only (L4 pass-through via `ssl_preread`, no TLS termination).
 2. **Declarative.** Desired state lives in YAML; configs are generated artifacts.
-3. **Idempotent.** Re-running any playbook on a converged host reports zero changes.
+3. **Idempotent reconciliation.** Re-running setup/update preserves credentials and application data; configuration changes use existing reload/restart handlers. Package upgrades or cache refreshes can still report changes.
 4. **Restorable.** Infrastructure configuration is rebuilt from this repo; application databases and user data are recovered from backups.
-5. **Minimal resources.** VPS layers run on 1 vCPU / 500 MB RAM. No Docker, no Prometheus.
+5. **Minimal resources.** VPS services run on 1 vCPU / 500 MB RAM. No Docker, no Prometheus.
 6. **Signal over noise.** Alerts only on state transitions, severity-based ntfy channels.
 
 ## Configuration ownership
@@ -43,7 +49,7 @@ remove it later only after confirming no device uses it.
 | Guide | Scope |
 | ----- | ----- |
 | [Getting started](docs/getting-started.md) | Requirements, repository layout, VPS day-0, secrets |
-| [Edge VPS](docs/edge.md) | Layered deployment, routing, local render, operations, troubleshooting |
+| [Edge VPS](docs/edge.md) | Setup/update stages and tags, routing, local render, operations, troubleshooting |
 | [Tailscale policy](docs/tailscale.md) | Tags, access rules, GitOps setup, apply and rollback |
 | [VPN VPS](docs/vpn.md) | Deployment, application-state ownership, backups and restore |
 | [Monitoring](docs/monitoring.md) | Internal cron/ntfy checks and external Kuma watcher |

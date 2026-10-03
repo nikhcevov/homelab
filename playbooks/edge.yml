@@ -1,9 +1,54 @@
 ---
-# Full edge VPS deployment: run every layer in order on the edge_nodes group only.
-# For partial runs use the per-layer playbooks instead:
-#   playbooks/edge-bootstrap.yml -> playbooks/edge-security.yml -> playbooks/edge-network.yml -> playbooks/edge-proxy.yml -> playbooks/edge-services.yml
-- ansible.builtin.import_playbook: edge-bootstrap.yml
-- ansible.builtin.import_playbook: edge-security.yml
-- ansible.builtin.import_playbook: edge-network.yml
-- ansible.builtin.import_playbook: edge-proxy.yml
-- ansible.builtin.import_playbook: edge-services.yml
+# Edge setup and updates: reconcile all stages in order, or select stage tags.
+# Separate plays preserve each stage's handler flush boundaries.
+- name: Bootstrap base system
+  hosts: edge_nodes
+  become: true
+  tags: [bootstrap]
+  pre_tasks:
+    - name: Reconcile edge OS hostname
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
+  roles:
+    - debian_common
+    - ssh
+
+- name: Configure firewall and intrusion prevention
+  hosts: edge_nodes
+  become: true
+  tags: [security]
+  pre_tasks:
+    - name: Load proxy services for firewall listeners
+      ansible.builtin.include_vars:
+        file: "{{ proxy_vars_file | default(playbook_dir ~ '/../vars/proxy.yml') }}"
+      when: ufw_open_service_ports | bool
+  roles:
+    - role: ufw
+      vars:
+        ufw_proxy_services: "{{ services }}"
+    - fail2ban
+
+- name: Configure tailnet connectivity
+  hosts: edge_nodes
+  become: true
+  tags: [network]
+  roles:
+    - tailscale
+
+- name: Configure stream reverse proxy
+  hosts: edge_nodes
+  become: true
+  tags: [proxy]
+  pre_tasks:
+    - name: Load proxy services for nginx
+      ansible.builtin.include_vars:
+        file: "{{ proxy_vars_file | default(playbook_dir ~ '/../vars/proxy.yml') }}"
+  roles:
+    - nginx
+
+- name: Configure additional services
+  hosts: edge_nodes
+  become: true
+  tags: [services]
+  roles:
+    - monitoring
