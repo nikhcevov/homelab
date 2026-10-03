@@ -57,6 +57,8 @@ Switching from root to an admin user: set `bootstrap_admin_user`(+`_ssh_keys`), 
 ansible-playbook test-render.yml && cat /tmp/rendered-stream.conf
 ```
 
+The command above uses the private `vars/proxy.yml` and the normal vault configuration. For a credential-free check using the public example, run the [offline Ansible gate](../CONTRIBUTING.md#local-ansible-checks). To select another routing file, pass `-e proxy_vars_file=/path/to/routing.yml`; `-e proxy_render_dir=/existing/output/directory` redirects both rendered files (default `/tmp`).
+
 ## Operations
 
 ```bash

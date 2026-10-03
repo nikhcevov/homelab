@@ -49,6 +49,39 @@ Update backlinks and repository comment references when moving a section.
 Use relative links for repository files and heading fragments for specific steps.
 Keep measurements clearly separate from current configuration authority.
 
+## Local Ansible checks
+
+Use Python 3.14, matching the [Ansible workflow](.github/workflows/ansible.yml).
+Controller and collection versions are pinned in
+[requirements-controller.txt](requirements-controller.txt) and
+[requirements.yml](requirements.yml). Prepare the environment from the repository root:
+
+```bash
+python3.14 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-controller.txt
+ansible-galaxy collection install -r requirements.yml
+python tests/check_ansible.py
+```
+
+Dependency installation downloads packages from PyPI and Ansible Galaxy. Once installed,
+[the gate](tests/check_ansible.py) runs locally without network access, `.vault_pass`,
+private `vars/proxy.yml`, production credentials, or SSH:
+
+- Syntax-check every root playbook; `requirements.yml` is collection metadata, not a playbook.
+- Render the existing nginx templates with [the public routing example](vars/proxy.example.yml).
+- Reject duplicate SNI names, SNI over UDP, mixed SNI/plain listeners, multiple defaults,
+  empty upstreams, missing backend ports, and missing listeners before rendering.
+
+Each run creates and removes a temporary Ansible configuration, localhost-only inventory,
+and render directory. It ignores inherited vault/controller overrides, preserves an
+explicit `ANSIBLE_COLLECTIONS_PATH`, and does not use the production inventory.
+
+The workflow runs `Ansible checks` on PRs targeting `main`, pushes to `main`, and manual
+dispatches. Action revisions and tooling versions are pinned; repository permissions are
+read-only and checkout credentials are not persisted. It never deploys hosts.
+The gate checks Ansible syntax and template/definition behavior, not `nginx -t` or deployed health.
+
 ## Local documentation checks
 
 Use Node.js 24 with npm, and [lychee](https://github.com/lycheeverse/lychee/releases/tag/lychee-v0.24.2)
@@ -75,5 +108,5 @@ PR, or runbook; do not create paperwork for internal-only changes. Review apply,
 verify, and recovery guidance against the implementation.
 
 Required review approvals are not part of this solo workflow. Branch protection
-is optional: require `Documentation checks` if you want enforced pre-merge checks.
-The workflow itself does not configure repository branch rules.
+is optional: require `Documentation checks` and `Ansible checks` if you want enforced
+pre-merge checks. The workflows themselves do not configure repository branch rules.

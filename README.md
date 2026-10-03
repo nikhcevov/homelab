@@ -57,6 +57,7 @@ For the solo-maintainer workflow, documentation upkeep, and local checks, see [C
 - [vars/proxy.example.yml](vars/proxy.example.yml) documents the local, gitignored edge routing map.
 - [scripts/](scripts/) holds operator tools such as laptop power benchmarks.
 - [files/](files/) holds shared SSH public keys, Unraid templates, and tailnet policy.
+- [tests/](tests/) holds the offline Ansible syntax and proxy validation gate.
 - [docs/](docs/) holds operational guides; the detailed file layout is in [Getting started](docs/getting-started.md#repository-layout).
 
 ## Non-goals

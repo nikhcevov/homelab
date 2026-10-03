@@ -1,3 +1,4 @@
 *.retry
 vars/proxy.yml
 .vault_pass
+.venv/

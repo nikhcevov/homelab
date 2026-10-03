@@ -1,4 +1,9 @@
 ---
 collections:
   - name: community.general
+    version: "13.4.0"
   - name: ansible.posix
+    version: "2.2.2"
+  # Transitive dependency of community.general; pin it for clean installs.
+  - name: community.library_inventory_filtering_v1
+    version: "1.1.5"

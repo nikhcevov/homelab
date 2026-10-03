@@ -1,0 +1,41 @@
+name: Ansible
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ansible:
+    name: Ansible checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+
+      - name: Install pinned controller
+        run: python -m pip install -r requirements-controller.txt
+
+      - name: Install pinned collections
+        env:
+          ANSIBLE_CONFIG: ${{ runner.temp }}/ansible.cfg
+          ANSIBLE_COLLECTIONS_PATH: ${{ runner.temp }}/ansible-collections
+        run: |
+          printf '[defaults]\ncollections_scan_sys_path = false\n' > "$ANSIBLE_CONFIG"
+          ansible-galaxy collection install -r requirements.yml -p "$ANSIBLE_COLLECTIONS_PATH"
+
+      - name: Check playbooks and proxy fixtures
+        env:
+          ANSIBLE_COLLECTIONS_PATH: ${{ runner.temp }}/ansible-collections
+        run: python tests/check_ansible.py
