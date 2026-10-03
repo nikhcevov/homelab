@@ -1,6 +1,6 @@
 ---
 # Local test harness: renders templates and runs proxy validation without a VPS.
-# Usage: ansible-playbook playbooks/test-render.yml [-e "proxy_vars_file=$PWD/vars/proxy.example.yml"]
+# Usage: ansible-playbook playbooks/proxy-render.yml [-e "proxy_vars_file=$PWD/vars/proxy.example.yml"]
 - name: Render proxy config locally
   hosts: localhost
   connection: local

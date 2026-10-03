@@ -63,7 +63,7 @@ Switching from root to an admin user: set `bootstrap_admin_user`(+`_ssh_keys`), 
 ## Local render test (no VPS needed)
 
 ```bash
-ansible-playbook playbooks/test-render.yml && cat /tmp/rendered-stream.conf
+ansible-playbook playbooks/proxy-render.yml && cat /tmp/rendered-stream.conf
 ```
 
 The command above uses the private `vars/proxy.yml` and the normal vault configuration. For a credential-free check using the public example, run the [offline Ansible gate](../CONTRIBUTING.md#local-ansible-checks). To select another routing file, pass `-e proxy_vars_file=/path/to/routing.yml`; `-e proxy_render_dir=/existing/output/directory` redirects both rendered files (default `/tmp`).
@@ -71,7 +71,7 @@ The command above uses the private `vars/proxy.yml` and the normal vault configu
 Routing-file overrides should be absolute, for example:
 
 ```bash
-ansible-playbook playbooks/test-render.yml -e "proxy_vars_file=$PWD/vars/proxy.example.yml"
+ansible-playbook playbooks/proxy-render.yml -e "proxy_vars_file=$PWD/vars/proxy.example.yml"
 ```
 
 This override selects the public map but still uses the configured vault password file;

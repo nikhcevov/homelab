@@ -21,7 +21,7 @@ Run commands from the repository root. These day-0 instructions cover VPS hosts;
 │   ├── openwrt.yml / openwrt-upgrade.yml   routers deploy / upgrade
 │   ├── unraid.yml               deploy backup scripts to Unraid
 │   ├── workstation.yml          Arch/CachyOS desktops
-│   └── test-render.yml          local nginx render (no VPS needed)
+│   └── proxy-render.yml         local nginx render (no VPS needed)
 ├── inventory/
 │   ├── hosts.ini                active hosts and groups; router day-0 uses LAN
 │   ├── group_vars/<group>/      one file per concern (bootstrap, ssh, security, ...)
