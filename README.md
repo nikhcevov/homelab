@@ -23,11 +23,12 @@ verification utility, not another deployment entrypoint.
 
 After bootstrap, the tailnet is the management plane. [Inventory](inventory/hosts.ini) uses MagicDNS names; router day-0 temporarily uses a LAN address. The [backup collector](files/unraid/homelab-backup-pull.sh.j2) separately stores Tailscale IPs for its SSH sources.
 
-The prepared edge identity is host `edge` in group `edge_nodes`, with Tailscale
-name `edge` and restricted `tag:edge`. This does not assert that the live node
-has changed: follow the [existing-node cutover](docs/edge.md#existing-node-identity-cutover)
-before deployment. The policy retains `tag:vps` only for migration overlap;
-remove it later only after confirming no device uses it.
+The desired edge identity is host `edge` in group `edge_nodes`, with Tailscale
+name `edge` and restricted `tag:edge`. The operator confirmed the legacy
+`tag:vps` is unused; the repository policy is now edge-only. This does not prove
+policy apply, machine-name or OS-hostname changes, or deployment health.
+Follow the [existing-node cutover](docs/edge.md#existing-node-identity-cutover)
+before deployment.
 
 ## Principles
 
