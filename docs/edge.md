@@ -40,23 +40,26 @@ rename. Tailscale hostname follows `inventory_hostname`; monitoring derives
 
 ## Existing-node identity cutover
 
-This is **repository preparation**, not evidence of live changes. The previous
-identity was `edge-proxy` / `tag:vps`; the desired identity is `edge` / `tag:edge`.
-The policy keeps the old tag temporarily with identical restricted grants.
+The desired identity is `edge` / `tag:edge`; the previous identity was
+`edge-proxy` / `tag:vps`. The operator confirmed the legacy tag is unused, so
+the repository policy is now edge-only. This does **not** prove policy apply,
+machine-name or OS-hostname changes, or deployment health. The remaining name
+cutover steps below apply only if still pending.
 No Ansible task advertises tags or re-authenticates the existing node.
 
 The operator owns these external steps, in order:
 
 1. Open the policy PR and require **Validate policy** (including provider policy
    tests) to pass. Merge/apply through the [policy runbook](tailscale.md#normal-policy-changes)
-   and wait for a successful **Apply policy** job before assigning `tag:edge`.
-   Local JSON/equivalence checks do not replace these credentialed checks.
+   and wait for a successful **Apply policy** job before proceeding.
+   Local JSON/structural checks do not replace these credentialed checks.
 2. In [Machines](https://console.tailscale.com/admin/machines), identify the
    **existing** node by its device details and Tailscale IP; record the current
-   name, tags, IP, and OS hostname for rollback. Use **Edit tags** to replace
-   `tag:vps` with `tag:edge`, keeping at least one tag throughout. Do not add
-   `tag:home`, `tag:homeassistant`, or another privileged tag: tag permissions
-   are additive. Console tag replacement needs no re-authentication.
+   name, tags, IP, and OS hostname for rollback. Confirm it has only the
+   restricted `tag:edge`; the retired legacy tag is not declared by this policy.
+   Do not add `tag:home`, `tag:homeassistant`, or another privileged tag:
+   tag permissions are additive. Keep at least one tag throughout any
+   intentional console tag change; replacing tags needs no re-authentication.
 3. Verify the same restrictions: home/homeassistant TCP 443 and home TCP 25565 /
    UDP 24454 work; backend 4743, SSH 22, SMB 445, management 18080/18443,
    homeassistant 8123, routed-LAN SSH, and unrelated internet access stay denied
@@ -84,20 +87,22 @@ ansible edge_nodes -m ansible.builtin.ping -e "ansible_host=<current-tailscale-i
 Do not store a permanent old-name fallback or run the updated deployment early.
 Public DNS and proxy backend names/routing files are unchanged by this migration.
 
-### Identity rollback and later contraction
+### Identity rollback
 
-While the overlap policy remains applied, replace the node's tag back to
-`tag:vps` (retain a tag), restore its recorded console name `edge-proxy`, and
-verify MagicDNS and the original restrictions. If deployment changed the OS
-hostname, restore its recorded value intentionally on the node as well.
-Restore external consumers you changed. Use an explicit current-IP override
-for recovery with this branch, or restore the pre-migration repository identity
-in a separate reviewed commit before normal Ansible deployment; do not run
-updated hostname reconciliation against an intentionally rolled-back name.
+For a tag rollback, **first** restore the `tag:vps` declaration and its original
+restricted grants through a validated policy PR and successful **Apply policy**
+job. Only after that restoration is applied may any device be retagged to
+`tag:vps`, retaining a tag throughout. Keep `tag:edge` and its restricted grants
+while any device still uses it; the retired tag is not an active alias.
 
-Keep `tag:vps` in the policy until the operator confirms **no device uses it**
-and the cutover is verified. Its deletion is a later, separately validated
-policy contraction, not part of this preparation or a permanent tag alias.
+A name-only rollback can retain `tag:edge` independently. Restore the recorded
+console name (previously `edge-proxy`), then verify MagicDNS and the original
+restrictions. If deployment changed the OS hostname, restore its recorded value
+intentionally on the node as well. Restore external consumers you changed.
+Use an explicit current-IP override for recovery with this branch, or restore
+the pre-migration repository identity in a separate reviewed commit before
+normal Ansible deployment; do not run updated hostname reconciliation against
+an intentionally rolled-back name.
 
 References: [Tailscale tags](https://tailscale.com/docs/features/tags) and
 [machine names / MagicDNS](https://tailscale.com/docs/concepts/machine-names).

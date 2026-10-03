@@ -12,27 +12,27 @@ Ansible does **not** apply this file. The [Tailscale policy workflow](../.github
 
 | Desired machine | Required tag | Edge access |
 | --------------- | ------------ | ----------- |
-| `edge` | `tag:edge` only after cutover | Source of the restricted grants |
+| `edge` | `tag:edge` | Source of the restricted grants |
 | `great-hornbill` | `tag:home` | TCP 443, TCP 25565, UDP 24454 |
 | `ha-krm` | `tag:homeassistant` | TCP 443 |
 
-The repository prepares `tag:edge`; it does not prove that policy apply, retagging,
-or renaming has happened live. The previous `edge-proxy` / `tag:vps` identity
-remains supported by the **same restricted grants** only for migration overlap.
-TCP/UDP accept/deny tests cover both tags, and trusted-home SSH tests target both.
-Do not remove `tag:vps` until the operator confirms no device still uses it.
+The operator confirmed no device uses the retired `tag:vps`; the repository
+policy now declares only `tag:edge` for the restricted edge grants. Four native
+policy tests remain: edge TCP/UDP accept/deny tests and trusted-home SSH tests
+targeting the edge. This does not prove policy apply, machine-name or OS-hostname
+changes, or deployment health.
 Reserve `tag:edge` for restricted edge machines and `tag:home` for trusted Unraid
 backends. Never put a trusted-home tag on the edge: permissions from multiple
 tags are additive. Empty `tagOwners` lists leave assignment to tailnet
 owners/admins/network admins.
 
 Follow the [existing-node identity cutover](edge.md#existing-node-identity-cutover):
-validate the policy PR, merge/apply, wait for **Apply policy** success, replace
-the existing node's tags while retaining a tag, verify restrictions, then rename
-that same node to `edge` and verify MagicDNS before running updated Ansible.
+validate the policy PR, merge/apply, wait for **Apply policy** success, confirm
+the existing node's restricted `tag:edge`, verify restrictions, then complete
+any pending machine rename to `edge` and verify MagicDNS before updated Ansible.
 No automatic tag advertising or re-authentication is introduced. Provider
 policy validation needs the user-managed GitOps credentials; local JSON and
-grant-equivalence checks are not provider test results.
+structural preservation checks are not provider test results.
 
 The broad trusted grant deliberately includes **all invited tailnet members**,
 the two home tags, and the currently advertised LANs `192.168.100.0/24` through
@@ -91,11 +91,12 @@ when working alone: pushing policy changes to `main` triggers a live apply.
 
 ## Rollback
 
-For the edge identity migration, first follow the
-[identity rollback](edge.md#identity-rollback-and-later-contraction) while both
-tags are still allowed. Do not revert away the new tag's policy declaration
-while any device still uses `tag:edge`; restore device tags before contracting
-the policy.
+For the edge identity migration, follow the
+[identity rollback](edge.md#identity-rollback). Before any device can be
+retagged to `tag:vps`, **first** restore its declaration and restricted grants
+through a validated PR and successful **Apply policy** job. Keep `tag:edge` and
+its restricted grants while any device uses it. A machine-name rollback can
+retain `tag:edge` independently.
 
 Restore the previous policy in Git through the same validated PR/apply
 path. For emergency console recovery, restore the exported policy and reconcile
