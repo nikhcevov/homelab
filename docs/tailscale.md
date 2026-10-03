@@ -28,6 +28,37 @@ new routes, grant shared outsiders access, or enable Tailscale SSH; native
 OpenSSH/Dropbear access remains subject to network grants and host SSH keys.
 Direct LAN traffic is outside Tailscale policy enforcement.
 
+## Installation platforms
+
+The shared `tailscale` role supports Debian 12/13 and Ubuntu 24.04+, provided
+Tailscale publishes a repository for the host's release. Distribution and
+release codename facts select the repository; supported distribution/version
+facts are checked before setup. These published paths have been verified:
+
+| Host | Repository URI | Suite | Published key and repository definition |
+| ---- | -------------- | ----- | --------------------------------------- |
+| Debian 12 | `https://pkgs.tailscale.com/stable/debian` | `bookworm` | [key](https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg), [repository](https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list) |
+| Debian 13 | `https://pkgs.tailscale.com/stable/debian` | `trixie` | [key](https://pkgs.tailscale.com/stable/debian/trixie.noarmor.gpg), [repository](https://pkgs.tailscale.com/stable/debian/trixie.tailscale-keyring.list) |
+| Ubuntu 24.04 LTS | `https://pkgs.tailscale.com/stable/ubuntu` | `noble` | [key](https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg), [repository](https://pkgs.tailscale.com/stable/ubuntu/noble.tailscale-keyring.list) |
+
+The repository remains named `tailscale`, with its key at
+`/usr/share/keyrings/tailscale-archive-keyring.gpg`. Existing installs are
+reconciled to the matching repository without removing or upgrading the package.
+For rollback, revert the role change and rerun only on Debian 12; the previous
+Bookworm-only implementation is not a valid rollback for Debian 13 or Ubuntu.
+
+Other Debian-family distributions (including derivatives), Debian versions
+outside 12/13, and Ubuntu releases older than 24.04 fail before repository or
+package changes. Ubuntu 24.04+ uses its own release codename, not a fixed Noble
+repository; only 24.04/Noble was verified here. An unknown or unpublished release
+fails when downloading its release-specific key, before repository setup, rather
+than falling back to Debian Bookworm or another Ubuntu suite.
+
+Arch/CachyOS still installs the official `tailscale` package through pacman,
+without an APT repository. OpenWrt uses the separate `openwrt_tailscale` role;
+its installation path is unchanged. Authentication and authorized-node settings
+reconciliation are unchanged on all supported hosts.
+
 ## Initial GitOps setup (manual, once)
 
 1. Export the current policy from the [Access controls console](https://console.tailscale.com/admin/acls) and keep it outside the repo for emergency recovery. Before enabling automatic apply, preserve any required unrelated `ssh`, `autoApprovers`, or `nodeAttrs` settings in the repository policy. Remove old broad `acls`/`grants` that would also allow the edge; do not combine this policy with an allow-all rule.

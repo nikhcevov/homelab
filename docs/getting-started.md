@@ -36,7 +36,7 @@ Run commands from the repository root. These day-0 instructions cover VPS hosts;
 ## Requirements
 
 - Control machine: Python 3.14 with the pinned [controller](../requirements-controller.txt) and [collections](../requirements.yml); follow [local Ansible setup and checks](../CONTRIBUTING.md#local-ansible-checks).
-- Edge VPS: Debian 12, x86_64; VPN/mon VPS: Debian 13 / Ubuntu 24.04+. Python 3 is the only target requirement.
+- Edge VPS: Debian 12, x86_64; VPN/mon VPS: Debian 13 / Ubuntu 24.04+. Python 3 is the only target requirement. The [Tailscale installation platform contract](tailscale.md#installation-platforms) requires a published repository matching the host's distribution and release.
 - A Tailscale tailnet with MagicDNS; `tailnet_domain` set once in `group_vars/all/tailscale.yml`.
 - A reachable ntfy.sh topic for notifications.
 
