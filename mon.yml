@@ -1,6 +1,6 @@
 ---
 # Full deployment for the central monitoring VPS, in layer order:
-# bootstrap -> security -> kuma -> proxy (caddy) -> backup -> self-monitoring.
+# bootstrap -> security -> network -> kuma -> proxy (caddy) -> backup -> self-monitoring.
 # External black-box watcher (Uptime Kuma) for the whole fleet;
 # local cron checks cover this host's own internals.
 - name: Bootstrap base system
@@ -16,6 +16,12 @@
   roles:
     - ufw
     - fail2ban
+
+- name: Configure tailnet connectivity
+  hosts: mon
+  become: true
+  roles:
+    - tailscale
 
 - name: Install Uptime Kuma (native)
   hosts: mon

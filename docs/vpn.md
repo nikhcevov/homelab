@@ -6,7 +6,7 @@ Sources: [vpn.yml](../vpn.yml), [vpn-restore.yml](../vpn-restore.yml), [VPN conf
 
 Run commands from the repository root.
 
-Independent VPN gateway (`vpn` group): **native 3x-ui + Caddy**, ufw + fail2ban, nightly backups. No Docker and no dependency on the home lab — it works when the homelab is offline. The host joins the tailnet at day-0 (manual) so Ansible can reach it and Unraid can pull its backups; the playbook itself manages no tailscale settings.
+Independent VPN gateway (`vpn` group): **native 3x-ui + Caddy**, ufw + fail2ban, nightly backups. No Docker and no dependency on the home lab — it works when the homelab is offline. The host joins the tailnet at day-0 (manual) so Ansible can reach it and Unraid can pull its backups. `vpn.yml` targets only the `vpn` group and reconciles Tailscale after security, before deploying 3x-ui; settings come from [VPN Tailscale variables](../group_vars/vpn/tailscale.yml). An edge deployment does not configure this host.
 
 Responsibilities: 3x-ui = VPN/clients/subscriptions, Caddy = HTTPS/reverse proxy only (Reality traffic is **not** proxied), `vpn_backup` = backups, `vpn-restore.yml` = restores.
 

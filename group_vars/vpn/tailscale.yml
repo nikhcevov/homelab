@@ -1,5 +1,5 @@
 ---
-# Tailscale mesh VPN (layer: network). VPN servers join so Unraid
+# Tailscale mesh VPN (playbook: vpn.yml). VPN servers join so Unraid
 # (great-hornbill) can pull /opt/vpn-backup over the tailnet instead of
 # the public internet.
 

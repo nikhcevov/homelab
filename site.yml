@@ -1,5 +1,5 @@
 ---
-# Full deployment: run every layer in order.
+# Full edge VPS deployment: run every layer in order on the vps group only.
 # For partial runs use the per-layer playbooks instead:
 #   bootstrap.yml -> security.yml -> network.yml -> proxy.yml -> services.yml
 - ansible.builtin.import_playbook: bootstrap.yml

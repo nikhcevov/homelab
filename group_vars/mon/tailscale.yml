@@ -1,5 +1,5 @@
 ---
-# Tailscale mesh VPN (layer: network). mon-1 runs Uptime Kuma pull
+# Tailscale mesh VPN (playbook: mon.yml). mon-1 runs Uptime Kuma pull
 # monitors against tailnet-only targets: OpenWrt routers and anything
 # else that should not be publicly reachable.
 

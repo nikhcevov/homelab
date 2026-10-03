@@ -34,6 +34,8 @@ Central external watcher (`mon` group): **native Uptime Kuma + Caddy** (Kuma pin
 
 Deploy: [day-0](getting-started.md#first-run-new-vps) → DNS A record for the Kuma domain (`vault_kuma_domain`) → `ansible-playbook mon.yml` → open the UI, create the admin account, add monitors and the ntfy channel.
 
+`mon.yml` targets only the `mon` group and reconciles Tailscale after security, before deploying Kuma; settings come from [monitoring Tailscale variables](../group_vars/mon/tailscale.yml). An edge deployment does not configure this host.
+
 - Monitors and settings live in Kuma's SQLite DB (`/opt/uptime-kuma/data`) — managed via the UI, not Git. `kuma_backup` snapshots it nightly to `/opt/kuma-backup/archives` (same pattern as `vpn_backup`). See [Unraid backup collection](backups-unraid.md).
 - Restore: stop kuma, extract archive into `/`, `chown kuma:kuma .../kuma.db`, start kuma. Caddyfile and certificates are in the same archive.
 - The host watches itself via the same cron checks; there are no cron cross-checks between hosts — external watching is Kuma's job alone.

@@ -8,7 +8,7 @@ Run commands from the repository root.
 
 ## Deployment layers
 
-`site.yml` imports five layers in order; each is also a standalone playbook. Layers depend left to right (proxy needs tailnet DNS; monitoring expects nginx). Bootstrap is safe to re-run anytime.
+`site.yml` imports five layers in order; each is also a standalone playbook. Every layer, including `network.yml`, targets only the `vps` group. VPN and monitoring hosts reconcile their own Tailscale configuration through `vpn.yml` and `mon.yml`. Layers depend left to right (proxy needs tailnet DNS; monitoring expects nginx). Bootstrap is safe to re-run anytime.
 
 ```bash
 ansible-playbook site.yml        # everything, in order

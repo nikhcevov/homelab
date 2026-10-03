@@ -1,8 +1,8 @@
 ---
 # Full deployment for the VPN VPS, in layer order:
-# bootstrap -> security -> vpn (x-ui) -> proxy (caddy) -> backup.
-# The VPN server is fully independent: no Docker, no Tailscale,
-# no dependency on the home lab.
+# bootstrap -> security -> network -> vpn (x-ui) -> proxy (caddy) -> backup -> monitoring.
+# No Docker; VPN traffic is independent of the home lab.
+# Tailscale provides management access and backup collection.
 - name: Bootstrap base system
   hosts: vpn
   become: true
@@ -16,6 +16,12 @@
   roles:
     - ufw
     - fail2ban
+
+- name: Configure tailnet connectivity
+  hosts: vpn
+  become: true
+  roles:
+    - tailscale
 
 - name: Install 3x-ui VPN panel (native)
   hosts: vpn
