@@ -30,6 +30,7 @@ Run commands from the repository root. These day-0 instructions cover VPS hosts;
 ├── requirements*                pinned controller and collection dependencies
 ├── vars/                        public proxy.example.yml; private proxy.yml (gitignored)
 ├── roles/                       configuration behavior; monitoring/files owns checks
+│   └── debian_common/           Debian-family (Debian/Ubuntu) baseline
 ├── files/                       shared SSH public keys, Unraid templates, tailnet policy
 ├── scripts/                     operator tools (laptop power benchmarks)
 ├── tests/                       offline Ansible gate
@@ -40,6 +41,11 @@ Inventory-adjacent variables load from `inventory/` even when a playbook is outs
 the repository. Group settings remain shared defaults; host variables override them.
 All entrypoints use the existing root `roles/` through `roles_path` in `ansible.cfg`.
 The private routing map stays at `vars/proxy.yml`, resolved explicitly from the plays.
+
+The [`debian_common` role](../roles/debian_common/tasks/main.yml) supplies the shared
+Debian-family (Debian/Ubuntu) baseline for edge, VPN, and monitoring hosts. Its
+configuration stays in each group's `bootstrap.yml` with the existing `bootstrap_*`
+variables; Arch and OpenWrt use their separate `arch_common` and `openwrt_common` roles.
 
 ## Requirements
 

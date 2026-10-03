@@ -5,5 +5,5 @@
   hosts: edge
   become: true
   roles:
-    - common
+    - debian_common
     - ssh

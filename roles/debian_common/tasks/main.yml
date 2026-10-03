@@ -1,5 +1,5 @@
 ---
-# Bootstrap a fresh Debian 12 node: updates, base packages, timezone,
+# Debian-family (Debian/Ubuntu) baseline: updates, base packages, timezone,
 # locale, unattended-upgrades, optional admin user.
 
 # No cache_valid_time: fresh provider images may ship empty lists

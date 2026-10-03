@@ -7,7 +7,7 @@
   hosts: mon
   become: true
   roles:
-    - common
+    - debian_common
     - ssh
 
 - name: Configure firewall and intrusion prevention

@@ -48,7 +48,7 @@ Rules (enforced by [`roles/nginx/tasks/validate.yml`](../roles/nginx/tasks/valid
 
 | File             | Configures    | Highlights                                                                   |
 | ---------------- | ------------- | ---------------------------------------------------------------------------- |
-| `bootstrap.yml`  | common        | packages, timezone, locale, unattended-upgrades, extra root keys, admin user |
+| `bootstrap.yml`  | debian_common | packages, timezone, locale, unattended-upgrades, extra root keys, admin user |
 | `ssh.yml`        | ssh           | `sshd_port` + auth modes — defined once, consumed by sshd, ufw and fail2ban  |
 | `security.yml`   | ufw, fail2ban | default policies, static rules, `ufw_open_service_ports`, ban policy         |
 | `tailscale.yml`  | tailscale     | hostname, optional auth key (from vault)                                     |
