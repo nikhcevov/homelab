@@ -1,7 +1,7 @@
 ---
 # Layer 2 — security: UFW firewall and fail2ban.
 - name: Configure firewall and intrusion prevention
-  hosts: edge
+  hosts: edge_nodes
   become: true
   pre_tasks:
     - name: Load proxy services for firewall listeners

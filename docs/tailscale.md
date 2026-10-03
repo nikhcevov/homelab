@@ -10,16 +10,29 @@ retain full access; the edge can initiate only the proxy/game connections below.
 It is ordinary JSON, which the Tailscale policy editor accepts as HuJSON.
 Ansible does **not** apply this file. The [Tailscale policy workflow](../.github/workflows/tailscale.yml) is configured to validate pull requests and apply changes from `main`; it requires the Actions variables and Tailscale identity setup below.
 
-| Machine | Required tag | Edge access |
-| ------- | ------------ | ----------- |
-| `edge-proxy` | `tag:vps` only | Source of the restricted grants |
+| Desired machine | Required tag | Edge access |
+| --------------- | ------------ | ----------- |
+| `edge` | `tag:edge` only after cutover | Source of the restricted grants |
 | `great-hornbill` | `tag:home` | TCP 443, TCP 25565, UDP 24454 |
 | `ha-krm` | `tag:homeassistant` | TCP 443 |
 
-The `tag:vps` and `tag:home` assignments already exist. Reserve `tag:vps` for
-restricted edge machines, and `tag:home` for trusted Unraid backends. Never put a
-trusted-home tag on the edge: permissions from multiple tags are additive.
-Empty `tagOwners` lists leave assignment to tailnet owners/admins/network admins.
+The repository prepares `tag:edge`; it does not prove that policy apply, retagging,
+or renaming has happened live. The previous `edge-proxy` / `tag:vps` identity
+remains supported by the **same restricted grants** only for migration overlap.
+TCP/UDP accept/deny tests cover both tags, and trusted-home SSH tests target both.
+Do not remove `tag:vps` until the operator confirms no device still uses it.
+Reserve `tag:edge` for restricted edge machines and `tag:home` for trusted Unraid
+backends. Never put a trusted-home tag on the edge: permissions from multiple
+tags are additive. Empty `tagOwners` lists leave assignment to tailnet
+owners/admins/network admins.
+
+Follow the [existing-node identity cutover](edge.md#existing-node-identity-cutover):
+validate the policy PR, merge/apply, wait for **Apply policy** success, replace
+the existing node's tags while retaining a tag, verify restrictions, then rename
+that same node to `edge` and verify MagicDNS before running updated Ansible.
+No automatic tag advertising or re-authentication is introduced. Provider
+policy validation needs the user-managed GitOps credentials; local JSON and
+grant-equivalence checks are not provider test results.
 
 The broad trusted grant deliberately includes **all invited tailnet members**,
 the two home tags, and the currently advertised LANs `192.168.100.0/24` through
@@ -78,7 +91,13 @@ when working alone: pushing policy changes to `main` triggers a live apply.
 
 ## Rollback
 
-restore the previous policy in Git through the same validated PR/apply
+For the edge identity migration, first follow the
+[identity rollback](edge.md#identity-rollback-and-later-contraction) while both
+tags are still allowed. Do not revert away the new tag's policy declaration
+while any device still uses `tag:edge`; restore device tags before contracting
+the policy.
+
+Restore the previous policy in Git through the same validated PR/apply
 path. For emergency console recovery, restore the exported policy and reconcile
 the repository before another apply; otherwise automation can overwrite the
 recovery. If also reverting `ha-krm` to its original user-owned identity,
@@ -88,3 +107,4 @@ not merely deleting a tag in the console.
 Reference: [grants syntax](https://tailscale.com/docs/reference/syntax/grants),
 [policy tests](https://tailscale.com/docs/reference/syntax/policy-file#tests),
 and [tag identity](https://tailscale.com/docs/features/tags).
+Machine-name changes affect [MagicDNS](https://tailscale.com/docs/concepts/machine-names).

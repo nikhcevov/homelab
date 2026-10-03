@@ -15,7 +15,7 @@ Two complementary layers:
 
 ## Internal checks
 
-Internal checks (same `monitoring` role on `edge`, `vpn`, `mon`; per-group config in `inventory/group_vars/<group>/monitoring.yml`) push to ntfy **only on state transitions**:
+Internal checks (same `monitoring` role on `edge_nodes`, `vpn`, `mon`; per-group config in `inventory/group_vars/<group>/monitoring.yml`) push to ntfy **only on state transitions**:
 
 The role owns the deployable checks and schedule under `roles/monitoring/files/`; root `scripts/` contains operator tools and is not deployed. Runtime paths remain `/opt/homelab-monitoring/scripts/` and `/etc/cron.d/homelab-monitoring`. The next monitoring deployment removes previously copied laptop power benchmarks without deleting unrelated local files.
 

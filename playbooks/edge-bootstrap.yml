@@ -1,9 +1,13 @@
 ---
-# Layer 1 — bootstrap: base packages, timezone, locale,
+# Layer 1 — bootstrap: OS hostname, base packages, timezone, locale,
 # unattended-upgrades, admin user, SSH hardening.
 - name: Bootstrap base system
-  hosts: edge
+  hosts: edge_nodes
   become: true
+  pre_tasks:
+    - name: Reconcile edge OS hostname
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
   roles:
     - debian_common
     - ssh
