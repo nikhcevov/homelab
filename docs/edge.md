@@ -47,7 +47,9 @@ Rules (enforced by [`roles/nginx/tasks/validate.yml`](../roles/nginx/tasks/valid
 | `tailscale.yml`  | tailscale     | hostname, optional auth key (from vault)                                     |
 | `monitoring.yml` | monitoring    | checked units, disk threshold/mounts, backup freshness, host prefix          |
 
-Firewall rules come from three merged sources: the SSH port, the static `ufw_rules` list, and the listen ports of every service in `vars/proxy.yml`.
+Firewall rules come from three merged sources: the SSH port, the static `ufw_rules` list, and the listen ports of every service in `vars/proxy.yml`. The [`security.yml` play](../security.yml) loads that routing file only when `ufw_open_service_ports` is enabled and passes the same `services` map used by nginx to UFW as `ufw_proxy_services`. The [UFW role](../roles/ufw/tasks/main.yml) consumes this explicit mapping; it does not locate or read routing files. Enabled automatic ports require that input (a missing or non-mapping value fails instead of silently omitting proxy listeners). VPN and monitoring disable automatic proxy ports and need neither the routing file nor this input.
+
+Proxy listeners are deduplicated by port **and** protocol; omitted protocols default to TCP. Listeners already covered by SSH or static rules are excluded, and a shared SNI listener keeps the first service's `proxy: <service>` comment. Existing rules are not purged.
 
 Switching from root to an admin user: set `bootstrap_admin_user`(+`_ssh_keys`), run `bootstrap.yml`, switch `ansible_user` in inventory, set `sshd_permit_root_login: "no"`, re-run `site.yml`.
 

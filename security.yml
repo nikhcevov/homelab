@@ -3,6 +3,13 @@
 - name: Configure firewall and intrusion prevention
   hosts: vps
   become: true
+  pre_tasks:
+    - name: Load proxy services for firewall listeners
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/vars/proxy.yml"
+      when: ufw_open_service_ports | bool
   roles:
-    - ufw
+    - role: ufw
+      vars:
+        ufw_proxy_services: "{{ services }}"
     - fail2ban

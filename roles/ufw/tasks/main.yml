@@ -2,20 +2,23 @@
 # Declarative firewall. Rules come from three sources, merged:
 #   1. sshd_port (group_vars/vps/ssh.yml)      — SSH, always open
 #   2. ufw_rules (group_vars/vps/security.yml) — static base rules
-#   3. vars/proxy.yml listen ports             — auto-opened per service
+#   3. ufw_proxy_services listen ports        — supplied by the calling play
 # Order matters: all allow rules are in place BEFORE ufw is enabled,
 # so a first run never cuts the management connection.
+
+- name: Require proxy services when automatic ports are enabled
+  ansible.builtin.assert:
+    that:
+      - ufw_proxy_services is defined
+      - ufw_proxy_services is mapping
+    fail_msg: "Supply ufw_proxy_services as a services mapping when ufw_open_service_ports is enabled."
+  when: ufw_open_service_ports | bool
 
 - name: Install ufw
   ansible.builtin.apt:
     name: ufw
     state: present
     update_cache: true
-
-- name: Load proxy services to derive firewall rules
-  ansible.builtin.include_vars:
-    file: "{{ playbook_dir }}/vars/proxy.yml"
-  when: ufw_open_service_ports | bool
 
 - name: Set default policies
   community.general.ufw:
@@ -55,7 +58,7 @@
       {%- for rule in ufw_rules -%}
       {%- set _ = ns.seen.append(rule.port | string ~ '/' ~ (rule.proto | default('tcp'))) -%}
       {%- endfor -%}
-      {%- for item in services | default({}) | dict2items -%}
+      {%- for item in ufw_proxy_services | dict2items -%}
       {%- set key = item.value.listen | string ~ '/' ~ (item.value.protocol | default('tcp')) -%}
       {%- if key not in ns.seen -%}
       {%- set _ = ns.seen.append(key) -%}
@@ -65,7 +68,7 @@
       {{ ns.ports }}
   when: ufw_open_service_ports | bool
 
-- name: Allow proxy service listen ports (from vars/proxy.yml)
+- name: Allow proxy service listen ports
   community.general.ufw:
     rule: allow
     port: "{{ item.value.listen }}"
