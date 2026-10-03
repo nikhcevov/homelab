@@ -2,7 +2,7 @@
 
 [Repository overview](../README.md)
 
-Sources: [mon.yml](../mon.yml), [Monitoring cron schedule](../cron/homelab-monitoring.cron), [Monitoring role](../roles/monitoring/).
+Sources: [mon.yml](../mon.yml), [Monitoring checks](../roles/monitoring/files/scripts/), [Monitoring cron schedule](../roles/monitoring/files/homelab-monitoring.cron), [Monitoring role](../roles/monitoring/).
 
 Run commands from the repository root.
 
@@ -16,6 +16,8 @@ Two complementary layers:
 ## Internal checks
 
 Internal checks (same `monitoring` role on `vps`, `vpn`, `mon`; per-group config in `group_vars/<group>/monitoring.yml`) push to ntfy **only on state transitions**:
+
+The role owns the deployable checks and schedule under `roles/monitoring/files/`; root `scripts/` contains operator tools and is not deployed. Runtime paths remain `/opt/homelab-monitoring/scripts/` and `/etc/cron.d/homelab-monitoring`. The next monitoring deployment removes previously copied laptop power benchmarks without deleting unrelated local files.
 
 | Check             | Interval | Alerts on                         | Severity |
 | ----------------- | -------- | --------------------------------- | -------- |

@@ -28,7 +28,8 @@ Run commands from the repository root. These day-0 instructions cover VPS hosts;
 ├── roles/                       common, ssh, ufw, fail2ban, tailscale, nginx, monitoring,
 │                                xui, caddy, vpn_backup, kuma, kuma_backup, openwrt_*,
 │                                arch_common, arch_packages, keyd, docker, dotfiles, syncthing
-├── scripts/  cron/              monitoring checks (bash) + cron definition
+├── roles/monitoring/files/       monitoring checks (bash) + cron definition
+├── scripts/                     operator tools (laptop power benchmarks)
 └── files/                       ssh public keys, Unraid backup-pull script
 ```
 

@@ -53,9 +53,10 @@ For the solo-maintainer workflow, documentation upkeep, and local checks, see [C
 
 - Root playbooks select hosts and compose roles; see the infrastructure table above.
 - [inventory/](inventory/), [group_vars/](group_vars/), and [host_vars/](host_vars/) define hosts, shared settings, and per-host deltas.
-- [roles/](roles/) owns host configuration and deployment behavior.
+- [roles/](roles/) owns host configuration and deployment behavior; [monitoring assets](roles/monitoring/files/) include the deployed checks and cron schedule.
 - [vars/proxy.example.yml](vars/proxy.example.yml) documents the local, gitignored edge routing map.
-- [scripts/](scripts/), [cron/](cron/), and [files/](files/) hold monitoring checks, schedules, templates, SSH public keys, and tailnet policy.
+- [scripts/](scripts/) holds operator tools such as laptop power benchmarks.
+- [files/](files/) holds shared SSH public keys, Unraid templates, and tailnet policy.
 - [docs/](docs/) holds operational guides; the detailed file layout is in [Getting started](docs/getting-started.md#repository-layout).
 
 ## Non-goals

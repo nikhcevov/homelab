@@ -17,18 +17,21 @@
 
 - name: Deploy monitoring scripts
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/scripts/"
+    src: scripts/
     dest: /opt/homelab-monitoring/scripts/
     mode: "0755"
 
-# copy has no delete flag; retire removed checks explicitly.
-- name: Remove retired check scripts
+# copy has no delete flag; retire removed checks and misplaced operator tools explicitly.
+- name: Remove retired monitoring scripts
   ansible.builtin.file:
     path: "/opt/homelab-monitoring/scripts/{{ item }}"
     state: absent
   loop:
     - check-https.sh
     - check-port.sh
+    - power-idle-bench.sh
+    - power-load-bench.sh
+    - power-mixed-bench.sh
 
 - name: Deploy monitoring env file
   ansible.builtin.template:
@@ -39,7 +42,7 @@
 
 - name: Deploy cron jobs
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/cron/homelab-monitoring.cron"
+    src: homelab-monitoring.cron
     dest: /etc/cron.d/homelab-monitoring
     mode: "0644"
   notify: Restart cron
