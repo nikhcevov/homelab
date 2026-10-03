@@ -84,12 +84,12 @@ fail() {
 
 mkdir -p "$STATE_DIR"
 mountpoint -q "$POOL_MOUNT" || fail "pool not mounted at $POOL_MOUNT"
-[ -s "$RESTIC_PASSWORD_FILE" ] || fail "password file missing/empty at $RESTIC_PASSWORD_FILE (deploy: ansible-playbook unraid.yml)"
+[ -s "$RESTIC_PASSWORD_FILE" ] || fail "password file missing/empty at $RESTIC_PASSWORD_FILE (deploy: ansible-playbook playbooks/unraid.yml)"
 
 # /boot (flash) is vfat and mounted noexec on current Unraid — stage the
 # pinned binary into the ramdisk and run it from there.
 if [ ! -x "$RESTIC" ] || ! cmp -s "$RESTIC_STORED" "$RESTIC" 2>/dev/null; then
-	[ -f "$RESTIC_STORED" ] || fail "restic binary missing at $RESTIC_STORED (deploy: ansible-playbook unraid.yml)"
+	[ -f "$RESTIC_STORED" ] || fail "restic binary missing at $RESTIC_STORED (deploy: ansible-playbook playbooks/unraid.yml)"
 	mkdir -p /usr/local/bin
 	cp "$RESTIC_STORED" "$RESTIC.tmp" && chmod 755 "$RESTIC.tmp" && mv "$RESTIC.tmp" "$RESTIC" \
 		|| fail "failed to stage restic into /usr/local/bin"

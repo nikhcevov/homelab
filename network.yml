@@ -1,9 +1,0 @@
----
-# Layer 3 — network: Tailscale mesh VPN.
-# Edge proxy upstreams use MagicDNS. VPN and monitoring hosts reconcile
-# their tailnet connectivity in vpn.yml and mon.yml respectively.
-- name: Configure tailnet connectivity
-  hosts: vps
-  become: true
-  roles:
-    - tailscale

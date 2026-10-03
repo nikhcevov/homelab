@@ -1,4 +1,4 @@
 # Managed by Ansible (role: openwrt_ssh). Manual changes will be overwritten.
 {% for keyfile in ssh_authorized_keys %}
-{{ lookup('ansible.builtin.file', 'ssh/' + keyfile) }}
+{{ lookup('ansible.builtin.file', role_path + '/../../files/ssh/' + keyfile) }}
 {% endfor %}

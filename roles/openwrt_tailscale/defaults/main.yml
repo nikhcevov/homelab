@@ -1,4 +1,4 @@
 ---
 # No defaults on purpose: real configuration lives in
-# group_vars/routers/tailscale.yml (tailscale_auth_key falls back to ''
+# inventory/group_vars/routers/tailscale.yml (tailscale_auth_key falls back to ''
 # there via the vault var's default).

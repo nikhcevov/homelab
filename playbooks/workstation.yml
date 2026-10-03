@@ -1,0 +1,49 @@
+---
+# Workstation layer: Arch/CachyOS desktops (PC + laptop).
+# Goal: identical DEV ENVIRONMENT on both machines, not identical
+# systems — desktop/GUI/hardware packages come from the OS install.
+#
+# Day-0 on the machine that hosts this repo (no sshd, MagicDNS not yet
+# fixed — both come from arch_common/ssh below):
+#   ansible-playbook playbooks/workstation.yml -c local --limit starling --ask-become-pass
+# Afterwards workstations are managed over the tailnet like every other
+# Partial runs: --tags packages|docker|dotfiles|syncthing|tailscale|keyd|layout|lockscreen|power.
+# Full system upgrade (rolling release, deliberate operation):
+#   ansible-playbook playbooks/workstation.yml -e arch_system_upgrade=true
+- name: Configure Arch workstations
+  hosts: workstations
+  become: true
+  roles:
+    - { role: arch_common, tags: [common] }
+    - { role: ssh, tags: [ssh] }
+    - { role: tailscale, tags: [tailscale] }
+    # keyd: Caps Lock = Left Ctrl, Left Ctrl = Hyper on all keyboards
+    # except the excluded IDs (inventory/group_vars/workstations/keyd.yml) —
+    # device-based, service stays on.
+    - { role: keyd, tags: [keyd] }
+    # packages before dotfiles: the tools the configs describe (bat,
+    # eza, fzf, starship...) should exist when chezmoi applies them.
+    - { role: arch_packages, tags: [packages] }
+    - { role: docker, tags: [docker] }
+    - { role: dotfiles, tags: [dotfiles] }
+    # kde_lock_layout: switch to the "us" layout on every screen lock,
+    # so the password prompt never starts in Russian.
+    - { role: kde_lock_layout, tags: [layout] }
+    # kde_lock_immediate: raise the lock screen password prompt (and start
+    # fprintd) right AFTER resume — open lid, touch sensor, done. Done via
+    # a resume hook, NOT a lock-screen-load patch: raising the prompt at
+    # load time (lid close, before sleep) keeps fprintd + fingerprint
+    # reader + USB xHCI awake for the whole suspend, blocks S0ix and
+    # drains the battery overnight.
+    - { role: kde_lock_immediate, tags: [lockscreen] }
+    # laptop_power: battery tuning gated per-host (inventory/host_vars/*/power.yml,
+    # laptop_power_enabled) — idle-power knobs + a watcher that applies
+    # extras (turbo off, Wi-Fi power save) only in the power-saver
+    # profile. See docs/laptop-power.md.
+    - {
+        role: laptop_power,
+        tags: [power],
+        when: laptop_power_enabled | default(false) | bool,
+      }
+    # syncthing syncs ONLY ~/Documents; ~/Projects moves via git.
+    - { role: syncthing, tags: [syncthing] }

@@ -1,0 +1,15 @@
+---
+# Tailscale mesh VPN (layer: network).
+# All proxy upstreams use MagicDNS names, so this node must be on the tailnet.
+
+# Hostname shown in the tailnet (becomes <hostname>.<tailnet>.ts.net).
+# Intentionally matches the inventory name.
+tailscale_hostname: edge-proxy
+
+# Auth key from the shared vault (inventory/group_vars/all/vault.yml).
+# Runs only while the node is unauthenticated; an authorized node gets its
+# settings reconciled via `tailscale set` without touching auth.
+tailscale_auth_key: "{{ vault_tailscale_auth_key | default('') }}"
+
+# Optional: advertise subnets through this node. Empty = disabled.
+tailscale_advertise_routes: ""

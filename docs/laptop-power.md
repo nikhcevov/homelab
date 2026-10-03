@@ -33,12 +33,12 @@
 | PCIe ASPM `powersupersave` (было `default`) | idle knob | сон линий PCIe/NVMe в простое |
 | PCI runtime PM для Wi-Fi/Ethernet/NVMe (udev, `power/control=auto`) | idle knob | ~0.3–0.8 Вт в простое; ломает Wake-on-LAN на Ethernet |
 | scx_loader + `scx_lavd` (sched-ext, `/etc/scx_loader/config.toml`) | profile-scoped | ppd в CachyOS пропатчен и сам переключает режим планировщика: saver → PowerSave (`--powersave` + core compaction), balanced → Auto (autopilot), performance → Gaming (`--performance`) |
-| Пороги заряда 75/80 (`charge_control_*_threshold`) | здоровье батареи | меньше износ при работе от сети; нужен максимум времени от одного заряда — поставь `laptop_power_charge_end_threshold: 100` в `host_vars/little-raven/power.yml` |
+| Пороги заряда 75/80 (`charge_control_*_threshold`) | здоровье батареи | меньше износ при работе от сети; нужен максимум времени от одного заряда — поставь `laptop_power_charge_end_threshold: 100` в `inventory/host_vars/little-raven/power.yml` |
 
 Источники конфигурации: [роль](../roles/laptop_power/tasks/main.yml),
 [текущие значения по умолчанию](../roles/laptop_power/defaults/main.yml) и
-[настройки little-raven](../host_vars/little-raven/power.yml).
-Playbook — [workstation.yml](../workstation.yml), тег `power`.
+[настройки little-raven](../inventory/host_vars/little-raven/power.yml).
+Playbook — [playbooks/workstation.yml](../playbooks/workstation.yml), тег `power`.
 Числа в описании профилей относятся к текущим defaults; host_vars могут их
 переопределить. Настройки исторических замеров ниже не обновляются вместе с defaults.
 
@@ -81,9 +81,9 @@ ASPM/audio/PCI/charge-настроек. GPU-границы watcher читает 
 
 ```bash
 # только power-слой:
-ansible-playbook workstation.yml -c local --limit little-raven --tags power --ask-become-pass
+ansible-playbook playbooks/workstation.yml -c local --limit little-raven --tags power --ask-become-pass
 # или полный прогон по tailnet:
-ansible-playbook workstation.yml --limit little-raven
+ansible-playbook playbooks/workstation.yml --limit little-raven
 ```
 
 При старте или рестарте extras-watcher сразу применяет текущий профиль.
@@ -153,7 +153,7 @@ snapshot, версии kernel/ppd и исходные логи этих прог
 
 `laptop_power_enabled: false` в host_vars только пропускает роль; уже
 установленные файлы и сервисы остаются. Сначала отключите роль в
-[host_vars](../host_vars/little-raven/power.yml), чтобы следующий deploy
+[host_vars](../inventory/host_vars/little-raven/power.yml), чтобы следующий deploy
 не установил конфигурацию снова.
 
 Ниже — удаление установленной конфигурации, **не полный откат live-состояния**.

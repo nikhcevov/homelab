@@ -2,7 +2,7 @@
 
 [Repository overview](../README.md)
 
-Sources: [mon.yml](../mon.yml), [Monitoring checks](../roles/monitoring/files/scripts/), [Monitoring cron schedule](../roles/monitoring/files/homelab-monitoring.cron), [Monitoring role](../roles/monitoring/).
+Sources: [playbooks/mon.yml](../playbooks/mon.yml), [Monitoring checks](../roles/monitoring/files/scripts/), [Monitoring cron schedule](../roles/monitoring/files/homelab-monitoring.cron), [Monitoring role](../roles/monitoring/).
 
 Run commands from the repository root.
 
@@ -15,7 +15,7 @@ Two complementary layers:
 
 ## Internal checks
 
-Internal checks (same `monitoring` role on `vps`, `vpn`, `mon`; per-group config in `group_vars/<group>/monitoring.yml`) push to ntfy **only on state transitions**:
+Internal checks (same `monitoring` role on `vps`, `vpn`, `mon`; per-group config in `inventory/group_vars/<group>/monitoring.yml`) push to ntfy **only on state transitions**:
 
 The role owns the deployable checks and schedule under `roles/monitoring/files/`; root `scripts/` contains operator tools and is not deployed. Runtime paths remain `/opt/homelab-monitoring/scripts/` and `/etc/cron.d/homelab-monitoring`. The next monitoring deployment removes previously copied laptop power benchmarks without deleting unrelated local files.
 
@@ -34,9 +34,9 @@ Empty lists disable a check. Notification channels are severity-first: `*-critic
 
 Central external watcher (`mon` group): **native Uptime Kuma + Caddy** (Kuma pinned by `kuma_version`, Node.js + systemd, `127.0.0.1:3001` behind Caddy; UFW exposes only SSH/80/443). Answers "is the service reachable from the internet" while the per-host cron checks answer "is the host healthy inside".
 
-Deploy: [day-0](getting-started.md#first-run-new-vps) → DNS A record for the Kuma domain (`vault_kuma_domain`) → `ansible-playbook mon.yml` → open the UI, create the admin account, add monitors and the ntfy channel.
+Deploy: [day-0](getting-started.md#first-run-new-vps) → DNS A record for the Kuma domain (`vault_kuma_domain`) → `ansible-playbook playbooks/mon.yml` → open the UI, create the admin account, add monitors and the ntfy channel.
 
-`mon.yml` targets only the `mon` group and reconciles Tailscale after security, before deploying Kuma; settings come from [monitoring Tailscale variables](../group_vars/mon/tailscale.yml). An edge deployment does not configure this host.
+`playbooks/mon.yml` targets only the `mon` group and reconciles Tailscale after security, before deploying Kuma; settings come from [monitoring Tailscale variables](../inventory/group_vars/mon/tailscale.yml). An edge deployment does not configure this host.
 
 - Monitors and settings live in Kuma's SQLite DB (`/opt/uptime-kuma/data`) — managed via the UI, not Git. `kuma_backup` snapshots it nightly to `/opt/kuma-backup/archives` (same pattern as `vpn_backup`). See [Unraid backup collection](backups-unraid.md).
 - Restore: stop kuma, extract archive into `/`, `chown kuma:kuma .../kuma.db`, start kuma. Caddyfile and certificates are in the same archive.

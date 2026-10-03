@@ -2,23 +2,23 @@
 
 [Repository overview](../README.md) · [Getting started](getting-started.md) · [Tailscale policy](tailscale.md) · [Monitoring](monitoring.md)
 
-Sources: [site.yml](../site.yml), [routing example](../vars/proxy.example.yml), [edge variables](../group_vars/vps/), and [nginx role](../roles/nginx/).
+Sources: [playbooks/site.yml](../playbooks/site.yml), [routing example](../vars/proxy.example.yml), [edge variables](../inventory/group_vars/vps/), and [nginx role](../roles/nginx/).
 
 Run commands from the repository root.
 
 ## Deployment layers
 
-`site.yml` imports five layers in order; each is also a standalone playbook. Every layer, including `network.yml`, targets only the `vps` group. VPN and monitoring hosts reconcile their own Tailscale configuration through `vpn.yml` and `mon.yml`. Layers depend left to right (proxy needs tailnet DNS; monitoring expects nginx). Bootstrap is safe to re-run anytime.
+`playbooks/site.yml` imports five layers in order; each is also a standalone playbook. Every layer, including `playbooks/network.yml`, targets only the `vps` group. VPN and monitoring hosts reconcile their own Tailscale configuration through `playbooks/vpn.yml` and `playbooks/mon.yml`. Layers depend left to right (proxy needs tailnet DNS; monitoring expects nginx). Bootstrap is safe to re-run anytime.
 
 ```bash
-ansible-playbook site.yml        # everything, in order
-ansible-playbook proxy.yml       # just re-render and reload the proxy
-ansible-playbook security.yml    # just firewall + fail2ban
+ansible-playbook playbooks/site.yml        # everything, in order
+ansible-playbook playbooks/proxy.yml       # just re-render and reload the proxy
+ansible-playbook playbooks/security.yml    # just firewall + fail2ban
 ```
 
 ### `vars/proxy.yml` — the only file you edit for routing
 
-Adding a service = adding a block here + `ansible-playbook site.yml`. The nginx config and (via `ufw_open_service_ports: true`) the firewall rule are regenerated automatically.
+Adding a service = adding a block here + `ansible-playbook playbooks/site.yml`. The nginx config and (via `ufw_open_service_ports: true`) the firewall rule are regenerated automatically.
 
 Schema (full annotated examples in [`vars/proxy.example.yml`](../vars/proxy.example.yml)):
 
@@ -37,7 +37,7 @@ Rules (enforced by [`roles/nginx/tasks/validate.yml`](../roles/nginx/tasks/valid
 - SNI requires `protocol: tcp`; at most one `default: true` per listener. Without an explicit default, the first service wins; multiple explicit defaults fail validation.
 - Always use MagicDNS names (`host.tailnet.ts.net`), never raw `100.x` IPs.
 
-### `group_vars/vps/` — one file per concern
+### `inventory/group_vars/vps/` — one file per concern
 
 | File             | Configures    | Highlights                                                                   |
 | ---------------- | ------------- | ---------------------------------------------------------------------------- |
@@ -47,19 +47,29 @@ Rules (enforced by [`roles/nginx/tasks/validate.yml`](../roles/nginx/tasks/valid
 | `tailscale.yml`  | tailscale     | hostname, optional auth key (from vault)                                     |
 | `monitoring.yml` | monitoring    | checked units, disk threshold/mounts, backup freshness, host prefix          |
 
-Firewall rules come from three merged sources: the SSH port, the static `ufw_rules` list, and the listen ports of every service in `vars/proxy.yml`. The [`security.yml` play](../security.yml) loads that routing file only when `ufw_open_service_ports` is enabled and passes the same `services` map used by nginx to UFW as `ufw_proxy_services`. The [UFW role](../roles/ufw/tasks/main.yml) consumes this explicit mapping; it does not locate or read routing files. Enabled automatic ports require that input (a missing or non-mapping value fails instead of silently omitting proxy listeners). VPN and monitoring disable automatic proxy ports and need neither the routing file nor this input.
+Firewall rules come from three merged sources: the SSH port, the static `ufw_rules` list, and the listen ports of every service in `vars/proxy.yml`. The [`playbooks/security.yml` play](../playbooks/security.yml) loads that routing file only when `ufw_open_service_ports` is enabled and passes the same `services` map used by nginx to UFW as `ufw_proxy_services`. The [UFW role](../roles/ufw/tasks/main.yml) consumes this explicit mapping; it does not locate or read routing files. Enabled automatic ports require that input (a missing or non-mapping value fails instead of silently omitting proxy listeners). VPN and monitoring disable automatic proxy ports and need neither the routing file nor this input.
 
 Proxy listeners are deduplicated by port **and** protocol; omitted protocols default to TCP. Listeners already covered by SSH or static rules are excluded, and a shared SNI listener keeps the first service's `proxy: <service>` comment. Existing rules are not purged.
 
-Switching from root to an admin user: set `bootstrap_admin_user`(+`_ssh_keys`), run `bootstrap.yml`, switch `ansible_user` in inventory, set `sshd_permit_root_login: "no"`, re-run `site.yml`.
+Switching from root to an admin user: set `bootstrap_admin_user`(+`_ssh_keys`), run `playbooks/bootstrap.yml`, switch `ansible_user` in inventory, set `sshd_permit_root_login: "no"`, re-run `playbooks/site.yml`.
 
 ## Local render test (no VPS needed)
 
 ```bash
-ansible-playbook test-render.yml && cat /tmp/rendered-stream.conf
+ansible-playbook playbooks/test-render.yml && cat /tmp/rendered-stream.conf
 ```
 
 The command above uses the private `vars/proxy.yml` and the normal vault configuration. For a credential-free check using the public example, run the [offline Ansible gate](../CONTRIBUTING.md#local-ansible-checks). To select another routing file, pass `-e proxy_vars_file=/path/to/routing.yml`; `-e proxy_render_dir=/existing/output/directory` redirects both rendered files (default `/tmp`).
+
+Routing-file overrides should be absolute, for example:
+
+```bash
+ansible-playbook playbooks/test-render.yml -e "proxy_vars_file=$PWD/vars/proxy.example.yml"
+```
+
+This override selects the public map but still uses the configured vault password file;
+the offline gate supplies its own credential-free configuration. Relative override paths
+are resolved from the relocated playbook, not the repository root.
 
 ## Operations
 
@@ -72,7 +82,7 @@ tailscale status
 sudo bash /opt/homelab-monitoring/scripts/check-services.sh   # trigger a monitor manually
 ```
 
-**Migrate the edge VPS:** provision + day-0 with the same hostname (same MagicDNS name, no inventory change) → `ansible-playbook site.yml` → switch DNS A/AAAA records. Home servers are untouched.
+**Migrate the edge VPS:** provision + day-0 with the same hostname (same MagicDNS name, no inventory change) → `ansible-playbook playbooks/site.yml` → switch DNS A/AAAA records. Home servers are untouched.
 
 ## Security notes
 
@@ -93,4 +103,4 @@ sudo bash /opt/homelab-monitoring/scripts/check-services.sh   # trigger a monito
 | Connection refused on a forwarded port | `ss -tlnp \| grep <port>`, `journalctl -u nginx`, `ufw status`.                 |
 | Wrong backend for a domain             | SNI hostname missing/duplicated in `vars/proxy.yml`; check the generated `map`. |
 | Backend unreachable                    | `nc -vz <host>.ts.net <port>` from the VPS; check Tailscale.                    |
-| No ntfy messages arrive                | Topics in `group_vars/*/monitoring.yml` + vault; run a check script manually.   |
+| No ntfy messages arrive                | Topics: `inventory/group_vars/*/monitoring.yml` + vault; run a script manually. |

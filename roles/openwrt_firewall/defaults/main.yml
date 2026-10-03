@@ -1,4 +1,4 @@
 ---
 # Guard defaults only (protect against undefined). Real configuration
-# lives in group_vars/routers/firewall.yml.
+# lives in inventory/group_vars/routers/firewall.yml.
 owrt_firewall_rules: []

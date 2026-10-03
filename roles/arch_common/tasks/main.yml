@@ -3,7 +3,7 @@
 # timezone/locale, MagicDNS repair (NetworkManager -> systemd-resolved).
 
 # Rolling release: a full upgrade is a deliberate operation, off by
-# default (arch_system_upgrade, group_vars/workstations/common.yml).
+# default (arch_system_upgrade, inventory/group_vars/workstations/common.yml).
 # Never combine with `update_cache`+install runs — partial upgrades break
 # Arch.
 - name: Full system upgrade (pacman -Syu)

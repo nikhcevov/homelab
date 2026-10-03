@@ -8,12 +8,12 @@ Playbooks target inventory groups. Active hosts and connection settings live in 
 
 | Group | Playbook(s) | Responsibility |
 | ----- | ----------- | -------------- |
-| `vps` | [site.yml](site.yml) | L4 SNI proxy over Tailscale; layered deployment |
-| `vpn` | [vpn.yml](vpn.yml), [vpn-restore.yml](vpn-restore.yml) | Native 3x-ui + Caddy, nightly backups |
-| `mon` | [mon.yml](mon.yml) | Native Uptime Kuma + Caddy, external watcher |
-| `routers` | [openwrt.yml](openwrt.yml), [openwrt-upgrade.yml](openwrt-upgrade.yml) | OpenWrt configuration and Tailscale exit nodes |
-| `unraid` | [unraid.yml](unraid.yml) | Backup collection and local restic snapshots |
-| `workstations` | [workstation.yml](workstation.yml) | Arch/CachyOS development environment |
+| `vps` | [playbooks/site.yml](playbooks/site.yml) | L4 SNI proxy over Tailscale; layered deployment |
+| `vpn` | [playbooks/vpn.yml](playbooks/vpn.yml), [playbooks/vpn-restore.yml](playbooks/vpn-restore.yml) | Native 3x-ui + Caddy, nightly backups |
+| `mon` | [playbooks/mon.yml](playbooks/mon.yml) | Native Uptime Kuma + Caddy, external watcher |
+| `routers` | [playbooks/openwrt.yml](playbooks/openwrt.yml), [playbooks/openwrt-upgrade.yml](playbooks/openwrt-upgrade.yml) | OpenWrt configuration and Tailscale exit nodes |
+| `unraid` | [playbooks/unraid.yml](playbooks/unraid.yml) | Backup collection and local restic snapshots |
+| `workstations` | [playbooks/workstation.yml](playbooks/workstation.yml) | Arch/CachyOS development environment |
 
 After bootstrap, the tailnet is the management plane. [Inventory](inventory/hosts.ini) uses MagicDNS names; router day-0 temporarily uses a LAN address. The [backup collector](files/unraid/homelab-backup-pull.sh.j2) separately stores Tailscale IPs for its SSH sources.
 
@@ -51,8 +51,8 @@ For the solo-maintainer workflow, documentation upkeep, and local checks, see [C
 
 ## Repository layout
 
-- Root playbooks select hosts and compose roles; see the infrastructure table above.
-- [inventory/](inventory/), [group_vars/](group_vars/), and [host_vars/](host_vars/) define hosts, shared settings, and per-host deltas.
+- [playbooks/](playbooks/) entrypoints select hosts and compose roles; see the infrastructure table above.
+- [inventory/](inventory/), [inventory/group_vars/](inventory/group_vars/), and [inventory/host_vars/](inventory/host_vars/) define hosts, shared settings, and per-host deltas.
 - [roles/](roles/) owns host configuration and deployment behavior; [monitoring assets](roles/monitoring/files/) include the deployed checks and cron schedule.
 - [vars/proxy.example.yml](vars/proxy.example.yml) documents the local, gitignored edge routing map.
 - [scripts/](scripts/) holds operator tools such as laptop power benchmarks.

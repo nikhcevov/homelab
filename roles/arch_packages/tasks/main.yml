@@ -1,6 +1,6 @@
 ---
 # Declarative packages: official repos via pacman, AUR via paru.
-# Lists come from group_vars/workstations/packages.yml; the active subset
+# Lists come from inventory/group_vars/workstations/packages.yml; the active subset
 # is workstation_enabled_groups (host_vars can shrink it per machine).
 
 - name: Compute enabled package lists

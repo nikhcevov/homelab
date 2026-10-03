@@ -1,6 +1,6 @@
 ---
 # Laptop power tuning (see docs/laptop-power.md). Off by default —
-# enable per-host in host_vars/<laptop>/power.yml:
+# enable per-host in inventory/host_vars/<laptop>/power.yml:
 #   laptop_power_enabled: true
 # Everything here is either profile-scoped (via power-profiles-daemon)
 # or an idle-power knob, so the `performance` profile keeps full speed.

@@ -1,5 +1,5 @@
 ---
-# Dotfiles via chezmoi (group_vars/workstations/dotfiles.yml).
+# Dotfiles via chezmoi (inventory/group_vars/workstations/dotfiles.yml).
 # init --apply clones the source repo into ~/.local/share/chezmoi and
 # applies the target state; `chezmoi update` afterwards pulls + applies.
 # Per-host differences live in chezmoi templates, not here.

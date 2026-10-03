@@ -4,7 +4,7 @@
 # Copy to vars/proxy.yml and fill in your services:
 #   cp vars/proxy.example.yml vars/proxy.yml
 # Real vars/proxy.yml is gitignored (contains your domains/tailnet names).
-# Apply with: ansible-playbook site.yml
+# Apply with: ansible-playbook playbooks/site.yml
 #
 # Service schema:
 #   listen:    port nginx listens on (required)

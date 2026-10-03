@@ -2,7 +2,7 @@
 
 [Repository overview](../README.md) · [Getting started](getting-started.md) · [Edge VPS](edge.md) · [OpenWrt](openwrt.md)
 
-Sources: [policy file](../files/tailscale/policy.json), [policy workflow](../.github/workflows/tailscale.yml), and [shared Tailscale variables](../group_vars/all/tailscale.yml).
+Sources: [policy file](../files/tailscale/policy.json), [policy workflow](../.github/workflows/tailscale.yml), and [shared Tailscale variables](../inventory/group_vars/all/tailscale.yml).
 
 `files/tailscale/policy.json` is a standalone policy for the trusted-home model:
 member-owned devices, trusted home servers, and the approved routed home LANs

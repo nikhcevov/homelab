@@ -1,4 +1,4 @@
 ---
 # Guard defaults only (protect against undefined). Real package list
-# lives in group_vars/routers/packages.yml.
+# lives in inventory/group_vars/routers/packages.yml.
 owrt_packages: []

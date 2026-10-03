@@ -1,0 +1,28 @@
+---
+# Local test harness: renders templates and runs proxy validation without a VPS.
+# Usage: ansible-playbook playbooks/test-render.yml [-e "proxy_vars_file=$PWD/vars/proxy.example.yml"]
+- name: Render proxy config locally
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - "{{ proxy_vars_file }}"
+  vars:
+    proxy_vars_file: "{{ playbook_dir }}/../vars/proxy.yml"
+    proxy_render_dir: /tmp
+    nginx_stream_dir: /etc/nginx/stream.d
+  tasks:
+    - name: Run proxy validation
+      ansible.builtin.import_tasks: "{{ playbook_dir }}/../roles/nginx/tasks/validate.yml"
+
+    - name: Render stream config
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/nginx/templates/stream.conf.j2"
+        dest: "{{ proxy_render_dir }}/rendered-stream.conf"
+        mode: "0644"
+
+    - name: Render nginx.conf
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/nginx/templates/nginx.conf.j2"
+        dest: "{{ proxy_render_dir }}/rendered-nginx.conf"
+        mode: "0644"

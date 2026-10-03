@@ -23,7 +23,7 @@ setup, or recovery behavior—not every YAML value adjustment.
 ## One authority per fact
 
 - Hosts and connection settings: [inventory](inventory/hosts.ini).
-- Role composition and tags: root playbooks.
+- Role composition and tags: playbooks in `playbooks/`.
 - Current configurable values and schemas: role defaults, group/host variables,
   and annotated examples such as [proxy.example.yml](vars/proxy.example.yml).
 - Implemented behavior: tasks, templates, scripts, and workflows.
@@ -68,7 +68,8 @@ Dependency installation downloads packages from PyPI and Ansible Galaxy. Once in
 [the gate](tests/check_ansible.py) runs locally without network access, `.vault_pass`,
 private `vars/proxy.yml`, production credentials, or SSH:
 
-- Syntax-check every root playbook; `requirements.yml` is collection metadata, not a playbook.
+- Syntax-check every entrypoint in the flat `playbooks/` directory (currently 14);
+  fail if no playbooks are discovered. Root `requirements.yml` is collection metadata.
 - Render the existing nginx templates with [the public routing example](vars/proxy.example.yml).
 - Reject duplicate SNI names, SNI over UDP, mixed SNI/plain listeners, multiple defaults,
   empty upstreams, missing backend ports, and missing listeners before rendering.

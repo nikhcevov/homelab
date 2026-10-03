@@ -13,6 +13,7 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PLAYBOOKS = ROOT / "playbooks"
 PROXY_EXAMPLE = ROOT / "vars/proxy.example.yml"
 
 
@@ -52,7 +53,9 @@ def invalid_services(services):
 
 
 def main():
-    playbooks = sorted(path for path in ROOT.glob("*.yml") if path.name != "requirements.yml")
+    playbooks = sorted(PLAYBOOKS.glob("*.yml"))
+    if not playbooks:
+        raise SystemExit(f"No playbooks found in {PLAYBOOKS}")
     with tempfile.TemporaryDirectory(prefix="homelab-ansible-check-") as directory:
         work = Path(directory)
         config = work / "ansible.cfg"
@@ -101,7 +104,7 @@ def main():
             }
             if services is not None:
                 variables["services"] = services
-            result = run([str(ROOT / "test-render.yml"), "-e", json.dumps(variables)])
+            result = run([str(PLAYBOOKS / "test-render.yml"), "-e", json.dumps(variables)])
             return result, output
 
         valid, _ = render("valid")
