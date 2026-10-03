@@ -38,7 +38,7 @@ bootstrap_root_ssh_keys: []
 
 # Optional non-root admin user (empty = manage root only).
 # After creating one, switch inventory to ansible_user=<name> and set
-# sshd_permit_root_login: "no" in inventory/group_vars/vps/ssh.yml.
+# sshd_permit_root_login: "no" in inventory/group_vars/edge/ssh.yml.
 bootstrap_admin_user: ""
 # Public keys (inline) or URLs (https://github.com/<user>.keys).
 bootstrap_admin_user_ssh_keys: []

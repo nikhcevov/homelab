@@ -8,7 +8,7 @@ Playbooks target inventory groups. Active hosts and connection settings live in 
 
 | Group | Playbook(s) | Responsibility |
 | ----- | ----------- | -------------- |
-| `vps` | [playbooks/site.yml](playbooks/site.yml) | L4 SNI proxy over Tailscale; layered deployment |
+| `edge` | [playbooks/edge.yml](playbooks/edge.yml) | L4 SNI proxy over Tailscale; layered deployment |
 | `vpn` | [playbooks/vpn.yml](playbooks/vpn.yml), [playbooks/vpn-restore.yml](playbooks/vpn-restore.yml) | Native 3x-ui + Caddy, nightly backups |
 | `mon` | [playbooks/mon.yml](playbooks/mon.yml) | Native Uptime Kuma + Caddy, external watcher |
 | `routers` | [playbooks/openwrt.yml](playbooks/openwrt.yml), [playbooks/openwrt-upgrade.yml](playbooks/openwrt-upgrade.yml) | OpenWrt configuration and Tailscale exit nodes |

@@ -1,0 +1,9 @@
+---
+# Full edge VPS deployment: run every layer in order on the edge group only.
+# For partial runs use the per-layer playbooks instead:
+#   playbooks/edge-bootstrap.yml -> playbooks/edge-security.yml -> playbooks/edge-network.yml -> playbooks/edge-proxy.yml -> playbooks/edge-services.yml
+- ansible.builtin.import_playbook: edge-bootstrap.yml
+- ansible.builtin.import_playbook: edge-security.yml
+- ansible.builtin.import_playbook: edge-network.yml
+- ansible.builtin.import_playbook: edge-proxy.yml
+- ansible.builtin.import_playbook: edge-services.yml

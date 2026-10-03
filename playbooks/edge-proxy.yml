@@ -1,7 +1,7 @@
 ---
 # Layer 4 — proxy: nginx L4 stream proxy (ssl_preread, no TLS termination).
 - name: Configure stream reverse proxy
-  hosts: vps
+  hosts: edge
   become: true
   vars_files:
     - "{{ playbook_dir }}/../vars/proxy.yml"

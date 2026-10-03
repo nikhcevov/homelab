@@ -1,5 +1,5 @@
 ---
-# Monitoring settings shared by all monitored hosts (vps, vpn, mon).
+# Monitoring settings shared by all monitored hosts (edge, vpn, mon).
 # Per-host checks live in inventory/group_vars/<group>/monitoring.yml.
 
 ntfy_url: "https://ntfy.sh"

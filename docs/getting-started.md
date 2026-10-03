@@ -10,12 +10,12 @@ Run commands from the repository root. These day-0 instructions cover VPS hosts;
 
 ```text
 ├── playbooks/                   flat entrypoints; run from the repository root
-│   ├── site.yml                 edge VPS: imports the 5 sibling layers below
-│   ├── bootstrap.yml            layer 1: base system + ssh        ┐
-│   ├── security.yml             layer 2: ufw + fail2ban           │
-│   ├── network.yml              layer 3: tailscale                ├ also standalone
-│   ├── proxy.yml                layer 4: nginx stream proxy       │
-│   ├── services.yml             layer 5: monitoring               ┘
+│   ├── edge.yml                 edge VPS: imports the 5 sibling layers below
+│   ├── edge-bootstrap.yml       layer 1: base system + ssh        ┐
+│   ├── edge-security.yml        layer 2: ufw + fail2ban           │
+│   ├── edge-network.yml         layer 3: tailscale                ├ also standalone
+│   ├── edge-proxy.yml           layer 4: nginx stream proxy       │
+│   ├── edge-services.yml        layer 5: monitoring               ┘
 │   ├── vpn.yml / vpn-restore.yml   VPN VPS deploy / restore
 │   ├── mon.yml                  monitoring VPS deploy
 │   ├── openwrt.yml / openwrt-upgrade.yml   routers deploy / upgrade
@@ -62,7 +62,7 @@ The private routing map stays at `vars/proxy.yml`, resolved explicitly from the 
 ansible-galaxy collection install -r requirements.yml   # one-time
 ansible-vault encrypt_string 'the-secret' --name vault_ntfy_topic_info  # add secrets to inventory/group_vars/*/vault.yml
 cp vars/proxy.example.yml vars/proxy.yml && $EDITOR vars/proxy.yml      # edge routing map
-ansible-playbook playbooks/site.yml        # or playbooks/vpn.yml / playbooks/mon.yml for those hosts
+ansible-playbook playbooks/edge.yml        # or playbooks/vpn.yml / playbooks/mon.yml for those hosts
 ```
 
 Extra SSH keys: drop the `.pub` into `files/ssh/` and list it in `bootstrap_root_ssh_keys` (`inventory/group_vars/<group>/bootstrap.yml`). Public keys belong in Git.
