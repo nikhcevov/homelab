@@ -34,7 +34,8 @@ bootstrap_unattended_reboot_time: "04:00"
 # Public keys are NOT secrets, they belong in Git. The day-0 key is added
 # manually (provider injection or console) before Ansible ever connects;
 # this list is for additional keys authorized idempotently on every run.
-bootstrap_root_ssh_keys: []
+bootstrap_root_ssh_keys:
+  - little-raven.pub
 
 # Optional non-root admin user (empty = manage root only).
 # After creating one, switch inventory to ansible_user=<name> and set

@@ -17,7 +17,7 @@
     dest: /etc/dropbear/authorized_keys
     mode: "0600"
   when: ssh_authorized_keys | length > 0
-  notify: Reload dropbear
+  tags: [ssh_keys]
 
 - name: Ensure dropbear is running and enabled
   ansible.builtin.service:

@@ -4,6 +4,11 @@
 # Primary user; AUR builds and dotfiles run as this account.
 workstation_user: boss
 
+# Public-key filenames under files/ssh; additive access for workstation_user.
+workstation_ssh_keys:
+  - starling.pub
+  - little-raven.pub
+
 workstation_timezone: Europe/Moscow
 workstation_locale: en_US.UTF-8
 workstation_locales_gen:

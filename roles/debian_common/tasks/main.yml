@@ -57,6 +57,7 @@
     key: "{{ lookup('ansible.builtin.file', role_path + '/../../files/ssh/' + item) }}"
   loop: "{{ bootstrap_root_ssh_keys }}"
   when: bootstrap_root_ssh_keys | length > 0
+  tags: [ssh_keys]
 
 - name: Create admin user
   ansible.builtin.user:

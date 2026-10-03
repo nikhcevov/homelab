@@ -2,7 +2,8 @@
 # Unraid (great-hornbill): deploy User Scripts entries onto the flash
 # drive (/boot/config/plugins/user.scripts/scripts/<name>/{script,description}).
 # Unraid has no python, so everything goes through raw + base64;
-# idempotency is tracked via a .b64 marker next to the deployed file.
+# Script idempotency is tracked via a .b64 marker next to the deployed file;
+# SSH keys are checked directly in the persistent and active authorized_keys.
 # Scheduling is set outside this playbook (see docs/backups-unraid.md):
 #   mover (Settings->Scheduler)      weekly Sun 00:00 (drain cache first)
 #   CA Appdata Backup (plugin GUI)   weekly Sun 04:00, incl. flash backup
@@ -27,6 +28,72 @@
         template: "{{ playbook_dir }}/../files/unraid/restic-vault-check.sh.j2"
     restic_version: "0.17.3"
   tasks:
+    - name: Authorize root SSH keys on persistent flash and active ramdisk
+      tags: [ssh_keys]
+      no_log: true
+      ansible.builtin.raw: |
+        set -e
+        umask 077
+        changed=false
+        key=$(printf '%s' '{{ _key_b64 }}' | base64 -d)
+        read -r key_type key_blob key_comment <<EOF
+        $key
+        EOF
+        for dir in /boot/config/ssh/root /root/.ssh; do
+          if [ ! -d "$dir" ]; then
+            mkdir -p "$dir"
+            changed=true
+          fi
+          file="$dir/authorized_keys"
+          if [ ! -e "$file" ]; then
+            touch "$file"
+            changed=true
+          fi
+          # Append through existing symlinks; never replace or truncate files.
+          if ! awk -v type="$key_type" -v blob="$key_blob" '
+            /^[[:space:]]*#/ { next }
+            {
+              for (i = 1; i < NF; i++) {
+                if ($i ~ /^(ssh-|ecdsa-|sk-)/) {
+                  if ($i == type && $(i + 1) == blob) found = 1
+                  break
+                }
+              }
+            }
+            END { exit !found }
+          ' "$file"; then
+            # Keep an unterminated existing last line separate from the key.
+            if [ -s "$file" ] && [ "$(tail -c 1 "$file" | od -An -tu1 | tr -d '[:space:]')" != 10 ]; then
+              printf '\n' >> "$file"
+            fi
+            printf '%s\n' "$key" >> "$file"
+            changed=true
+          fi
+        done
+        # vfat permissions are mount-wide, not per-file. Only enforce modes
+        # and ownership on Unix-backed active paths, following any symlinks.
+        for path in /root/.ssh /root/.ssh/authorized_keys; do
+          case "$(stat -f -L -c %T "$path")" in
+            msdos|vfat) continue ;;
+          esac
+          mode=600
+          [ "$path" != /root/.ssh ] || mode=700
+          if [ "$(stat -L -c %a "$path")" != "$mode" ]; then
+            chmod "$mode" "$path"
+            changed=true
+          fi
+          if [ "$(stat -L -c %u:%g "$path")" != 0:0 ]; then
+            chown root:root "$path"
+            changed=true
+          fi
+        done
+        "$changed" && echo changed || echo ok
+      vars:
+        _key_b64: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../files/ssh/' ~ item) | b64encode }}"
+      loop: "{{ ssh_authorized_keys }}"
+      register: _ssh_keys
+      changed_when: "'changed' in _ssh_keys.stdout"
+
     # The templates embed ntfy topics from the vault — keep task output
     # (and the base64 payload) out of the logs.
     - name: Deploy User Scripts entries (script + description)

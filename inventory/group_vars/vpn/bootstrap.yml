@@ -30,6 +30,7 @@ bootstrap_unattended_reboot_time: "04:00"
 # Public keys are NOT secrets, they belong in Git.
 bootstrap_root_ssh_keys:
   - great-hornbill.pub
+  - little-raven.pub
 
 # Optional non-root admin user.
 bootstrap_admin_user: ""

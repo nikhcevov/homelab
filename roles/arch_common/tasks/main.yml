@@ -12,6 +12,14 @@
     upgrade: true
   when: arch_system_upgrade | bool
 
+- name: Authorize workstation SSH keys
+  ansible.posix.authorized_key:
+    user: "{{ workstation_user }}"
+    key: "{{ lookup('ansible.builtin.file', role_path + '/../../files/ssh/' + item) }}"
+    state: present
+  loop: "{{ workstation_ssh_keys | default([]) }}"
+  tags: [ssh_keys]
+
 - name: Set timezone
   community.general.timezone:
     name: "{{ workstation_timezone }}"
