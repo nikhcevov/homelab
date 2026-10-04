@@ -3,9 +3,9 @@
 # on every keyboard except the IDs below (role: keyd, config:
 # /etc/keyd/default.conf).
 #
-# The exclusion is device-based, not host-based: the external keyboard
-# used on starling is ignored no matter which machine it is plugged into,
-# while generic USB keyboards and the laptop's built-in one get the remap.
+# Exclusions are device-based, not host-based: listed keyboards pass
+# through unchanged wherever they are connected. With an empty list,
+# generic USB keyboards and built-in keyboards all get the remap.
 #
 # Find a keyboard's ID on the machine: `sudo keyd monitor` prints one
 # vendor:product id per grabbed device while you type.

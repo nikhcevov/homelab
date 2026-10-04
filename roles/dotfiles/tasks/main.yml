@@ -9,6 +9,14 @@
     name: chezmoi
     state: present
 
+# The standalone chezmoi hook uses chsh, which needs user authentication.
+# Provision the same shell as root before running noninteractive apply.
+# fish is installed by arch_packages before this role.
+- name: Set fish as the workstation login shell
+  ansible.builtin.user:
+    name: "{{ workstation_user }}"
+    shell: /usr/bin/fish
+
 # The config file is the source of truth for "initialized" — NOT the
 # default ~/.local/share/chezmoi path: on starling the source dir is the
 # working clone ~/Projects/dotfiles-chezmoi (sourceDir in the config).
@@ -24,6 +32,7 @@
   become_user: "{{ workstation_user }}"
   environment:
     HOME: "/home/{{ workstation_user }}"
+    SHELL: /usr/bin/fish
   when: not _chezmoi_config.stat.exists
 
 # Pull + apply on every run (git pull inside the configured sourceDir).
@@ -38,5 +47,6 @@
   become_user: "{{ workstation_user }}"
   environment:
     HOME: "/home/{{ workstation_user }}"
+    SHELL: /usr/bin/fish
   changed_when: false
   when: _chezmoi_config.stat.exists

@@ -56,6 +56,10 @@ workstation_packages:
     - meld
     - mkcert
     - neovim
+    # System Node/npm also cover GUI and noninteractive editor launches;
+    # nvm.fish remains available for per-project Node versions.
+    - nodejs
+    - npm
     - python
     - python-pip
     - shellcheck
@@ -78,7 +82,9 @@ workstation_packages:
 # deliver input under KWin. Both are used identically on all machines.
 workstation_aur_packages:
   base: []
-  dev: []
+  # Standalone omp binary: no separate Bun runtime is required.
+  dev:
+    - oh-my-pi-bin
   productivity:
     - handy-bin
     - kwtype-git
