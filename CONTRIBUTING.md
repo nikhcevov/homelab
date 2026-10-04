@@ -83,6 +83,11 @@ dispatches. Action revisions and tooling versions are pinned; repository permiss
 read-only and checkout credentials are not persisted. It never deploys hosts.
 The gate checks Ansible syntax and template/definition behavior, not `nginx -t` or deployed health.
 
+Access gathered facts through `ansible_facts['os_family']`,
+`ansible_facts['distribution']`, etc., rather than injected top-level variables
+such as `ansible_os_family`. Automatic fact injection is deprecated; use
+`inject_facts_as_vars = false` in isolated role smoke checks to catch reliance on it.
+
 ## Local documentation checks
 
 Use Node.js 24 with npm, and [lychee](https://github.com/lycheeverse/lychee/releases/tag/lychee-v0.24.2)
