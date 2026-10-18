@@ -2,7 +2,9 @@
 
 Drop your public SSH keys here, bird-named after the device, e.g. `starling.pub` (one key per file).
 
-`little-raven.pub` is the main operator PC's public key. Keep private keys on their source machines; only public keys belong here.
+`starling.pub` is the desktop; `little-raven.pub` is the laptop, which hosts the homelab repository and is the management controller. Keep private keys on their source machines; only public keys belong here.
+
+Rotating a machine's key means replacing its file: every consumer references it by filename, but the `authorized_key` loops on workstations, VPSes and Unraid are additive, so the previous key blob stays authorized there until it is purged by hand (routers render their configured list authoritatively).
 
 | Target | Login | Key list |
 | ------ | ----- | -------- |

@@ -18,8 +18,9 @@
     shell: /usr/bin/fish
 
 # The config file is the source of truth for "initialized" — NOT the
-# default ~/.local/share/chezmoi path: on starling the source dir is the
-# working clone ~/Projects/dotfiles-chezmoi (sourceDir in the config).
+# default ~/.local/share/chezmoi path: a machine whose chezmoi.toml sets
+# sourceDir (a checkout used as the source, as the repository host may
+# configure) is already initialized, and chezmoi update pulls into it.
 - name: Check for an existing chezmoi config
   ansible.builtin.stat:
     path: "/home/{{ workstation_user }}/.config/chezmoi/chezmoi.toml"

@@ -3,9 +3,14 @@
 # Goal: identical DEV ENVIRONMENT on both machines, not identical
 # systems — desktop/GUI/hardware packages come from the OS install.
 #
-# Day-0 on the machine that hosts this repo (no sshd, MagicDNS not yet
-# fixed — both come from arch_common/ssh below):
-#   ansible-playbook playbooks/workstation.yml -c local --limit starling --ask-become-pass
+# Day-0 on the machine that hosts this repo (little-raven; no sshd, MagicDNS
+# not yet fixed — both come from arch_common/ssh below):
+#   ansible-playbook playbooks/workstation.yml -c local --limit little-raven --ask-become-pass
+# Day-0 on a FRESH remote workstation (docs/workstations.md): OS + `boss` user,
+# `openssh python tailscale`, the controller's key authorized, then — MagicDNS
+# resolves only after this run fixes NetworkManager -> systemd-resolved:
+#   ansible-playbook playbooks/workstation.yml --limit <host> \
+#     -e ansible_host=<tailscale-ip> --ask-become-pass
 # Afterwards workstations are managed over the tailnet like every other
 # Partial runs: --tags packages|docker|dotfiles|syncthing|tailscale|keyd|layout|lockscreen|power.
 # Full system upgrade (rolling release, deliberate operation):
