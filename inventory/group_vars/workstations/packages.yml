@@ -44,8 +44,8 @@ workstation_packages:
     - which
     - zip
 
-  # Development toolchain. Docker lives in the docker role; tailscale,
-  # chezmoi and syncthing are installed by their own roles.
+  # Development toolchain. Docker lives in the docker role; tailscale and
+  # chezmoi are installed by their own roles.
   dev:
     - age
     - ansible

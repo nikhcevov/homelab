@@ -37,7 +37,7 @@
     mode: "0644"
 
 # Home for all git checkouts (spec: projects live locally, synced via
-# git — not Syncthing, not SMB).
+# git — no file-sync service, no SMB).
 - name: Ensure projects directory exists
   ansible.builtin.file:
     path: "/home/{{ workstation_user }}/Projects"

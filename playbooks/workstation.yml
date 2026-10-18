@@ -14,7 +14,7 @@
 # systemd-resolved fix below, so -e ansible_host=<tailscale-ip> is for a run
 # started ON that host (e.g. a `-c local` day-0).
 # Afterwards workstations are managed over the tailnet like every other
-# Partial runs: --tags packages|docker|dotfiles|syncthing|tailscale|keyd|layout|lockscreen|power.
+# Partial runs: --tags packages|docker|dotfiles|tailscale|keyd|layout|lockscreen|power.
 # Full system upgrade (rolling release, deliberate operation):
 #   ansible-playbook playbooks/workstation.yml -e arch_system_upgrade=true
 - name: Configure Arch workstations
@@ -52,5 +52,3 @@
         tags: [power],
         when: laptop_power_enabled | default(false) | bool,
       }
-    # syncthing syncs ONLY ~/Documents; ~/Projects moves via git.
-    - { role: syncthing, tags: [syncthing] }
