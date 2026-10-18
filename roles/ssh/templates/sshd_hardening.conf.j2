@@ -1,4 +1,4 @@
-# Managed by Ansible (role: ssh). Source: inventory/group_vars/edge_nodes/ssh.yml
+# Managed by Ansible (role: ssh). Source: inventory/group_vars/<group>/ssh.yml (sshd_* variables; edge and workstation groups both use this role).
 Port {{ sshd_port }}
 PasswordAuthentication {{ sshd_password_authentication }}
 PermitRootLogin {{ sshd_permit_root_login }}
