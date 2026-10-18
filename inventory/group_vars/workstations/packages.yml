@@ -65,6 +65,11 @@ workstation_packages:
     - shellcheck
     - sops
     - sshuttle
+    # Terminal font: ghostty's tracked font-family (chezmoi:
+    # dot_config/ghostty/config) is FiraCode Nerd Font. In extra on both
+    # CachyOS and Arch; nothing else consumes it, so it is not a system-wide
+    # fontconfig preference.
+    - ttf-firacode-nerd
     - zed
 
   # Everyday GUI apps: browser, mail, messenger.
