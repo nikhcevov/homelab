@@ -71,7 +71,13 @@ Bun installation.
 ### Capture before applying
 
 The dotfiles role uses `--force`: pushed dotfiles overwrite local managed-file
-changes. Before deployment, run these commands as the workstation user:
+changes. It also runs chezmoi with `--no-tty`, because Ansible can allocate a
+pty for the become session — that makes chezmoi's `stdinIsATTY` true and leaves
+its interactive prompt (git email) blocked on a terminal nobody is typing into,
+with the prompt text hidden inside the task's captured stdout. `--no-tty` takes
+the non-interactive branch instead, which uses the personal default email.
+
+Before deployment, run these commands as the workstation user:
 
 ```bash
 chezmoi source-path

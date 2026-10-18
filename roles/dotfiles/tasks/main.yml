@@ -28,8 +28,14 @@
 
 # --force as below: a fresh GNOME install already ships files chezmoi
 # manages (e.g. ~/.config/gtk-3.0/settings.ini) — don't prompt, overwrite.
+# --no-tty: Ansible can allocate a pty for the remote session (observed with
+# --ask-become-pass), which makes stdinIsATTY true inside chezmoi. The
+# `.chezmoi.toml.tmpl` git-email promptStringOnce then writes its prompt to the
+# stdout Ansible captured and blocks on a /dev/pts nobody is typing into — the
+# task hangs indefinitely (seen on starling, ~17 min). --no-tty forces the
+# non-interactive branch (default email), which matches the personal default.
 - name: Initialize and apply dotfiles
-  ansible.builtin.command: chezmoi init --apply --force "{{ dotfiles_chezmoi_repo }}"
+  ansible.builtin.command: chezmoi --no-tty init --apply --force "{{ dotfiles_chezmoi_repo }}"
   become_user: "{{ workstation_user }}"
   environment:
     HOME: "/home/{{ workstation_user }}"
@@ -44,7 +50,7 @@
 # — there is no TTY under Ansible, so a prompt means a failed run.
 # The dotfiles repo is the source of truth by design.
 - name: Update and apply dotfiles
-  ansible.builtin.command: chezmoi update --force
+  ansible.builtin.command: chezmoi --no-tty update --force
   become_user: "{{ workstation_user }}"
   environment:
     HOME: "/home/{{ workstation_user }}"
