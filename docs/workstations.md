@@ -87,8 +87,11 @@ chezmoi diff
 Review and capture wanted changes with `chezmoi re-add`, then commit and push the
 configured source repository. If editing a separate checkout, pass
 `chezmoi --source "$PWD"` from its root; Ansible otherwise updates the source directory
-in that machine's chezmoi config. No fixed source directory is imposed by the role.
-After applying KDE settings, log out/in so the running session does not overwrite them.
+in that machine's chezmoi config. No fixed source directory is imposed by the role. After applying KDE settings, log out first, apply while no
+Plasma session is running (SSH or a console), then log in: applying with the
+session running only survives until that session writes its stale values on
+exit, which silently reverts entries (layout list, layout-switch and
+window-walk shortcuts).
 
 Handy is managed as a whole settings file, including empty API-key fields; applying it
 replaces any local values in those fields. Do not capture provider credentials into
