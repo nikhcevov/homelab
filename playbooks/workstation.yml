@@ -7,10 +7,12 @@
 # not yet fixed — both come from arch_common/ssh below):
 #   ansible-playbook playbooks/workstation.yml -c local --limit little-raven --ask-become-pass
 # Day-0 on a FRESH remote workstation (docs/workstations.md): OS + `boss` user,
-# `openssh python tailscale`, the controller's key authorized, then — MagicDNS
-# resolves only after this run fixes NetworkManager -> systemd-resolved:
-#   ansible-playbook playbooks/workstation.yml --limit <host> \
-#     -e ansible_host=<tailscale-ip> --ask-become-pass
+# `openssh python tailscale`, the controller's key authorized, then
+#   ansible-playbook playbooks/workstation.yml --limit <host> --ask-become-pass
+# From a managed controller the MagicDNS name resolves immediately; the fresh
+# host resolves tailnet names itself only after the NetworkManager ->
+# systemd-resolved fix below, so -e ansible_host=<tailscale-ip> is for a run
+# started ON that host (e.g. a `-c local` day-0).
 # Afterwards workstations are managed over the tailnet like every other
 # Partial runs: --tags packages|docker|dotfiles|syncthing|tailscale|keyd|layout|lockscreen|power.
 # Full system upgrade (rolling release, deliberate operation):
