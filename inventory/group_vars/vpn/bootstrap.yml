@@ -29,6 +29,7 @@ bootstrap_unattended_reboot_time: "04:00"
 # Public SSH key files (from files/ssh/) authorized for the root login.
 # Public keys are NOT secrets, they belong in Git.
 bootstrap_root_ssh_keys:
+  - starling.pub
   - great-hornbill.pub
   - little-raven.pub
 

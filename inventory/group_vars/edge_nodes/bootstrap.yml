@@ -35,6 +35,7 @@ bootstrap_unattended_reboot_time: "04:00"
 # manually (provider injection or console) before Ansible ever connects;
 # this list is for additional keys authorized idempotently on every run.
 bootstrap_root_ssh_keys:
+  - starling.pub
   - little-raven.pub
 
 # Optional non-root admin user (empty = manage root only).
