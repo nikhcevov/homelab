@@ -63,6 +63,7 @@ def main():
             "[defaults]\n"
             "retry_files_enabled = false\n"
             "collections_scan_sys_path = false\n"
+            "inject_facts_as_vars = false\n"
             f"roles_path = {ROOT / 'roles'}\n"
             f"local_tmp = {work / 'ansible-tmp'}\n"
         )

@@ -1,5 +1,5 @@
 // Managed by Ansible (role: debian_common). Source: inventory/group_vars/<group>/bootstrap.yml
-{% if ansible_distribution == 'Ubuntu' %}
+{% if ansible_facts['distribution'] == 'Ubuntu' %}
 Unattended-Upgrade::Allowed-Origins {
     "${distro_id}:${distro_codename}-security";
 };
