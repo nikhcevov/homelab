@@ -1,5 +1,5 @@
 ---
-# keyd: Caps Lock = Left Ctrl, Left Ctrl = Hyper (Ctrl+Alt+Shift+Super)
+# keyd: Caps Lock = Hyper (Ctrl+Alt+Shift+Super), Left Ctrl unchanged,
 # on every keyboard except the IDs below (role: keyd, config:
 # /etc/keyd/default.conf).
 #
