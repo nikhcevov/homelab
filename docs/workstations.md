@@ -20,7 +20,7 @@ Active managed workstations: `starling` (desktop) and `little-raven` (laptop —
 
 Roles: `arch_common` (optional `-Syu` via `-e arch_system_upgrade=true`, timezone/locale, NetworkManager → systemd-resolved fix for MagicDNS), `ssh`, `tailscale` (day-0 `tailscale up` is manual), `arch_packages` (official packages and AUR via yay; [package lists](../inventory/group_vars/workstations/packages.yml)), `docker` (re-login once for the group), `dotfiles` (sets the fish login shell, then chezmoi init or update; set `dotfiles_chezmoi_repo`), `kde_lock_layout` (US layout on screen lock), `kde_lock_immediate` (password prompt after resume), `laptop_power` (per-host gated battery tuning — [power guide](laptop-power.md)).
 
-**Desktop shortcuts.** No remapping daemon: Caps Lock is a normal Caps Lock and every binding is an ordinary KDE global shortcut. The set is ordered by use — the two most frequent actions get one-hand combos, everything else stays on the stock KDE/default key:
+**Desktop shortcuts.** No remapping daemon: Caps Lock acts as Ctrl (`Options=ctrl:nocaps` + `ResetOldOptions=true` in the chezmoi-managed `kxkbrc` — KWin only reads XKB options when that flag is set) and every binding is an ordinary KDE global shortcut. The set is ordered by use — the two most frequent actions get one-hand combos, everything else stays on the stock KDE/default key:
 
 | Shortcut       | Action                         | Where bound           |
 | -------------- | ------------------------------ | --------------------- |
