@@ -14,7 +14,7 @@
 # systemd-resolved fix below, so -e ansible_host=<tailscale-ip> is for a run
 # started ON that host (e.g. a `-c local` day-0).
 # Afterwards workstations are managed over the tailnet like every other
-# Partial runs: --tags packages|docker|dotfiles|tailscale|keyd|layout|lockscreen|power.
+# Partial runs: --tags packages|docker|dotfiles|tailscale|layout|lockscreen|power.
 # Full system upgrade (rolling release, deliberate operation):
 #   ansible-playbook playbooks/workstation.yml -e arch_system_upgrade=true
 - name: Configure Arch workstations
@@ -24,10 +24,6 @@
     - { role: arch_common, tags: [common] }
     - { role: ssh, tags: [ssh] }
     - { role: tailscale, tags: [tailscale] }
-    # keyd: Caps Lock = Hyper on all keyboards except the excluded IDs
-    # (inventory/group_vars/workstations/keyd.yml) — device-based, service
-    # stays on.
-    - { role: keyd, tags: [keyd] }
     # packages before dotfiles: the tools the configs describe (bat,
     # eza, fzf, starship...) should exist when chezmoi applies them.
     - { role: arch_packages, tags: [packages] }

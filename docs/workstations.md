@@ -18,26 +18,27 @@ Active managed workstations: `starling` (desktop) and `little-raven` (laptop —
 | `~/Documents`                      | Machine-local; not synced or backed up      |
 | Large/shared files                 | Unraid directly                             |
 
-Roles: `arch_common` (optional `-Syu` via `-e arch_system_upgrade=true`, timezone/locale, NetworkManager → systemd-resolved fix for MagicDNS), `ssh`, `tailscale` (day-0 `tailscale up` is manual), `keyd` (Caps Lock = Hyper, Left Ctrl unchanged; device exclusions in [keyd variables](../inventory/group_vars/workstations/keyd.yml), currently empty), `arch_packages` (official packages and AUR via yay; [package lists](../inventory/group_vars/workstations/packages.yml)), `docker` (re-login once for the group), `dotfiles` (sets the fish login shell, then chezmoi init or update; set `dotfiles_chezmoi_repo`), `kde_lock_layout` (US layout on screen lock), `kde_lock_immediate` (password prompt after resume), `laptop_power` (per-host gated battery tuning — [power guide](laptop-power.md)).
+Roles: `arch_common` (optional `-Syu` via `-e arch_system_upgrade=true`, timezone/locale, NetworkManager → systemd-resolved fix for MagicDNS), `ssh`, `tailscale` (day-0 `tailscale up` is manual), `arch_packages` (official packages and AUR via yay; [package lists](../inventory/group_vars/workstations/packages.yml)), `docker` (re-login once for the group), `dotfiles` (sets the fish login shell, then chezmoi init or update; set `dotfiles_chezmoi_repo`), `kde_lock_layout` (US layout on screen lock), `kde_lock_immediate` (password prompt after resume), `laptop_power` (per-host gated battery tuning — [power guide](laptop-power.md)).
 
-**Hyper (Caps Lock) shortcuts.** keyd turns held Caps Lock into C-M-A-S, so every `Caps+<key>` is a conflict-free combo; Left Ctrl is untouched and stays plain Ctrl. KDE records these as `Meta+Ctrl+Alt+Shift+<key>`. The bindings themselves live in KDE (`~/.config/kglobalshortcutsrc`, chezmoi-managed) and in Handy's own settings — this table is the reference, not the source of truth:
+**Desktop shortcuts.** No remapping daemon: Caps Lock is a normal Caps Lock and every binding is an ordinary KDE global shortcut. The set is ordered by use — the two most frequent actions get one-hand combos, everything else stays on the stock KDE/default key:
 
-| Shortcut      | Action                               | Where bound          |
-| ------------- | ------------------------------------ | -------------------- |
-| `Caps+Space`  | Switch to next keyboard layout       | KDE Layout Switcher  |
-| `Caps+F`      | Walk through windows (Alt+Tab-style) | KWin                 |
-| `Caps+G`      | Walk through windows of current app  | KWin                 |
-| `Caps+Q`      | Close window                         | KWin                 |
-| `Caps+M`      | Maximize window                      | KWin                 |
-| `Caps+R`      | KRunner / system search              | KRunner              |
-| `Caps+V`      | Clipboard history at cursor          | Klipper              |
-| `Caps+Return` | Terminal (Ghostty)                   | KDE service shortcut |
-| `Caps+P`      | Screenshot (Spectacle)               | KDE service shortcut |
-| `Caps+D`      | Dictation (transcribe)               | Handy settings       |
+| Shortcut       | Action                         | Where bound           |
+| -------------- | ------------------------------ | --------------------- |
+| `Meta+Space`   | Switch to next keyboard layout | KDE Layout Switcher   |
+| `Meta+V`       | Clipboard history at cursor    | Klipper               |
+| `Ctrl+Alt+T`   | Terminal (Ghostty)             | KDE service shortcut  |
+| `Ctrl+Alt+D`   | Dictation (Handy transcribe)   | Handy settings        |
+| `Alt+Tab`      | Walk through windows           | KWin (default)        |
+| `Alt+Backtick` | Walk through app windows       | KWin (default)        |
+| `Alt+F4`       | Close window                   | KWin (default)        |
+| `Meta+PgUp`    | Maximize window                | KWin (default)        |
+| `Print`        | Screenshot (Spectacle)         | KDE service shortcut  |
+| `Meta`         | Application launcher           | plasmashell (default) |
+| `Alt+F2`       | KRunner (rarely used)          | KRunner (default)     |
 
-Logic: left-hand home row (`F/G/Q/M`) = window management, `R/V/D` = system tools, `Space/Return` = most frequent actions. KDE defaults (Alt+Tab, Alt+F4, Print, Alt+F2) are kept alongside. Left Ctrl is unchanged; Caps Lock keeps only the Hyper role, its caps-toggle is gone.
+Source of truth: chezmoi-managed `~/.config/kglobalshortcutsrc` and Handy's `settings_store.json`; this table is a reference. Rationale: language switch and clipboard history are the hot paths, so they sit on `Meta` + thumb/index (`Space`, `V`) — one hand, no chord of four modifiers. Window management keeps the standard `Alt`/KWin keys, terminal keeps the Linux-standard `Ctrl+Alt+T`. Hyper-only bindings that never got used (KRunner on `Caps+R`, screenshots on `Caps+P`/`Meta+Shift+S`) were dropped: `Print` and the `Meta` launcher already cover them.
 
-**Bootstrap a fresh machine:** install the OS with the login user `boss` (sudo/wheel) → `sudo systemctl enable --now sshd` → `sudo pacman -S openssh python tailscale` → `tailscale up` (disable key expiry; delete the machine's stale tailnet node first, or MagicDNS registers the new install as `<name>-1`) → generate the machine keypair `ssh-keygen -t ed25519 -C boss@<name> -f ~/.ssh/id_ed25519 -N ''`, register its public half on GitHub (the `dotfiles` role clones over `git@github.com:`) and replace `files/ssh/<name>.pub` → authorize the controller's key in `~/.ssh/authorized_keys` (`ssh-copy-id` while the fresh sshd still allows passwords) → add to `[workstations]` + optional `inventory/host_vars/<name>.yml` → `ansible-playbook playbooks/workstation.yml --limit <name> --ask-become-pass` (from an already-managed controller the MagicDNS name resolves immediately; the fresh host resolves tailnet names itself only after `arch_common` rewires NetworkManager to systemd-resolved, so a run started ON that host — a `-c local` day-0 — needs `-e ansible_host=<tailscale-ip>`). Day-0 on the machine hosting this repo (little-raven): `ansible-playbook playbooks/workstation.yml -c local --limit little-raven --ask-become-pass`. Partial runs: `--tags packages|docker|dotfiles|tailscale|keyd|layout|lockscreen|power`.
+**Bootstrap a fresh machine:** install the OS with the login user `boss` (sudo/wheel) → `sudo systemctl enable --now sshd` → `sudo pacman -S openssh python tailscale` → `tailscale up` (disable key expiry; delete the machine's stale tailnet node first, or MagicDNS registers the new install as `<name>-1`) → generate the machine keypair `ssh-keygen -t ed25519 -C boss@<name> -f ~/.ssh/id_ed25519 -N ''`, register its public half on GitHub (the `dotfiles` role clones over `git@github.com:`) and replace `files/ssh/<name>.pub` → authorize the controller's key in `~/.ssh/authorized_keys` (`ssh-copy-id` while the fresh sshd still allows passwords) → add to `[workstations]` + optional `inventory/host_vars/<name>.yml` → `ansible-playbook playbooks/workstation.yml --limit <name> --ask-become-pass` (from an already-managed controller the MagicDNS name resolves immediately; the fresh host resolves tailnet names itself only after `arch_common` rewires NetworkManager to systemd-resolved, so a run started ON that host — a `-c local` day-0 — needs `-e ansible_host=<tailscale-ip>`). Day-0 on the machine hosting this repo (little-raven): `ansible-playbook playbooks/workstation.yml -c local --limit little-raven --ask-become-pass`. Partial runs: `--tags packages|docker|dotfiles|tailscale|layout|lockscreen|power`.
 
 **SSH key access:** `arch_common` adds the public keys listed in `workstation_ssh_keys` (`inventory/group_vars/workstations/common.yml`, filenames under `files/ssh/`) to `workstation_user` (`boss`). The shared list includes `starling.pub` and `little-raven.pub`; existing authorized keys are retained, and no root access is granted. To apply only these keys, run `ansible-playbook playbooks/workstation.yml --tags ssh_keys --ask-become-pass` (optionally `--limit <name>`). This does not run the other common tasks or change SSH daemon or sudo policy. Rotating a workstation key is a file replacement plus a manual purge: these loops are additive, so the previous blob stays authorized on `mon-1`, Unraid (both SSH paths) and the workstations until it is removed by hand.
 
