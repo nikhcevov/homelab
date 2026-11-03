@@ -20,14 +20,18 @@ Active managed workstations: `starling` (desktop) and `little-raven` (laptop —
 
 Roles: `arch_common` (optional `-Syu` via `-e arch_system_upgrade=true`, timezone/locale, NetworkManager → systemd-resolved fix for MagicDNS), `ssh`, `tailscale` (day-0 `tailscale up` is manual), `arch_packages` (official packages and AUR via yay; [package lists](../inventory/group_vars/workstations/packages.yml)), `docker` (re-login once for the group), `dotfiles` (sets the fish login shell, then chezmoi init or update; set `dotfiles_chezmoi_repo`), `kde_lock_layout` (US layout on screen lock), `kde_lock_immediate` (password prompt after resume), `laptop_power` (per-host gated battery tuning — [power guide](laptop-power.md)), `keyd` (built-in laptop keyboard only: Caps Lock = Ctrl, Right Alt = Hyper), `zsa_udev` (unprivileged browser/Keymapp access to ZSA keyboards).
 
-**Desktop shortcuts.** Caps Lock acts as Ctrl and Right Alt as Hyper on the laptop's built-in keyboard only ([keyd](#keyboard-remapping-keyd)); external keyboards keep the stock layout, because no XKB remap is applied and keyd grabs just the internal device. Every other binding is an ordinary KDE global shortcut. The set is ordered by use — the two most frequent actions get one-hand combos, everything else stays on the stock KDE/default key:
+**Desktop shortcuts.** Caps Lock acts as Ctrl and Right Alt as Hyper on the laptop's built-in keyboard only ([keyd](#keyboard-remapping-keyd)); external keyboards keep the stock layout, so they reach Hyper bindings by holding Ctrl+Alt+Shift+Super explicitly or by mapping that combo in the keyboard's own firmware. `Alt+Space` is the one binding that applies everywhere, so it stays a plain KDE shortcut:
 
 | Shortcut       | Action                         | Where bound           |
 | -------------- | ------------------------------ | --------------------- |
-| `Meta+Space`   | Switch to next keyboard layout | KDE Layout Switcher   |
-| `Meta+V`       | Clipboard history at cursor    | Klipper               |
-| `Ctrl+Alt+T`   | Terminal (Ghostty)             | KDE service shortcut  |
-| `Ctrl+Alt+D`   | Dictation (Handy transcribe)   | Handy settings        |
+| `Alt+Space`    | Switch keyboard layout         | KDE Layout Switcher   |
+| `Hyper+H`      | Dictation (Handy transcribe)   | Handy settings        |
+| `Hyper+P`      | Screenshot (Spectacle)         | KDE service shortcut  |
+| `Hyper+T`      | Terminal (Ghostty)             | KDE service shortcut  |
+| `Hyper+Q`      | Close active window            | KWin                  |
+| `Hyper+F`      | Launcher (KRunner search)      | KDE service shortcut  |
+| `Hyper+V`      | Clipboard history at cursor    | Klipper               |
+| `Hyper+L`      | Lock screen                    | ksmserver             |
 | `Alt+Tab`      | Walk through windows           | KWin (default)        |
 | `Alt+Backtick` | Walk through app windows       | KWin (default)        |
 | `Alt+F4`       | Close window                   | KWin (default)        |
@@ -36,7 +40,7 @@ Roles: `arch_common` (optional `-Syu` via `-e arch_system_upgrade=true`, timezon
 | `Meta`         | Application launcher           | plasmashell (default) |
 | `Alt+F2`       | KRunner (rarely used)          | KRunner (default)     |
 
-Source of truth: chezmoi-managed `~/.config/kglobalshortcutsrc` and Handy's `settings_store.json`; this table is a reference. Rationale: language switch and clipboard history are the hot paths, so they sit on `Meta` + thumb/index (`Space`, `V`) — one hand, no chord of four modifiers. Window management keeps the standard `Alt`/KWin keys, terminal keeps the Linux-standard `Ctrl+Alt+T`. Hyper-only bindings that never got used (KRunner on `Caps+R`, screenshots on `Caps+P`/`Meta+Shift+S`) were dropped: `Print` and the `Meta` launcher already cover them.
+Source of truth: chezmoi-managed `~/.config/kglobalshortcutsrc` and Handy's `settings_store.json`; this table is a reference. Rationale: one held Hyper replaces four-key chords, so the hot paths — layout, dictation, terminal — stay on one-hand combos, while window management keeps the stock `Alt`/KWin keys and `Ctrl+Alt+T` remains a second terminal binding. On the internal keyboard Hyper comes from Right Alt; on a USB keyboard it is the four modifiers, physically or from firmware (Oryx on the ZSA boards).
 
 **Bootstrap a fresh machine:** install the OS with the login user `boss` (sudo/wheel) → `sudo systemctl enable --now sshd` → `sudo pacman -S openssh python tailscale` → `tailscale up` (disable key expiry; delete the machine's stale tailnet node first, or MagicDNS registers the new install as `<name>-1`) → generate the machine keypair `ssh-keygen -t ed25519 -C boss@<name> -f ~/.ssh/id_ed25519 -N ''`, register its public half on GitHub (the `dotfiles` role clones over `git@github.com:`) and replace `files/ssh/<name>.pub` → authorize the controller's key in `~/.ssh/authorized_keys` (`ssh-copy-id` while the fresh sshd still allows passwords) → add to `[workstations]` + optional `inventory/host_vars/<name>.yml` → `ansible-playbook playbooks/workstation.yml --limit <name> --ask-become-pass` (from an already-managed controller the MagicDNS name resolves immediately; the fresh host resolves tailnet names itself only after `arch_common` rewires NetworkManager to systemd-resolved, so a run started ON that host — a `-c local` day-0 — needs `-e ansible_host=<tailscale-ip>`). Day-0 on the machine hosting this repo (little-raven): `ansible-playbook playbooks/workstation.yml -c local --limit little-raven --ask-become-pass`. Partial runs: `--tags packages|docker|dotfiles|tailscale|layout|lockscreen|power`.
 
