@@ -1,0 +1,4 @@
+---
+# Group that owns the keyboard's raw-HID and DFU device nodes. Created by
+# the role if missing (Debian/Ubuntu convention; not always present on Arch).
+zsa_udev_group: plugdev

@@ -14,7 +14,7 @@
 # systemd-resolved fix below, so -e ansible_host=<tailscale-ip> is for a run
 # started ON that host (e.g. a `-c local` day-0).
 # Afterwards workstations are managed over the tailnet like every other
-# Partial runs: --tags packages|docker|dotfiles|tailscale|layout|lockscreen|power.
+# Partial runs: --tags packages|docker|dotfiles|tailscale|layout|lockscreen|power|keyboard.
 # Full system upgrade (rolling release, deliberate operation):
 #   ansible-playbook playbooks/workstation.yml -e arch_system_upgrade=true
 - name: Configure Arch workstations
@@ -27,6 +27,10 @@
     # packages before dotfiles: the tools the configs describe (bat,
     # eza, fzf, starship...) should exist when chezmoi applies them.
     - { role: arch_packages, tags: [packages] }
+    # zsa_udev: /etc/udev/rules.d/50-zsa.rules + plugdev membership, so
+    # Oryx/Keymapp can talk to a ZSA keyboard from the browser without root.
+    # Takes effect after re-login (group membership) or device replug.
+    - { role: zsa_udev, tags: [keyboard] }
     - { role: docker, tags: [docker] }
     - { role: dotfiles, tags: [dotfiles] }
     # kde_lock_layout: switch to the "us" layout on every screen lock,

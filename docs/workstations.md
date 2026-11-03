@@ -18,7 +18,7 @@ Active managed workstations: `starling` (desktop) and `little-raven` (laptop —
 | `~/Documents`                      | Machine-local; not synced or backed up      |
 | Large/shared files                 | Unraid directly                             |
 
-Roles: `arch_common` (optional `-Syu` via `-e arch_system_upgrade=true`, timezone/locale, NetworkManager → systemd-resolved fix for MagicDNS), `ssh`, `tailscale` (day-0 `tailscale up` is manual), `arch_packages` (official packages and AUR via yay; [package lists](../inventory/group_vars/workstations/packages.yml)), `docker` (re-login once for the group), `dotfiles` (sets the fish login shell, then chezmoi init or update; set `dotfiles_chezmoi_repo`), `kde_lock_layout` (US layout on screen lock), `kde_lock_immediate` (password prompt after resume), `laptop_power` (per-host gated battery tuning — [power guide](laptop-power.md)).
+Roles: `arch_common` (optional `-Syu` via `-e arch_system_upgrade=true`, timezone/locale, NetworkManager → systemd-resolved fix for MagicDNS), `ssh`, `tailscale` (day-0 `tailscale up` is manual), `arch_packages` (official packages and AUR via yay; [package lists](../inventory/group_vars/workstations/packages.yml)), `docker` (re-login once for the group), `dotfiles` (sets the fish login shell, then chezmoi init or update; set `dotfiles_chezmoi_repo`), `kde_lock_layout` (US layout on screen lock), `kde_lock_immediate` (password prompt after resume), `laptop_power` (per-host gated battery tuning — [power guide](laptop-power.md)), `zsa_udev` (unprivileged browser/Keymapp access to ZSA keyboards).
 
 **Desktop shortcuts.** No remapping daemon: Caps Lock acts as Ctrl (`Options=ctrl:nocaps` + `ResetOldOptions=true` in the chezmoi-managed `kxkbrc` — KWin only reads XKB options when that flag is set) and every binding is an ordinary KDE global shortcut. The set is ordered by use — the two most frequent actions get one-hand combos, everything else stays on the stock KDE/default key:
 
@@ -122,3 +122,47 @@ a package from the declaration does not uninstall it. To undo the fish login she
 restore the previous shell with `chsh -s /path/to/previous-shell`; later dotfiles-role
 runs set fish again unless the role is changed. Git cannot restore local settings or
 credentials that were overwritten without a separate backup.
+
+## ZSA keyboards (Oryx / Keymapp)
+
+`zsa_udev` grants `boss` access to a ZSA keyboard's raw-HID and DFU
+device nodes, so Oryx web flashing/live training and Keymapp work from an
+unprivileged browser. It writes `/etc/udev/rules.d/50-zsa.rules` (the
+upstream ZSA rule set for the Moonlander, Ergodox EZ, Planck EZ and
+Voyager), creates the `plugdev` group if missing, and appends `boss` to
+it. Machines without such hardware are unaffected. Source:
+[role tasks](../roles/zsa_udev/tasks/main.yml),
+[rules template](../roles/zsa_udev/templates/50-zsa.rules.j2), and
+[defaults](../roles/zsa_udev/defaults/main.yml).
+
+```bash
+ansible-playbook playbooks/workstation.yml --tags keyboard --ask-become-pass
+```
+
+The ZSA instructions also connect `raw-usb` to snap-packaged browsers
+(`sudo snap connect <browser>:raw-usb`); these workstations run native
+packages, not snap, so no such step is needed or automated. The upstream
+DFU rules use `MODE:="0666"` because Keymapp/Wally require it; hidraw
+nodes are only group-readable/writable.
+
+Verify after logging out and back in (group membership is fixed at
+session start — reboot not required, but restart the browser/Keymapp so
+they inherit the new group):
+
+```bash
+id -nG
+cat /etc/udev/rules.d/50-zsa.rules
+ls -l /dev/hidraw*
+```
+
+Expected: `plugdev` in the group list; the rule file names `plugdev`;
+hidraw nodes owned by root with group `plugdev`. When the rule file
+changes, the role reloads udev and replays a `change` action for
+usb/hidraw/tty devices, so a connected keyboard gains access without a
+replug.
+
+To recover, remove the rule file, reload with
+`sudo udevadm control --reload-rules && sudo udevadm trigger`, and drop
+the membership with `sudo gpasswd -d boss plugdev`. The role is
+declarative: a later `--tags keyboard` run recreates both, so also remove
+the role from the playbook to make the rollback hold.

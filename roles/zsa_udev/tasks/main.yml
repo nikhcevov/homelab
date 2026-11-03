@@ -1,0 +1,49 @@
+---
+# ZSA keyboard device access without root: Oryx web flashing / live
+# training (hidraw) and Keymapp + Wally DFU (usb/ttyACM). Rules mirror the
+# upstream ZSA set and cover the Moonlander, Ergodox EZ, Planck EZ and
+# Voyager; they are inert on machines without such hardware.
+#
+# Membership in zsa_udev_group only takes effect for the workstation
+# user's NEXT login session (a full reboot is not required, but the
+# browser/Keymapp inheriting the old session must be restarted).
+#
+# Snap-packaged browsers additionally need `snap connect <name>:raw-usb`.
+# Arch/CachyOS workstations do not use snap, so there is nothing to do here.
+
+- name: Ensure the keyboard device-access group exists
+  ansible.builtin.group:
+    name: "{{ zsa_udev_group }}"
+    system: true
+    state: present
+
+- name: Add the workstation user to the keyboard device-access group
+  ansible.builtin.user:
+    name: "{{ workstation_user }}"
+    groups: "{{ zsa_udev_group }}"
+    append: true
+
+- name: Install the ZSA udev rules
+  ansible.builtin.template:
+    src: 50-zsa.rules.j2
+    dest: /etc/udev/rules.d/50-zsa.rules
+    owner: root
+    group: root
+    mode: "0644"
+  register: _zsa_udev_rules
+
+- name: Reload udev rules
+  ansible.builtin.command:
+    cmd: udevadm control --reload-rules
+  when: _zsa_udev_rules.changed
+
+# Replay the rules against already-connected keyboards so permissions
+# apply without replugging: usb (DFU/WebUSB), hidraw (Oryx), tty (Wally).
+- name: Apply the rules to present keyboard devices
+  ansible.builtin.command:
+    cmd: >-
+      udevadm trigger --action=change
+      --subsystem-match=usb --subsystem-match=hidraw --subsystem-match=tty
+  changed_when: false
+  failed_when: false
+  when: _zsa_udev_rules.changed
