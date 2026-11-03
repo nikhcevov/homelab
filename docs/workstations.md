@@ -18,9 +18,9 @@ Active managed workstations: `starling` (desktop) and `little-raven` (laptop —
 | `~/Documents`                      | Machine-local; not synced or backed up      |
 | Large/shared files                 | Unraid directly                             |
 
-Roles: `arch_common` (optional `-Syu` via `-e arch_system_upgrade=true`, timezone/locale, NetworkManager → systemd-resolved fix for MagicDNS), `ssh`, `tailscale` (day-0 `tailscale up` is manual), `arch_packages` (official packages and AUR via yay; [package lists](../inventory/group_vars/workstations/packages.yml)), `docker` (re-login once for the group), `dotfiles` (sets the fish login shell, then chezmoi init or update; set `dotfiles_chezmoi_repo`), `kde_lock_layout` (US layout on screen lock), `kde_lock_immediate` (password prompt after resume), `laptop_power` (per-host gated battery tuning — [power guide](laptop-power.md)), `zsa_udev` (unprivileged browser/Keymapp access to ZSA keyboards).
+Roles: `arch_common` (optional `-Syu` via `-e arch_system_upgrade=true`, timezone/locale, NetworkManager → systemd-resolved fix for MagicDNS), `ssh`, `tailscale` (day-0 `tailscale up` is manual), `arch_packages` (official packages and AUR via yay; [package lists](../inventory/group_vars/workstations/packages.yml)), `docker` (re-login once for the group), `dotfiles` (sets the fish login shell, then chezmoi init or update; set `dotfiles_chezmoi_repo`), `kde_lock_layout` (US layout on screen lock), `kde_lock_immediate` (password prompt after resume), `laptop_power` (per-host gated battery tuning — [power guide](laptop-power.md)), `keyd` (built-in laptop keyboard only: Caps Lock = Ctrl, Right Alt = Hyper), `zsa_udev` (unprivileged browser/Keymapp access to ZSA keyboards).
 
-**Desktop shortcuts.** No remapping daemon: Caps Lock acts as Ctrl (`Options=ctrl:nocaps` + `ResetOldOptions=true` in the chezmoi-managed `kxkbrc` — KWin only reads XKB options when that flag is set) and every binding is an ordinary KDE global shortcut. The set is ordered by use — the two most frequent actions get one-hand combos, everything else stays on the stock KDE/default key:
+**Desktop shortcuts.** Caps Lock acts as Ctrl and Right Alt as Hyper on the laptop's built-in keyboard only ([keyd](#keyboard-remapping-keyd)); external keyboards keep the stock layout, because no XKB remap is applied and keyd grabs just the internal device. Every other binding is an ordinary KDE global shortcut. The set is ordered by use — the two most frequent actions get one-hand combos, everything else stays on the stock KDE/default key:
 
 | Shortcut       | Action                         | Where bound           |
 | -------------- | ------------------------------ | --------------------- |
@@ -122,6 +122,47 @@ a package from the declaration does not uninstall it. To undo the fish login she
 restore the previous shell with `chsh -s /path/to/previous-shell`; later dotfiles-role
 runs set fish again unless the role is changed. Git cannot restore local settings or
 credentials that were overwritten without a separate backup.
+
+## Keyboard remapping (keyd)
+
+`keyd` owns `/etc/keyd/default.conf` and remaps the **built-in keyboard only**:
+Caps Lock = Ctrl, Right Alt = Hyper (Super+Alt+Ctrl+Shift). The config lists
+explicit device ids (`keyd_ids`, default `k:0001:0001` — the i8042 "AT
+Translated Set 2 keyboard"), so keyd grabs that one device; any other keyboard
+is not grabbed, is never remapped and keeps AltGr. Source:
+[role tasks](../roles/keyd/tasks/main.yml),
+[config template](../roles/keyd/templates/default.conf.j2), and
+[defaults](../roles/keyd/defaults/main.yml).
+
+The chezmoi-managed `kxkbrc` carries no XKB options — the former
+`ctrl:nocaps` applied to every keyboard, which is what the device-scoped keyd
+rule replaces. `ResetOldOptions=true` clears the stale option when the next
+session starts.
+
+```bash
+ansible-playbook playbooks/workstation.yml --tags keyboard --ask-become-pass
+```
+
+Verify after logging out and back in (an already-running session keeps the old
+XKB option until it restarts):
+
+```bash
+systemctl status keyd
+cat /etc/keyd/default.conf
+kreadconfig6 --file kxkbrc --group Layout --key Options
+sudo keyd monitor   # prints the events keyd emits; Ctrl+C to stop
+```
+
+Expected: keyd active; `[ids]` lists only `k:0001:0001`; `Options` is empty;
+on the internal keyboard Caps Lock acts as Ctrl and holding Right Alt plus a
+key emits the C-M-A-S combo, while an external keyboard's keys pass through
+unchanged. Find another keyboard's id with `sudo keyd monitor` and add it to
+`keyd_ids` (one id per keyboard) if it should be remapped too.
+
+To recover, stop and disable the daemon (`sudo systemctl disable --now keyd`)
+and delete `/etc/keyd/default.conf`; the internal keyboard returns to its stock
+layout on reload or stop. The role is declarative, so also remove it from
+`playbooks/workstation.yml` to make the rollback hold.
 
 ## ZSA keyboards (Oryx / Keymapp)
 

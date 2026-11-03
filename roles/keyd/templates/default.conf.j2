@@ -1,0 +1,23 @@
+# Managed by Ansible (roles/keyd) — local edits will be overwritten.
+#
+# Built-in laptop keyboard only: [ids] lists explicit device ids, so keyd
+# grabs exactly those and ignores every other keyboard (no virtual device,
+# no remap). The default id is the i8042 "AT Translated Set 2 keyboard";
+# `k:` restricts the match to keyboard devices.
+#
+# Caps Lock = Ctrl (the control layer, so stacking matches a real Ctrl).
+# Right Alt = Hyper (Super+Alt+Ctrl+Shift); AltGr is unavailable on the
+# internal keyboard.
+
+[ids]
+{% for id in keyd_ids %}
+{{ id }}
+{% endfor %}
+
+[main]
+capslock = layer(control)
+rightalt = layer(hyper)
+
+# Hyper: while Right Alt is held, every key is emitted with C-M-A-S held,
+# giving conflict-free Hyper combos for global shortcuts.
+[hyper:C-M-A-S]

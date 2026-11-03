@@ -1,0 +1,8 @@
+---
+# Device ids keyd grabs, exactly as listed in the config's [ids] section.
+# The default is the laptop's built-in keyboard: i8042 "AT Translated Set 2
+# keyboard" (k: = keyboard devices only). External keyboards have their own
+# ids, so they are not grabbed and keep the stock layout. Find an id with
+# `sudo keyd monitor` while typing on that keyboard.
+keyd_ids:
+  - k:0001:0001

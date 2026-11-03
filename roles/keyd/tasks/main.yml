@@ -1,0 +1,25 @@
+---
+# keyd: system-level remapping below the desktop environment, so it works in
+# every app/WM/compositor and in a VT. Per-device filtering happens in the
+# config's [ids] section (keyd_ids): the daemon is always on and any keyboard
+# not listed passes through untouched, with no virtual device of its own.
+
+- name: Install keyd
+  ansible.builtin.pacman:
+    name: keyd
+    state: present
+
+- name: Deploy keyd config
+  ansible.builtin.template:
+    src: default.conf.j2
+    dest: /etc/keyd/default.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart keyd
+
+- name: Ensure keyd is running and enabled
+  ansible.builtin.service:
+    name: keyd
+    state: started
+    enabled: true

@@ -1,0 +1,5 @@
+---
+- name: Restart keyd
+  ansible.builtin.service:
+    name: keyd
+    state: restarted

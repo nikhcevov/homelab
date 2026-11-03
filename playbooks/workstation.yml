@@ -27,6 +27,10 @@
     # packages before dotfiles: the tools the configs describe (bat,
     # eza, fzf, starship...) should exist when chezmoi applies them.
     - { role: arch_packages, tags: [packages] }
+    # keyd: laptop's built-in keyboard only ([ids] matches the i8042 device
+    # 0001:0001) — Caps Lock = Ctrl, Right Alt = Hyper. External keyboards
+    # are not grabbed, so they keep the stock layout. See docs/workstations.md.
+    - { role: keyd, tags: [keyboard] }
     # zsa_udev: /etc/udev/rules.d/50-zsa.rules + plugdev membership, so
     # Oryx/Keymapp can talk to a ZSA keyboard from the browser without root.
     # Takes effect after re-login (group membership) or device replug.
