@@ -43,12 +43,13 @@ Direct LAN traffic is outside Tailscale policy enforcement.
 
 `ssh` rules are separate from `grants`: they authorize Tailscale SSH, where
 tailscaled on the destination serves port 22 in userspace — independent of the
-packet-filter grants above and of the destination's kernel networking. The
-policy accepts member-owned devices as `root` on any node that enables it
-(`tailscale_ssh: true`, see [OpenWrt](openwrt.md));
-nodes that do not enable it are unaffected. A wrong or missing `ssh` block
-denies every Tailscale SSH connection, so let the validate job pass and the
-apply job finish before enabling the flag anywhere.
+packet-filter grants above and of the destination's kernel networking. `dst`
+**cannot** be a bare wildcard, so the rule uses `autogroup:self`: member-owned
+devices may connect as `root` to the source user's own devices that enable it
+(`tailscale_ssh: true`, see [OpenWrt](openwrt.md)); nodes that do not enable it
+are unaffected. A wrong or missing `ssh` block denies every Tailscale SSH
+connection, so let the validate job pass and the apply job finish before
+enabling the flag anywhere.
 
 ## Installation platforms
 

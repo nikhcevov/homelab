@@ -33,7 +33,7 @@
     {
       "action": "accept",
       "src": ["autogroup:member"],
-      "dst": ["*"],
+      "dst": ["autogroup:self"],
       "users": ["root"]
     }
   ],
