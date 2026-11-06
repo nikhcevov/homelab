@@ -138,14 +138,19 @@ owrt_firewall_lan_wan_forwarding: false
 # ntfy). Pin the management plane to the direct WAN: it must not depend
 # on the exit node being up (and downloads.openwrt.org/Fastly is blocked
 # from the srt egress anyway). Only LAN client traffic is forced into
-# the tunnel. Locally originated packets match iif lo.
+# the tunnel.
+#
+# netifd resolves `in`/`out` as UCI *interface* names, not device names:
+# `in: lo` matches no interface and the rule is dropped without a log
+# line (netifd 2026.x). The loopback section is `loopback`, whose device
+# is `lo`.
 owrt_network_rules:
   - comment: router -> tailnet peers (e.g. DNS via router-srt) stays in the tunnel
     priority: 5264
-    in: lo
+    in: loopback
     dest: "100.64.0.0/10"
     lookup: "52"
   - comment: router -> internet direct via WAN (management plane)
     priority: 5265
-    in: lo
+    in: loopback
     lookup: main
