@@ -28,5 +28,9 @@ tailscale_advertise_exit_node: false
 tailscale_exit_node: ""
 
 # Allow this device itself to keep talking to its local LAN while an exit
-# node is selected (does not affect forwarded LAN clients).
+# node is selected. tailscaled reacts by keeping `throw` routes for the
+# directly connected subnets in table 52; since the exit-node rule is
+# `from all lookup 52`, that also keeps *forwarded* LAN traffic to those
+# subnets off the tunnel (router-trvl relies on this for its WAN-side
+# local server).
 tailscale_exit_node_allow_lan_access: false

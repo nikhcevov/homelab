@@ -31,6 +31,15 @@ owrt_dns_domain: trvl.home.arpa
 owrt_dns_servers:
   - 100.77.53.118 # router-srt
 
+# Local service on the uplink segment (Unraid, 192.168.15.0/24 behind the
+# home ISP router). Answered by this router's dnsmasq before the
+# forward-to-srt lookup, so the name works while the tunnel is up but
+# without sending the query to srt. `config domain` also matches every
+# subdomain of the name.
+owrt_dns_records:
+  - name: llm.home.arpa
+    ip: 192.168.15.36
+
 # --- Wi-Fi ---
 # MT7981 DBDC paths; verify against the stock config on the device:
 #   cat /etc/config/wireless
@@ -60,8 +69,47 @@ owrt_wireless_radios:
 
 # --- Firewall ---
 # MT7981 WED: NAT/forwarding bypasses the CPU. Incompatible with SQM and
-# per-flow netfilter rules (offloaded flows skip them) — we have neither.
+# per-flow netfilter rules (offloaded flows skip them). No SQM here; the
+# only per-flow rule is Allow-LiteLLM below. A rule is still evaluated for
+# the first packet of a flow (offload happens after the accept), so the
+# exception holds — but an already-offloaded flow keeps its verdict, so
+# counters undercount and a later rule change only affects new flows.
 owrt_flow_offloading_hw: true
+
+# The one lan -> wan exception: the local server lives on the uplink
+# segment, so taking the exit node to reach it would hairpin through
+# router-srt. Everything else still has no lan -> wan path (see the kill
+# switch below). Generated nft rule:
+#   ip saddr 192.168.102.0/24 ip daddr 192.168.15.36 tcp dport 80 accept
+owrt_firewall_rules:
+  - name: Allow-LiteLLM
+    src: lan
+    dest: wan
+    proto: tcp
+    dest_ip: 192.168.15.36
+    dest_port: "80"
+    target: ACCEPT
+  # Containment: the blanket `lan -> tailscale` forwarding exists only for
+  # the exit-node default route. Every direct lane into the tailnet is
+  # rejected, so a client on this LAN cannot reach tailnet peers, and
+  # cannot query router-srt's resolver directly to bypass this router's
+  # DNS. Exit-node traffic is addressed to the public destination, so it
+  # never matches these prefixes. `dest: tailscale` is required: without
+  # it fw4 renders the rule into input_lan (traffic to the router) and it
+  # filters nothing.
+  - name: Block-LAN-To-Tailnet
+    src: lan
+    dest: tailscale
+    proto: all
+    dest_ip: 100.64.0.0/10
+    target: REJECT
+  - name: Block-LAN-To-Tailnet6
+    src: lan
+    dest: tailscale
+    proto: all
+    dest_ip: fd7a:115c:a1e0::/48
+    family: ipv6
+    target: REJECT
 
 # --- Tailscale ---
 # Advertise this site's LAN to the tailnet (matches owrt_lan_*).
@@ -81,8 +129,9 @@ tailscale_exit_node_allow_lan_access: true
 
 # Kill switch: no lan -> wan forwarding at all. If tailscaled or the
 # exit node dies, the LAN has no internet — never a silent WAN fallback.
-# The firewall role renders lan -> tailscale masquerade automatically
-# when tailscale_exit_node is set.
+# The single exception is the Allow-LiteLLM rule above: one host on the
+# uplink segment, one port. The firewall role renders lan -> tailscale
+# masquerade automatically when tailscale_exit_node is set.
 owrt_firewall_lan_wan_forwarding: false
 
 # The blanket 5270 rule also catches the router's OWN traffic (apk, NTP,
