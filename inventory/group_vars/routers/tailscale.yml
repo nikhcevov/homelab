@@ -34,3 +34,14 @@ tailscale_exit_node: ""
 # subnets off the tunnel (router-trvl relies on this for its WAN-side
 # local server).
 tailscale_exit_node_allow_lan_access: false
+
+# Tailscale SSH: tailscaled terminates port 22 on the tailnet in userspace,
+# so management survives a broken tailscale0, kernel policy rules or fw4 —
+# the failure mode that locked router-krm out on 2026-11-06.
+# Requires an `ssh` rule in files/tailscale/policy.json; without one every
+# connection is denied. Enabling it stops key-based dropbear from serving
+# the tailnet and changes the node's SSH host key, so roll it out one
+# router at a time, then clear the stale known_hosts entry:
+#   ssh-keygen -R <tailscale-hostname>.<tailnet_domain>
+# Local LAN SSH still goes to dropbear.
+tailscale_ssh: false

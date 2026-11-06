@@ -46,6 +46,9 @@
     --auth-key={{ tailscale_auth_key }}
     --hostname={{ tailscale_hostname }}
     --auto-update=false
+    {% if tailscale_ssh | default(false) | bool %}
+    --ssh
+    {% endif %}
     {% if tailscale_advertise_routes | length > 0 %}
     --advertise-routes={{ tailscale_advertise_routes }}
     {% endif %}
@@ -91,6 +94,7 @@
   ansible.builtin.command: >-
     tailscale set
     --auto-update=false
+    --ssh={{ tailscale_ssh | default(false) | bool }}
     --hostname={{ tailscale_hostname }}
     --advertise-routes={{ tailscale_advertise_routes }}
     --advertise-exit-node={{ tailscale_advertise_exit_node | default(false) | bool }}

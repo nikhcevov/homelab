@@ -29,6 +29,14 @@
       "ip": ["tcp:25565", "udp:24454"]
     }
   ],
+  "ssh": [
+    {
+      "action": "accept",
+      "src": ["autogroup:member"],
+      "dst": ["*"],
+      "users": ["root"]
+    }
+  ],
   "tests": [
     {
       "src": "tag:edge",
