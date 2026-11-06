@@ -21,6 +21,8 @@ owrt_wan_device: eth0
 # --- Location ---
 owrt_timezone_name: Europe/Moscow
 
+tailscale_ssh: true
+
 # --- DNS ---
 # Search domain for this site:
 owrt_dns_domain: trvl.home.arpa
