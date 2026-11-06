@@ -37,6 +37,11 @@ tailscale_advertise_exit_node: true
 # If this device becomes a dedicated exit node (no local LAN served),
 # tailscale_advertise_routes above can go away; the LAN/DHCP config is
 # then simply unused.
+# Remote recovery: tailscaled serves port 22 on the tailnet itself, so
+# management survives a broken tailscale0 or firewall. There is no
+# physical access to this site; enabled 2026-11-06 with a cron rollback
+# armed (marker file) and verified before the job was removed.
+tailscale_ssh: true
 
 # --- Firewall ---
 # Extra rules only on this router:
