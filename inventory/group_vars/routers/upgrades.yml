@@ -1,7 +1,8 @@
 ---
 # Update checks (role: openwrt_upgrades). Notify-only via ntfy: nothing
-# is installed automatically, you apply updates by re-running playbooks/openwrt.yml
-# (packages) or `owut upgrade` on the router (firmware).
+# is installed automatically, you apply updates by re-running
+# playbooks/openwrt.yml with --tags upgrade (packages) or
+# --tags fw_upgrade (firmware via owut).
 
 # Master switch; false removes the role from the play.
 owrt_update_check: true

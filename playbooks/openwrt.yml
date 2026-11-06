@@ -18,11 +18,12 @@
       when: owrt_update_check | bool
 
 # Explicit maintenance only; daily checks above remain notify-only.
+# Two separate plays/tags so neither path can pull in the other:
 #   ansible-playbook playbooks/openwrt.yml --tags upgrade [--limit router-srt]
 #     # apk packages only
-#   ansible-playbook playbooks/openwrt.yml --tags upgrade -e owrt_firmware_upgrade=true
-#     # + firmware via owut; the router REBOOTS and the SSH session drops
-- name: Upgrade OpenWrt routers
+#   ansible-playbook playbooks/openwrt.yml --tags fw_upgrade [--limit router-trvl]
+#     # firmware via owut; the router REBOOTS and the SSH session drops
+- name: Upgrade OpenWrt packages
   hosts: routers
   gather_facts: false
   tags: [never, upgrade]
@@ -32,35 +33,63 @@
         update_cache: true
         upgrade: true
 
-    - name: Firmware update (opt-in via -e owrt_firmware_upgrade=true)
-      when: owrt_firmware_upgrade | default(false) | bool
-      block:
-        - name: Check for firmware update
-          ansible.builtin.command: owut check
-          register: _owut_check
-          changed_when: false
+# Fire and forget by design: owut ends in sysupgrade, so this play cannot
+# verify the result and deliberately does NOT re-apply configuration.
+# The new firmware can change netifd/firewall/tailscale behaviour (it did
+# on 25.12.5), so a follow-up configuration run is mandatory:
+#   ansible-playbook playbooks/openwrt.yml --limit <router>
+# Without it the router-trvl LAN is left without internet (kill switch).
+# `serial: 1` keeps multi-site firmware flashes from rebooting in step.
+- name: Upgrade OpenWrt firmware
+  hosts: routers
+  gather_facts: false
+  serial: 1
+  tags: [never, fw_upgrade]
+  tasks:
+    # Self-contained: this path must not depend on a prior configuration
+    # run (the openwrt_upgrades role installs owut only on normal runs).
+    - name: Install owut (ASU firmware check tool)
+      community.general.apk:
+        name: owut
+        state: present
+        update_cache: true
 
-        - name: Parse available firmware versions
-          ansible.builtin.set_fact:
-            # NOTE: single-quoted Jinja strings only — ansible's templating
-            # does not unescape \\ inside double-quoted Jinja strings, which
-            # silently breaks the regex (no match -> None).
-            _v_from: >-
-              {{ _owut_check.stdout | regex_search('(?m)^Version-from\s+(\S+)', '\1') | first | default('') }}
-            _v_to: >-
-              {{ _owut_check.stdout | regex_search('(?m)^Version-to\s+(\S+)', '\1') | first | default('') }}
+    - name: Check for firmware update
+      ansible.builtin.command: owut check
+      register: _owut_check
+      changed_when: false
+      check_mode: false # read-only; needed to decide whether to upgrade
 
-        - name: Install firmware update (router reboots mid-task)
-          ansible.builtin.command: owut upgrade
-          # Fire and forget: owut ends in sysupgrade, which cuts the SSH
-          # connection before the module can report back.
-          async: 3600
-          poll: 0
-          when: _v_to != '' and _v_to != _v_from
+    - name: Parse available firmware versions
+      ansible.builtin.set_fact:
+        # NOTE: single-quoted Jinja strings only — ansible's templating
+        # does not unescape \\ inside double-quoted Jinja strings, which
+        # silently breaks the regex (no match -> None).
+        _v_from: >-
+          {{ _owut_check.stdout | regex_search('(?m)^Version-from\s+(\S+)', '\1') | first | default('') }}
+        _v_to: >-
+          {{ _owut_check.stdout | regex_search('(?m)^Version-to\s+(\S+)', '\1') | first | default('') }}
 
-        - name: Report firmware status
-          ansible.builtin.debug:
-            msg: >-
-              {{ 'Firmware update to ' + _v_to + ' started, the router is rebooting'
-                 if _v_to != '' and _v_to != _v_from
-                 else 'Firmware already up to date' }}
+    - name: Warn before rebooting (config must be re-applied afterwards)
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname + ' reboots into OpenWrt ' + _v_to
+             + ': the SSH session drops and configuration is NOT re-applied.'
+             + ' Run playbooks/openwrt.yml once the node is back on the tailnet.' }}
+      when: _v_to != '' and _v_to != _v_from
+
+    - name: Install firmware update (router reboots mid-task)
+      ansible.builtin.command: owut upgrade
+      # Fire and forget: owut ends in sysupgrade, which cuts the SSH
+      # connection before the module can report back.
+      async: 3600
+      poll: 0
+      when: _v_to != '' and _v_to != _v_from
+
+    - name: Report firmware status
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'Firmware update to ' + _v_to + ' started, the router is rebooting;'
+             + ' re-run playbooks/openwrt.yml once it rejoins the tailnet'
+             if _v_to != '' and _v_to != _v_from
+             else 'Firmware already up to date' }}
