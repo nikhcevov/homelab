@@ -173,10 +173,18 @@ config rule
 	option dest '{{ rule.dest }}'
 {% endif %}
 {% if rule.dest_port is defined %}
-	option dest_port '{{ rule.dest_port }}'
+{# fw4 parses space-separated ports; a YAML list renders as a Python repr here, so join it explicitly. #}
+	option dest_port '{{ rule.dest_port if rule.dest_port is string else rule.dest_port | join(" ") }}'
+{% endif %}
+{% if rule.dest_ip is defined %}
+{% for ip in ([rule.dest_ip] if rule.dest_ip is string else rule.dest_ip) %}
+	list dest_ip '{{ ip }}'
+{% endfor %}
 {% endif %}
 {% if rule.src_ip is defined %}
-	option src_ip '{{ rule.src_ip }}'
+{% for ip in ([rule.src_ip] if rule.src_ip is string else rule.src_ip) %}
+	list src_ip '{{ ip }}'
+{% endfor %}
 {% endif %}
 {% if rule.src_mac is defined %}
 	option src_mac '{{ rule.src_mac }}'

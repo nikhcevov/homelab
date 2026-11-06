@@ -32,6 +32,14 @@ owrt_dhcp_leasetime: 12h
 #   - { name: unraid, ip: 192.168.100.20, mac: "ac:1f:6b:f4:a4:18" }
 owrt_dhcp_hosts: []
 
+# Static DNS A records, rendered as `config domain` sections (dnsmasq
+# `address=/name/ip`). Answered locally, never forwarded — so a name can
+# point at a host this router does not route by default. Each entry also
+# matches every subdomain of the name.
+# owrt_dns_records:
+#   - { name: llm.home.arpa, ip: 192.168.15.36 }
+owrt_dns_records: []
+
 # Spread packet processing across CPU cores (RPS). Free on multicore
 # SoCs (MT7981), harmless on single-core.
 owrt_packet_steering: true

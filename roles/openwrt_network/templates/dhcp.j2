@@ -57,3 +57,11 @@ config host
 	option ip '{{ host.ip }}'
 	list mac '{{ host.mac }}'
 {% endfor %}
+
+{# Static A records (dnsmasq `address=/name/ip`). Matches the name and
+   every subdomain of it; add one entry per host you need. #}
+{% for record in owrt_dns_records | default([]) %}
+config domain
+	option name '{{ record.name }}'
+	option ip '{{ record.ip }}'
+{% endfor %}
