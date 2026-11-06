@@ -48,6 +48,7 @@
     --auto-update=false
     {% if tailscale_ssh | default(false) | bool %}
     --ssh
+    --accept-risk=lose-ssh
     {% endif %}
     {% if tailscale_advertise_routes | length > 0 %}
     --advertise-routes={{ tailscale_advertise_routes }}
@@ -90,11 +91,21 @@
 # tailscale without auto-update, and `set`/`up` then exit 1 with
 # "Auto-update support is disabled in this build" before applying anything.
 # Harmless on builds that do support it (apk manages packages here).
+#
+# --accept-risk=lose-ssh is only needed on the transition that turns
+# Tailscale SSH on: tailscale refuses to reroute port 22 from a session
+# that is itself running over Tailscale ("aborted, no changes made").
+# The enabling run therefore drops this Ansible connection by design —
+# clear the changed host key and verify with a fresh connection. Once
+# SSH is on, the flag is a no-op.
 - name: Apply tailscale settings (hostname, advertised routes, exit node)
   ansible.builtin.command: >-
     tailscale set
     --auto-update=false
     --ssh={{ tailscale_ssh | default(false) | bool }}
+    {% if tailscale_ssh | default(false) | bool %}
+    --accept-risk=lose-ssh
+    {% endif %}
     --hostname={{ tailscale_hostname }}
     --advertise-routes={{ tailscale_advertise_routes }}
     --advertise-exit-node={{ tailscale_advertise_exit_node | default(false) | bool }}
