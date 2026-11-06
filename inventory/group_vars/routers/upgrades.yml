@@ -2,7 +2,7 @@
 # Update checks (role: openwrt_upgrades). Notify-only via ntfy: nothing
 # is installed automatically. Apply with
 #   ansible-playbook playbooks/openwrt.yml --tags upgrade
-# (image-based via owut; --tags fw_upgrade is an alias).
+# (image-based via owut).
 
 # Master switch; false removes the role from the play.
 owrt_update_check: true

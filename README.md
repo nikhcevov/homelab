@@ -18,7 +18,7 @@ Playbooks target inventory groups. Active hosts and connection settings live in 
 Each host type has one setup/update playbook. Normal runs reconcile configuration;
 destructive maintenance is opt-in: VPN restore uses `--tags restore -e vpn_restore_archive=/path/to/archive.tar.gz`
 after setup, and router upgrades are image-based: `--tags upgrade`
-(`fw_upgrade` is an alias) builds a full image via `owut`/ASU. [playbooks/proxy-render.yml](playbooks/proxy-render.yml) is a local-only
+builds a full image via `owut`/ASU. [playbooks/proxy-render.yml](playbooks/proxy-render.yml) is a local-only
 verification utility, not another deployment entrypoint.
 
 After bootstrap, the tailnet is the management plane. [Inventory](inventory/hosts.ini) uses MagicDNS names; router day-0 temporarily uses a LAN address. The [backup collector](files/unraid/homelab-backup-pull.sh.j2) separately stores Tailscale IPs for its SSH sources.

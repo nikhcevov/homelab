@@ -18,9 +18,8 @@
       when: owrt_update_check | bool
 
 # Explicit maintenance only; daily checks above remain notify-only.
-# One image-based path, two tag names:
+# One image-based upgrade path:
 #   ansible-playbook playbooks/openwrt.yml --tags upgrade [--limit router-trvl]
-#     # identical to --tags fw_upgrade
 # owut asks the Attended Sysupgrade server to build a complete image from
 # the installed package manifest, then installs it with sysupgrade: kernel,
 # kmods, base system and packages come from one build. Plain `apk upgrade`
@@ -39,7 +38,7 @@
   hosts: routers
   gather_facts: false
   serial: 1
-  tags: [never, upgrade, fw_upgrade]
+  tags: [never, upgrade]
   tasks:
     # Self-contained: this path must not depend on a prior configuration
     # run (the openwrt_upgrades role installs owut only on normal runs).
