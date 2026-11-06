@@ -1,7 +1,7 @@
 #!/bin/sh
 # Managed by Ansible (role: openwrt_upgrades). Manual changes will be overwritten.
 # Notify-only update check: apk package upgrades + owut firmware check -> ntfy.
-# Applies nothing; re-run playbooks/openwrt.yml or `owut upgrade` to actually update.
+# Applies nothing; run playbooks/openwrt.yml --tags upgrade to actually update.
 
 set -u
 
@@ -93,7 +93,7 @@ Host: $HOSTNAME
 Current: $VERSION_FROM
 Available: $VERSION_TO
 
-Apply with: owut upgrade"
+Apply with: playbooks/openwrt.yml --tags upgrade"
 		else
 			clear_state "firmware-update"
 		fi
