@@ -27,6 +27,15 @@
   changed_when: false
   failed_when: false
   check_mode: false # read-only; must run in check mode too
+  # Right after a boot or a package upgrade the daemon can still be
+  # "Starting". Both tasks below skip in that state, which silently leaves
+  # the exit node unset — and with the kill switch that takes the LAN
+  # offline. Wait (bounded) for Running instead.
+  until: >-
+    _tailscale_status.rc == 0 and
+    (_tailscale_status.stdout | from_json).BackendState == "Running"
+  retries: 6
+  delay: 3
 
 # When the node is not logged in, `tailscale status` exits non-zero and may
 # print plain text instead of JSON — the rc != 0 branch short-circuits the
@@ -36,6 +45,7 @@
     tailscale up
     --auth-key={{ tailscale_auth_key }}
     --hostname={{ tailscale_hostname }}
+    --auto-update=false
     {% if tailscale_advertise_routes | length > 0 %}
     --advertise-routes={{ tailscale_advertise_routes }}
     {% endif %}
@@ -72,9 +82,15 @@
 
 # Reconcile settings on an authorized node without re-authenticating.
 # Always reported as ok: `tailscale set` does not tell us what changed.
+#
+# --auto-update=false is required on OpenWrt: those builds compile
+# tailscale without auto-update, and `set`/`up` then exit 1 with
+# "Auto-update support is disabled in this build" before applying anything.
+# Harmless on builds that do support it (apk manages packages here).
 - name: Apply tailscale settings (hostname, advertised routes, exit node)
   ansible.builtin.command: >-
     tailscale set
+    --auto-update=false
     --hostname={{ tailscale_hostname }}
     --advertise-routes={{ tailscale_advertise_routes }}
     --advertise-exit-node={{ tailscale_advertise_exit_node | default(false) | bool }}
