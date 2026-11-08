@@ -83,6 +83,11 @@ tailscale_advertise_routes: "192.168.100.0/24"
 # Exit node: full-tunnel internet via this WAN. Approved once in the
 # Tailscale admin console (Edit route settings), or autoApprovers.exitNode.
 tailscale_advertise_exit_node: true
+# Remote recovery: tailscaled serves port 22 on the tailnet itself, so
+# management survives a broken tailscale0 or firewall. Enabled 2026-11-08
+# with a one-shot rollback timer armed (marker file) and verified before
+# it expired.
+tailscale_ssh: true
 
 # --- Firewall ---
 # MT7981 WED: NAT/forwarding bypasses the CPU. Incompatible with SQM and
