@@ -14,6 +14,12 @@ owrt_lan_bridge_ports:
 owrt_lan_netmask: "255.255.255.0"
 owrt_lan_dns: "{{ owrt_dns_servers }}"
 
+# Extra addresses on the LAN bridge, rendered as a second static interface
+# (`lan_alias`) so the primary lan section keeps option ipaddr/netmask.
+# CIDR is required. Use a /32 for a stable service endpoint and keep it
+# outside the DHCP pool.
+owrt_lan_alias_ips: []
+
 # WAN side: plain DHCP client.
 # owrt_wan_mac spoofs the WAN device MAC — set it in host_vars when the
 # ISP binds the lease to a specific MAC address.

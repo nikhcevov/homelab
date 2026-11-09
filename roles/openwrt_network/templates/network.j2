@@ -26,6 +26,17 @@ config interface 'lan'
 	list dns '{{ dns }}'
 {% endfor %}
 
+{% if owrt_lan_alias_ips | default([]) | length > 0 %}
+# Extra LAN address(es), e.g. a stable endpoint for a local service. Kept as
+# a separate interface so the primary lan section keeps option ipaddr/netmask.
+config interface 'lan_alias'
+	option device 'br-lan'
+	option proto 'static'
+{% for addr in owrt_lan_alias_ips %}
+	list ipaddr '{{ addr }}'
+{% endfor %}
+
+{% endif %}
 {% if owrt_wan_mac | default('') | length > 0 %}
 # Spoofed WAN MAC (ISP binds the lease to it). Losing this loses the WAN.
 config device

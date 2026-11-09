@@ -11,6 +11,12 @@
 # --- Network ---
 # LAN IP of this router (used by /etc/config/network).
 owrt_lan_ip: 192.168.102.1
+# Dedicated LAN endpoint for the LLM (see the redirect below): a /32 on
+# br-lan so a client only needs its local subnet on-link — no DNS lookup,
+# no route changes, immune to a VPN client that owns the resolver and the
+# default route. Kept out of the DHCP pool (which starts at 100).
+owrt_lan_alias_ips:
+  - 192.168.102.10/32
 # TR3000 has no DSA switch: two standalone GMACs — eth0 = 2.5G WAN,
 # eth1 = 1G LAN (same layout as router-srt). Per OpenWrt board.d:
 # cudy,tr3000-256mb-v1 -> ucidef_set_interfaces_lan_wan eth1 eth0.
@@ -81,15 +87,19 @@ owrt_flow_offloading_hw: true
 # The one lan -> wan exception: the local server lives on the uplink
 # segment, so taking the exit node to reach it would hairpin through
 # router-srt. Everything else still has no lan -> wan path (see the kill
-# switch below). Generated nft rule:
-#   ip saddr 192.168.102.0/24 ip daddr 192.168.15.36 tcp dport 80 accept
+# switch below). Two ports, same host:
+#   80   — Caddy, serves the llm.home.arpa site (name-based clients)
+#   4000 — LiteLLM directly, for the IP alias below: Caddy routes by Host
+#          and would 308 an IP-based request to HTTPS.
+# Generated nft rule: ip saddr 192.168.102.0/24 ip daddr 192.168.15.36
+#                     tcp dport { 80, 4000 } accept
 owrt_firewall_rules:
   - name: Allow-LiteLLM
     src: lan
     dest: wan
     proto: tcp
     dest_ip: 192.168.15.36
-    dest_port: "80"
+    dest_port: "80 4000"
     target: ACCEPT
   # Containment: the blanket `lan -> tailscale` forwarding exists only for
   # the exit-node default route. Every direct lane into the tailnet is
@@ -113,20 +123,21 @@ owrt_firewall_rules:
     family: ipv6
     target: REJECT
 
-# LAN-side alias for the LLM that does not depend on the client's DNS or
-# routing table: the router DNATs its own LAN ip:port to the uplink host,
-# and Allow-LiteLLM above forwards the rewritten packet. Survives a client
-# VPN that owns the resolver and the default route, because the local
-# subnet stays on-link.
-#   http://192.168.102.1:8080
+# Stable LAN endpoint for the LLM: the alias address above is DNATed to
+# LiteLLM on the uplink host and Allow-LiteLLM forwards the rewritten
+# packet. No DNS and no client routing beyond the local subnet, so it keeps
+# working when a VPN client owns the resolver and the default route. Port 80
+# on the router itself stays LuCI; the alias gives the LLM its own address.
+#   http://192.168.102.10/     LiteLLM UI
+#   http://192.168.102.10/v1   API
 owrt_firewall_redirects:
   - name: Redirect-LiteLLM
     src: lan
     proto: tcp
-    src_dip: "{{ owrt_lan_ip }}"
-    src_dport: "8080"
+    src_dip: 192.168.102.10
+    src_dport: "80"
     dest_ip: 192.168.15.36
-    dest_port: "80"
+    dest_port: "4000"
 
 # --- Tailscale ---
 # Advertise this site's LAN to the tailnet (matches owrt_lan_*).
