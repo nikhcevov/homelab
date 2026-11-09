@@ -11,12 +11,6 @@
 # --- Network ---
 # LAN IP of this router (used by /etc/config/network).
 owrt_lan_ip: 192.168.102.1
-# Dedicated LAN endpoint for the LLM (see the redirect below): a /32 on
-# br-lan so a client only needs its local subnet on-link — no DNS lookup,
-# no route changes, immune to a VPN client that owns the resolver and the
-# default route. Kept out of the DHCP pool (which starts at 100).
-owrt_lan_alias_ips:
-  - 192.168.102.10/32
 # TR3000 has no DSA switch: two standalone GMACs — eth0 = 2.5G WAN,
 # eth1 = 1G LAN (same layout as router-srt). Per OpenWrt board.d:
 # cudy,tr3000-256mb-v1 -> ucidef_set_interfaces_lan_wan eth1 eth0.
@@ -38,15 +32,6 @@ owrt_dns_domain: trvl.home.arpa
 # DNS on this LAN depends on the tailnet + router-srt being up.
 owrt_dns_servers:
   - 100.77.53.118 # router-srt
-
-# Local service on the uplink segment (Unraid, 192.168.15.0/24 behind the
-# home ISP router). Answered by this router's dnsmasq before the
-# forward-to-srt lookup, so the name works while the tunnel is up but
-# without sending the query to srt. `config domain` also matches every
-# subdomain of the name.
-owrt_dns_records:
-  - name: llm.home.arpa
-    ip: 192.168.15.36
 
 # --- Wi-Fi ---
 # MT7981 DBDC paths; verify against the stock config on the device:
@@ -77,67 +62,8 @@ owrt_wireless_radios:
 
 # --- Firewall ---
 # MT7981 WED: NAT/forwarding bypasses the CPU. Incompatible with SQM and
-# per-flow netfilter rules (offloaded flows skip them). No SQM here; the
-# only per-flow rule is Allow-LiteLLM below. A rule is still evaluated for
-# the first packet of a flow (offload happens after the accept), so the
-# exception holds — but an already-offloaded flow keeps its verdict, so
-# counters undercount and a later rule change only affects new flows.
+# per-flow netfilter rules (offloaded flows skip them) — we have neither.
 owrt_flow_offloading_hw: true
-
-# The one lan -> wan exception: the local server lives on the uplink
-# segment, so taking the exit node to reach it would hairpin through
-# router-srt. Everything else still has no lan -> wan path (see the kill
-# switch below). Two ports, same host:
-#   80   — Caddy, serves the llm.home.arpa site (name-based clients)
-#   4000 — LiteLLM directly, for the IP alias below: Caddy routes by Host
-#          and would 308 an IP-based request to HTTPS.
-# Generated nft rule: ip saddr 192.168.102.0/24 ip daddr 192.168.15.36
-#                     tcp dport { 80, 4000 } accept
-owrt_firewall_rules:
-  - name: Allow-LiteLLM
-    src: lan
-    dest: wan
-    proto: tcp
-    dest_ip: 192.168.15.36
-    dest_port: "80 4000"
-    target: ACCEPT
-  # Containment: the blanket `lan -> tailscale` forwarding exists only for
-  # the exit-node default route. Every direct lane into the tailnet is
-  # rejected, so a client on this LAN cannot reach tailnet peers, and
-  # cannot query router-srt's resolver directly to bypass this router's
-  # DNS. Exit-node traffic is addressed to the public destination, so it
-  # never matches these prefixes. `dest: tailscale` is required: without
-  # it fw4 renders the rule into input_lan (traffic to the router) and it
-  # filters nothing.
-  - name: Block-LAN-To-Tailnet
-    src: lan
-    dest: tailscale
-    proto: all
-    dest_ip: 100.64.0.0/10
-    target: REJECT
-  - name: Block-LAN-To-Tailnet6
-    src: lan
-    dest: tailscale
-    proto: all
-    dest_ip: fd7a:115c:a1e0::/48
-    family: ipv6
-    target: REJECT
-
-# Stable LAN endpoint for the LLM: the alias address above is DNATed to
-# LiteLLM on the uplink host and Allow-LiteLLM forwards the rewritten
-# packet. No DNS and no client routing beyond the local subnet, so it keeps
-# working when a VPN client owns the resolver and the default route. Port 80
-# on the router itself stays LuCI; the alias gives the LLM its own address.
-#   http://192.168.102.10/     LiteLLM UI
-#   http://192.168.102.10/v1   API
-owrt_firewall_redirects:
-  - name: Redirect-LiteLLM
-    src: lan
-    proto: tcp
-    src_dip: 192.168.102.10
-    src_dport: "80"
-    dest_ip: 192.168.15.36
-    dest_port: "4000"
 
 # --- Tailscale ---
 # Advertise this site's LAN to the tailnet (matches owrt_lan_*).
@@ -157,9 +83,8 @@ tailscale_exit_node_allow_lan_access: true
 
 # Kill switch: no lan -> wan forwarding at all. If tailscaled or the
 # exit node dies, the LAN has no internet — never a silent WAN fallback.
-# The single exception is the Allow-LiteLLM rule above: one host on the
-# uplink segment, one port. The firewall role renders lan -> tailscale
-# masquerade automatically when tailscale_exit_node is set.
+# The firewall role renders lan -> tailscale masquerade automatically
+# when tailscale_exit_node is set.
 owrt_firewall_lan_wan_forwarding: false
 
 # The blanket 5270 rule also catches the router's OWN traffic (apk, NTP,

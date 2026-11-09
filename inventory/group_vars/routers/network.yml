@@ -14,12 +14,6 @@ owrt_lan_bridge_ports:
 owrt_lan_netmask: "255.255.255.0"
 owrt_lan_dns: "{{ owrt_dns_servers }}"
 
-# Extra addresses on the LAN bridge, rendered as a second static interface
-# (`lan_alias`) so the primary lan section keeps option ipaddr/netmask.
-# CIDR is required. Use a /32 for a stable service endpoint and keep it
-# outside the DHCP pool.
-owrt_lan_alias_ips: []
-
 # WAN side: plain DHCP client.
 # owrt_wan_mac spoofs the WAN device MAC — set it in host_vars when the
 # ISP binds the lease to a specific MAC address.
@@ -37,14 +31,6 @@ owrt_dhcp_leasetime: 12h
 # owrt_dhcp_hosts:
 #   - { name: unraid, ip: 192.168.100.20, mac: "ac:1f:6b:f4:a4:18" }
 owrt_dhcp_hosts: []
-
-# Static DNS A records, rendered as `config domain` sections (dnsmasq
-# `address=/name/ip`). Answered locally, never forwarded — so a name can
-# point at a host this router does not route by default. Each entry also
-# matches every subdomain of the name.
-# owrt_dns_records:
-#   - { name: llm.home.arpa, ip: 192.168.15.36 }
-owrt_dns_records: []
 
 # Spread packet processing across CPU cores (RPS). Free on multicore
 # SoCs (MT7981), harmless on single-core.

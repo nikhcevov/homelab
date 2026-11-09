@@ -173,18 +173,10 @@ config rule
 	option dest '{{ rule.dest }}'
 {% endif %}
 {% if rule.dest_port is defined %}
-{# fw4 parses space-separated ports; a YAML list renders as a Python repr here, so join it explicitly. #}
-	option dest_port '{{ rule.dest_port if rule.dest_port is string else rule.dest_port | join(" ") }}'
-{% endif %}
-{% if rule.dest_ip is defined %}
-{% for ip in ([rule.dest_ip] if rule.dest_ip is string else rule.dest_ip) %}
-	list dest_ip '{{ ip }}'
-{% endfor %}
+	option dest_port '{{ rule.dest_port }}'
 {% endif %}
 {% if rule.src_ip is defined %}
-{% for ip in ([rule.src_ip] if rule.src_ip is string else rule.src_ip) %}
-	list src_ip '{{ ip }}'
-{% endfor %}
+	option src_ip '{{ rule.src_ip }}'
 {% endif %}
 {% if rule.src_mac is defined %}
 	option src_mac '{{ rule.src_mac }}'
@@ -193,26 +185,4 @@ config rule
 	option family '{{ rule.family }}'
 {% endif %}
 	option target '{{ rule.target | default("ACCEPT") }}'
-{% endfor %}
-
-# Port forwards (owrt_firewall_redirects). DNAT only: the rewritten
-# destination still needs a matching `config rule` above to be forwarded.
-{% for redir in owrt_firewall_redirects | default([]) %}
-config redirect
-	option name '{{ redir.name }}'
-	option src '{{ redir.src }}'
-{% if redir.src_dip is defined %}
-	option src_dip '{{ redir.src_dip }}'
-{% endif %}
-	option proto '{{ redir.proto | default("tcp") }}'
-{% if redir.src_dport is defined %}
-	option src_dport '{{ redir.src_dport }}'
-{% endif %}
-{% if redir.dest_ip is defined %}
-	option dest_ip '{{ redir.dest_ip }}'
-{% endif %}
-{% if redir.dest_port is defined %}
-	option dest_port '{{ redir.dest_port }}'
-{% endif %}
-	option target 'DNAT'
 {% endfor %}
