@@ -13,6 +13,13 @@ owrt_flow_offloading_hw: false
 # the whole destination zone — a rule without it accepts every host there.
 owrt_firewall_rules: []
 
+# Port forwards, rendered as `config redirect` sections (fw4 dstnat).
+# Keys: name, src, proto, src_dip/src_dport (what to match) and
+# dest_ip/dest_port (what to rewrite to). A redirect only rewrites; the
+# rewritten destination still needs a rule in owrt_firewall_rules to be
+# forwarded.
+owrt_firewall_redirects: []
+
 # Tailscale zone for tailscale0: lets tailnet peers reach the router
 # itself (zone input ACCEPT) and, when tailscale_advertise_routes is set,
 # forwards tailnet -> lan so the advertised subnet actually works. When

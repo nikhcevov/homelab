@@ -113,6 +113,21 @@ owrt_firewall_rules:
     family: ipv6
     target: REJECT
 
+# LAN-side alias for the LLM that does not depend on the client's DNS or
+# routing table: the router DNATs its own LAN ip:port to the uplink host,
+# and Allow-LiteLLM above forwards the rewritten packet. Survives a client
+# VPN that owns the resolver and the default route, because the local
+# subnet stays on-link.
+#   http://192.168.102.1:8080
+owrt_firewall_redirects:
+  - name: Redirect-LiteLLM
+    src: lan
+    proto: tcp
+    src_dip: "{{ owrt_lan_ip }}"
+    src_dport: "8080"
+    dest_ip: 192.168.15.36
+    dest_port: "80"
+
 # --- Tailscale ---
 # Advertise this site's LAN to the tailnet (matches owrt_lan_*).
 tailscale_advertise_routes: "192.168.102.0/24"
