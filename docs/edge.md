@@ -46,6 +46,17 @@ Verify with `systemctl is-active systemd-timesyncd`,
 `timedatectl show --property=NTP --property=NTPSynchronized`.
 Both time properties must be `yes`; compare actual UTC against a trusted host.
 
+On2026-11-14, after committed checkpoint `1350b31`, a destination-only proxy run
+retargeted application HTTPS/Minecraft/voice traffic from the physical PVE host
+to `docker-1`. Only the generated stream file and nginx reload changed.
+Real public HTTPS/certificate checks, rendered Immich/Vaultwarden sign-in pages,
+Minecraft status and UDP24454 delivery passed. Public PVE/PBS ports remained
+unreachable; Home Assistant, public DNS, router and Tailscale policy were unchanged.
+Evidence: `/root/migration-ingress-20261114T164316Z` on PVE and edge,
+including `public-cutover.COMPLETE.json`; the original edge configuration archive
+is retained for rollback. The previous physical-host upstream is not a working
+application fallback after migration.
+
 The inventory group is `edge_nodes`; scoped runs use `--limit edge_nodes`.
 Its one host is `edge`, reached at `edge.{{ tailnet_domain }}` after the console
 rename. Tailscale hostname follows `inventory_hostname`; monitoring derives

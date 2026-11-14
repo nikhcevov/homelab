@@ -20,7 +20,7 @@ At the [Proxmox cutover](proxmox-migration.md#phase-7--ingress-monitoring-and-de
 the owner assigned `tag:home` to `docker-1`; the exact original node identity
 and live edge TCP443/25565 plus UDP24454 delivery were verified.
 PVE retains `great-hornbill`, without `tag:home`; it is not an application endpoint.
-Retarget the private edge application/game upstreams separately after checkpointing.
+The checkpointed private edge application/game upstreams now target `docker-1`.
 Docker VM Tailscale SSH remains disabled; native key-based SSH is unchanged.
 
 The operator confirmed no device uses the retired `tag:vps`; the repository

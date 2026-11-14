@@ -17,7 +17,7 @@ on2026-11-13 at23:06:09+04:00. VM100 boots; guest storage/GPU/runtime/Tailscale
 are configured. Authorized production startup completed:12 stacks /34 containers
 running, all configured healthchecks healthy and zero container restarts.
 Existing application data and bounded GPU/client paths were exercised.
-External MQTT remains unavailable; the public-ingress cutover remains pending.
+Public HTTPS and game ingress now target Docker VM100; external MQTT remains unavailable.
 The populated physical UPS cycle and automatic power-return recovery passed.
 
 Sources: [migration/runbook](proxmox-migration.md), [host](pve-host.md),
@@ -43,7 +43,7 @@ Sources: [migration/runbook](proxmox-migration.md), [host](pve-host.md),
 | Independent migration backup | Completed, exit0; all eight trees/recovery, metadata check and22 GiB real restore passed | [Vault refresh](proxmox-migration.md#independent-pre-cutover-vault-refresh) |
 | CI gates | Ansible, all-stack Compose, vaulted references, migration safety regressions | `tests/`, Ansible workflow |
 | Monitoring | Existing external Kuma retained | Monitoring guide |
-| Cutover/decommission | Restored workloads running; operator accepted availability-only client gate; public-ingress cutover pending | Sequential migration gates |
+| Cutover/decommission | Public edge cutover verified; operator accepted availability-only client gate; local DNS, schedules and decommission remain | Sequential migration gates |
 
 ## Decisions now in force
 
@@ -597,7 +597,7 @@ no FSD, shortened UPS timeout or physical power interruption was injected.
   `proof-backup.result.json`, `sql-recovery.result.json`,
   `checkpoint.second-views.json` and `homelable-dns-production-proof.json`.
 
-## Populated UPS recovery and ingress preflight — 2026-11-14
+## Populated UPS recovery and public ingress — 2026-11-14
 
 - The real production600-second UPS timer shut down the populated host.
   VM100 stopped in36.139s before NFS; all34 original container exits were recorded,
@@ -622,10 +622,26 @@ no FSD, shortened UPS timeout or physical power interruption was injected.
 - The owner explicitly accepted automated availability instead of personal
   client sign-ins/playback as this cutover gate. Those manual checks and HDR
   quality remain unverified; no client hosts file was edited.
-- The destination-only candidate rendered and passed native edge `nginx -t`;
-  listener/protocol set and Home Assistant routing are unchanged. Live public
-  routing still targets the old physical host. No reload, public DNS, router
-  or Tailscale policy change was applied.
+- The checkpointed `--tags proxy` publication changed only the generated stream
+  configuration and reloaded nginx. Main nginx configuration was unchanged.
+  Home Assistant routing, listener/protocol set, public DNS, router and Tailscale
+  policy were not changed.
+- All seven public HTTPS names passed trusted-certificate checks: six HTTP200,
+  and expected HTTP401 for protected notes. Vaultwarden `/admin` returned403.
+  Immich and Vaultwarden sign-in pages actually rendered in an owned browser;
+  no credentials were entered.
+- A real public Minecraft status handshake returned version26.1.2. A uniquely
+  identified public UDP24454 datagram traversed VPS nginx and arrived on VM100.
+  Public TCP8006/8007/5380/4743/8096 were unreachable.
+- Pre-publication source checkpoint: `1350b31` on
+  `migration/pve-cutover-20261114`, not pushed. Unrelated workstation/keyd/wireless
+  changes were excluded. Private routing stays outside Git.
+- Evidence: `/root/migration-ingress-20261114T164316Z`,
+  `checkpoint.before-publication.json`, `backend-ready.json` and
+  `public-cutover.COMPLETE.json`; original edge configuration is retained there.
+  Local `home.arpa` records still point at the old PVE address; this does not
+  affect the verified public names. Reserve a stable VM LAN address before
+  changing local DNS.
 
 ## Verification performed
 
@@ -661,10 +677,10 @@ no FSD, shortened UPS timeout or physical power interruption was injected.
   dual-family rules, LAN denial and private bridge persisted. At that reboot,
   no guests or HDDs were present; HDDs were reconnected and checked subsequently.
 
-Remaining unproved: owner-client sign-ins/playback/HDR quality, peak production
-load, low-battery reserve triggering and external ingress.
+Remaining unproved: personal sign-ins/playback/HDR quality, peak production
+load and low-battery reserve triggering.
 External MQTT remains unavailable. Full current PBS/restic backup and bounded
-OS/file/SQL restoration, plus populated timer-driven UPS recovery, are established.
+OS/file/SQL restoration, populated timer-driven UPS recovery and public ingress passed.
 
 ## Remaining gates and deferred decisions
 
@@ -683,10 +699,9 @@ OS/file/SQL restoration, plus populated timer-driven UPS recovery, are establish
    accepted `192.168.103.0/24` tailnet route before moving the LAN into that subnet.
 4. Activate timers only after restored workloads, credentials/pins, existing vault
    mount and PBS recovery configuration are ready. Prove failures resume apps.
-5. The Docker VM tag, restricted edge paths and persistent clock repair passed.
-   Checkpoint the reviewed routing change before publication.
-   Retarget private edge/LAN DNS/remote clients only after service/recovery gates;
-   the physical PVE host must not remain the HTTPS/Minecraft application backend.
+5. Public edge cutover passed with only the Docker VM as application/game backend.
+   Local `home.arpa` DNS still needs a stable VM LAN address and corrected records;
+   keep management private and do not point application names back at PVE.
 6. Remove Unraid automation only after a complete new backup and restore cycle.
    Preserve the migrated collector. Commit reviewed repository changes before cutover.
 
