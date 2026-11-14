@@ -1,0 +1,61 @@
+---
+# Compose stacks on the Docker VM. Paths are the mount points inside the VM;
+# the host side (ZFS datasets exported over NFS) is described in
+# docs/proxmox-migration.md.
+
+compose_root: /opt/compose
+compose_data_restored: false
+
+# Files are restored with the Unraid ownership; keeping 99:100 avoids a
+# recursive chown across appdata and the media library.
+compose_puid: 99
+compose_pgid: 100
+compose_tz: Europe/Moscow
+
+compose_appdata: /mnt/appdata
+compose_data: /mnt/data
+compose_media: /mnt/data/media
+compose_torrents: /mnt/data/torrents
+compose_photos: /mnt/photos
+compose_files: /mnt/files
+
+compose_stacks:
+  - caddy-cloudflare
+  - dns-server
+  - immich
+  - frigate-krm
+  - homelable
+  - litellm
+  - media
+  - minecraft
+  - obsidian
+  - order-manager
+  - paperless
+  - vaultwarden
+# scrutiny is excluded: the disks live on the PVE host, not in the VM.
+
+# Code-owned compose extension files live beside the deployed definitions.
+compose_extra_files:
+  - stack: homelable
+    src: nginx.conf.template
+    dest: "{{ compose_root }}/homelable/nginx.conf.template"
+  - stack: immich
+    src: hwaccel.transcoding.yml
+    dest: "{{ compose_root }}/immich/hwaccel.transcoding.yml"
+  - stack: immich
+    src: hwaccel.ml.yml
+    dest: "{{ compose_root }}/immich/hwaccel.ml.yml"
+
+compose_config_templates:
+  - stack: caddy-cloudflare
+    src: ../compose/caddy-cloudflare/Caddyfile.j2
+    dest: "{{ compose_appdata }}/caddy/Caddyfile"
+  - stack: caddy-cloudflare
+    src: ../compose/caddy-cloudflare/home.caddy.j2
+    dest: "{{ compose_appdata }}/caddy/config/home.caddy"
+  - stack: caddy-cloudflare
+    src: ../compose/caddy-cloudflare/public.caddy.j2
+    dest: "{{ compose_appdata }}/caddy/config/public.caddy"
+  - stack: litellm
+    src: ../compose/litellm/config.yaml.j2
+    dest: "{{ compose_appdata }}/litellm/config.yaml"

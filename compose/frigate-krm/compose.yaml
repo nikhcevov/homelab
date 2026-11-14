@@ -1,0 +1,37 @@
+# Frigate at the krm site; GPU available, restored viewer-only config preserved.
+services:
+  frigate-krm:
+    container_name: frigate-krm
+    privileged: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    image: ghcr.io/blakeblackshear/frigate@sha256:a8d21fae3d49aea25384d56eec20a0414e24bae91b17d5f9e8f9b2f89d574a3f
+    shm_size: "1gb"
+    env_file:
+      - .env
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /mnt/appdata/frigate/config:/config
+      - /mnt/appdata/frigate/media:/media/frigate
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
+    ports:
+      - "127.0.0.1:8971:8971"
+      - "127.0.0.1:5000:5000" # unauthenticated API is host-local only
+      - "8554:8554" # RTSP feeds
+      - "8555:8555/tcp" # WebRTC over tcp
+      - "8555:8555/udp" # WebRTC over udp
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

@@ -1,0 +1,4 @@
+# Managed by Ansible (role: pve_storage). Do not edit by hand.
+{% for export in _active_exports | default(pve_nfs_exports) %}
+{{ export.path }} {{ export.clients }}({{ export.options }})
+{% endfor %}

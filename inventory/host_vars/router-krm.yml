@@ -59,6 +59,13 @@ owrt_wireless_radios:
           ieee80211r: 1
           ft_over_ds: 0
           ft_psk_generate_local: 1
+          # Quarantine the compromised kitchen camera (see Firewall below).
+          # It joins as a Wi-Fi client, and bridged LAN-to-LAN traffic does
+          # not pass the IP forward rules, so the effective cut is here.
+          # Deny on both radios: the station may roam to 5 GHz.
+          macfilter: deny
+          maclist:
+            - "14:a7:8b:5c:2e:de"
   - name: radio1
     path: platform/soc/18000000.wifi+1 # 5 GHz
     band: 5g
@@ -76,6 +83,13 @@ owrt_wireless_radios:
           ieee80211r: 1
           ft_over_ds: 0
           ft_psk_generate_local: 1
+          # Quarantine the compromised kitchen camera (see Firewall below).
+          # It joins as a Wi-Fi client, and bridged LAN-to-LAN traffic does
+          # not pass the IP forward rules, so the effective cut is here.
+          # Deny on both radios: the station may roam to 5 GHz.
+          macfilter: deny
+          maclist:
+            - "14:a7:8b:5c:2e:de"
 
 # --- Tailscale ---
 # Advertise this site's LAN to the tailnet (matches owrt_lan_*).
@@ -93,3 +107,24 @@ tailscale_ssh: true
 # MT7981 WED: NAT/forwarding bypasses the CPU. Incompatible with SQM and
 # per-flow netfilter rules (offloaded flows skip them) — we have neither.
 owrt_flow_offloading_hw: true
+
+# Quarantine for the kitchen camera (Dahua OEM, 2018 firmware, found
+# compromised 2026-11-08: forged OSD text, attacker-created reserved admin
+# accounts, and an active Dahua cloud/P2P tunnel). The effective cut is the
+# Wi-Fi MAC deny above: the camera is a bridged Wi-Fi client, so LAN-to-LAN
+# frames never reach the IP forward rules. These rules block routed egress
+# if it ever reappears on a wired/uplink path. Remove only after the camera
+# is factory-reset (needs physical access) or replaced.
+owrt_firewall_rules:
+  - name: Block-Kitchen-Cam-WAN
+    src: lan
+    dest: wan
+    proto: all
+    src_ip: 192.168.100.164
+    target: REJECT
+  - name: Block-Kitchen-Cam-Tailscale
+    src: lan
+    dest: tailscale
+    proto: all
+    src_ip: 192.168.100.164
+    target: REJECT

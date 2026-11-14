@@ -1,0 +1,33 @@
+---
+# Explicit day-0 gate; reruns never adopt an unrelated CT101.
+pve_pbs_enabled: false
+# Provision first; arm schedules only after real backup and isolated restore.
+pve_pbs_schedules_enabled: false
+pve_pbs_id: 101
+pve_pbs_hostname: pbs
+pve_pbs_memory: 5120
+pve_pbs_cores: 2
+pve_pbs_root_storage: local-zfs
+pve_pbs_root_size: 16
+pve_pbs_template_storage: local
+pve_pbs_dataset: tank/pbs
+pve_pbs_host_path: /tank/pbs
+pve_pbs_datastore_path: /mnt/datastore/tank
+pve_pbs_datastore: tank
+pve_pbs_lan_bridge: vmbr0
+pve_pbs_private_bridge: vmbr1
+pve_pbs_address: 10.77.0.3
+pve_pbs_host_address: 10.77.0.1
+pve_pbs_storage_id: pbs-tank
+pve_pbs_user: pve@pbs
+pve_pbs_token: pve
+# Host-only recovery secret, also collect in the host recovery backup.
+pve_pbs_secret_path: /root/.config/homelab/pbs-token.json
+pve_pbs_backup_vm: 100
+pve_pbs_backup_schedule: '02:00'
+pve_pbs_verify_schedule: 'sun 08:00'
+pve_pbs_prune_schedule: '04:00'
+pve_pbs_gc_schedule: '05:00'
+pve_pbs_keep_daily: 7
+pve_pbs_keep_weekly: 4
+pve_pbs_keep_monthly: 6

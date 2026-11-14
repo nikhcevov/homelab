@@ -1,0 +1,44 @@
+services:
+  backend:
+    image: ghcr.io/pouzor/homelable-backend@sha256:54dfa4b12843f0098141260e75e863a9638ced535a1618cd7b8826bf1718dd62
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      SQLITE_PATH: /app/data/homelab.db
+    volumes:
+      - /mnt/appdata/homelable/data:/app/data
+    cap_add:
+      - NET_RAW
+    networks:
+      - homelable
+
+  frontend:
+    image: ghcr.io/pouzor/homelable-frontend@sha256:d307875b5afe484f5f082170af829b10259b07676e29e142c0de07ebc5cbba04
+    restart: unless-stopped
+    volumes:
+      - ./nginx.conf.template:/etc/nginx/templates/homelable.conf.template:ro
+    ports:
+      - "127.0.0.1:3333:80"
+    depends_on:
+      - backend
+    networks:
+      - homelable
+
+  mcp:
+    image: ghcr.io/pouzor/homelable-mcp@sha256:99ec512e4b83d8c9803b921e94887b7e117df2556dbdb8c6bac61c0de8c04e20
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "127.0.0.1:3334:8001"
+    depends_on:
+      - backend
+    networks:
+      - homelable
+
+networks:
+  homelable:
+    driver: bridge

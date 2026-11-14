@@ -1,0 +1,106 @@
+---
+- name: Inspect the operator-created restore marker
+  ansible.builtin.stat:
+    path: "{{ compose_restore_marker }}"
+  register: _compose_restore
+
+- name: Refuse deployment without checksum-verified restored data
+  ansible.builtin.assert:
+    that:
+      - _compose_restore.stat.isreg | default(false)
+    fail_msg: Restore and checksum-verify local appdata, then create the restore marker before authorizing compose_data_restored.
+
+- name: Require appdata and all bulk mounts
+  ansible.builtin.command:
+    argv: [mountpoint, --quiet, "{{ item }}"]
+  loop: "{{ [compose_appdata] + (docker_vm_nfs_mounts | map(attribute='path') | list) }}"
+  changed_when: false
+
+- name: Ensure compose stack directories exist
+  ansible.builtin.file:
+    path: "{{ compose_root }}/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  loop: "{{ compose_stacks }}"
+
+- name: Copy compose files
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../compose/{{ item }}/compose.yaml"
+    dest: "{{ compose_root }}/{{ item }}/compose.yaml"
+    owner: root
+    group: root
+    mode: "0640"
+  loop: "{{ compose_stacks }}"
+
+- name: Inspect selected application configuration parents
+  ansible.builtin.stat:
+    path: "{{ item.dest | dirname }}"
+  loop: "{{ (compose_extra_files + compose_config_templates) | selectattr('stack', 'in', compose_stacks) | list }}"
+  register: _compose_config_parents
+
+- name: Create only missing application configuration parents
+  ansible.builtin.file:
+    path: "{{ item.item.dest | dirname }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ _compose_config_parents.results }}"
+  when: not item.stat.exists
+
+- name: Copy code-owned compose extension files
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../compose/{{ item.stack }}/{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ compose_extra_files | selectattr('stack', 'in', compose_stacks) | list }}"
+
+- name: Render sanitized application configurations
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ compose_config_templates | selectattr('stack', 'in', compose_stacks) | list }}"
+  no_log: true
+  register: _compose_rendered_configs
+
+- name: Render literal stack environment files
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../compose/{{ item }}/.env.j2"
+    dest: "{{ compose_root }}/{{ item }}/.env"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ compose_stacks }}"
+  no_log: true
+- name: Persist the explicit workload startup authorization
+  ansible.builtin.copy:
+    dest: /etc/docker/homelab-compose-authorized
+    content: "Authorized after the compose restore gate.\n"
+    owner: root
+    group: root
+    mode: "0600"
+
+
+- name: Activate Docker runtime changes before GPU workloads
+  ansible.builtin.meta: flush_handlers
+
+- name: Start Docker only with restored application data
+  ansible.builtin.systemd:
+    name: docker
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Reconcile compose stacks
+  ansible.builtin.command:
+    cmd: >-
+      docker compose up -d --remove-orphans --wait --wait-timeout 300
+      {{ '--force-recreate' if item in (_compose_rendered_configs.results | selectattr('changed') | map(attribute='item.stack') | list) else '' }}
+    chdir: "{{ compose_root }}/{{ item }}"
+  loop: "{{ compose_stacks }}"
+  changed_when: false

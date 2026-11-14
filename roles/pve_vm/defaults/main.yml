@@ -1,0 +1,21 @@
+---
+# Explicit provisioning approval; never create/start a guest during host bootstrap.
+pve_vm_enabled: false
+pve_vm_id: 100
+pve_vm_name: docker-1
+pve_vm_memory: 18432
+pve_vm_cores: 6
+pve_vm_disk_size: "160G"
+pve_vm_storage: local-zfs
+pve_vm_bridge: vmbr0
+pve_vm_mac: ""
+pve_vm_ciuser: boss
+pve_vm_ssh_keys: []
+pve_vm_autostart_order: 2
+pve_vm_image_url: ""
+pve_vm_image_sha512: ""
+pve_vm_image_file: ""
+pve_vm_hostpci: []
+
+pve_vm_appdata_size: 128
+pve_vm_private_mac: "BC:24:11:36:00:02"

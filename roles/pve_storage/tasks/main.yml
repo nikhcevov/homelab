@@ -1,0 +1,153 @@
+---
+# ZFS pools, datasets and NFS exports.
+#
+# Pool creation is destructive and therefore opt-in. Datasets and exports
+# reconcile on every run and skip pools that do not exist yet.
+
+- name: Install the NFS server
+  ansible.builtin.apt:
+    name: nfs-kernel-server
+    state: present
+    update_cache: true
+
+- name: Require explicit disks before creating pools
+  ansible.builtin.assert:
+    that: item.disks | length > 0
+    fail_msg: >-
+      Fill pve_storage_pools[].disks with /dev/disk/by-id paths before enabling
+      pve_storage_create. Pool creation wipes those devices.
+  loop: "{{ pve_storage_pools }}"
+  when: pve_storage_create | bool
+
+- name: List existing pools before creation
+  ansible.builtin.command: zpool list -H -o name
+  register: _zpool_before
+  changed_when: false
+  failed_when: false
+
+- name: Validate every new pool disk before any creation
+  ansible.builtin.include_tasks: validate-disk.yml
+  loop: "{{ pve_storage_pools | subelements('disks') }}"
+  loop_control:
+    loop_var: pool_disk
+  when:
+    - pve_storage_create | bool
+    - pool_disk.0.name not in _zpool_before.stdout_lines
+
+- name: Restrict exports to the private guest identity
+  ansible.builtin.assert:
+    that:
+      - item.clients == '10.77.0.2/32'
+      - item.path in ['/tank/photos', '/tank/files', '/media/data']
+  loop: "{{ pve_nfs_exports }}"
+
+- name: Create NFS configuration directory
+  ansible.builtin.file:
+    path: /etc/nfs.conf.d
+    state: directory
+    mode: "0755"
+
+- name: Configure only NFSv4.1
+  ansible.builtin.copy:
+    dest: /etc/nfs.conf.d/90-homelab.conf
+    content: |
+      [nfsd]
+      host=10.77.0.1
+      vers2=n
+      vers3=n
+      vers4=y
+      vers4.0=n
+      vers4.1=y
+      vers4.2=n
+      udp=n
+    mode: "0644"
+  notify: Restart NFS server
+
+- name: Create guest ordering drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/pve-guests.service.d
+    state: directory
+    mode: "0755"
+
+- name: Keep host NFS available throughout guest shutdown
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/pve-guests.service.d/storage.conf
+    content: |
+      [Unit]
+      Wants=nfs-server.service
+      After=nfs-server.service zfs-mount.service
+    mode: "0644"
+  register: _storage_order
+
+- name: Reload guest service ordering
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: _storage_order.changed
+
+- name: Create pools (destructive, opt-in)
+  ansible.builtin.command:
+    cmd: >-
+      zpool create -o ashift={{ item.ashift | default(12) }}
+      -o autoexpand=on {{ item.name }}
+      {% if item.type | default('stripe') == 'mirror' %}mirror{% endif %}
+      {{ item.disks | join(' ') }}
+  loop: "{{ pve_storage_pools }}"
+  when:
+    - pve_storage_create | bool
+    - item.name not in _zpool_before.stdout_lines
+
+- name: List existing pools
+  ansible.builtin.command: zpool list -H -o name
+  register: _zpool
+  changed_when: false
+  failed_when: false
+
+- name: Create datasets in existing pools
+  community.general.zfs:
+    name: "{{ item.name }}"
+    state: present
+    extra_zfs_properties: "{{ item.properties | default({}) }}"
+  loop: "{{ pve_storage_datasets }}"
+  when: item.name.split('/')[0] in _zpool.stdout_lines
+
+- name: Check export paths
+  ansible.builtin.stat:
+    path: "{{ item.path }}"
+  loop: "{{ pve_nfs_exports }}"
+  register: _export_paths
+
+- name: Refuse exporting unmounted dataset directories
+  ansible.builtin.command:
+    argv: [findmnt, --noheadings, --mountpoint, "{{ item.item.path }}", --output, "SOURCE,FSTYPE"]
+  loop: "{{ _export_paths.results }}"
+  register: _export_mount
+  changed_when: false
+  failed_when: >-
+    _export_mount.rc != 0 or
+    _export_mount.stdout.split() != [item.item.path[1:], 'zfs']
+  when: item.stat.exists
+
+- name: Reset the active export list
+  ansible.builtin.set_fact:
+    _active_exports: []
+
+- name: Collect export paths that exist
+  ansible.builtin.set_fact:
+    _active_exports: "{{ _active_exports + [item.item] }}"
+  loop: "{{ _export_paths.results }}"
+  when: item.stat.exists
+
+- name: Render /etc/exports from the datasets that exist
+  ansible.builtin.template:
+    src: exports.j2
+    dest: /etc/exports
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload NFS exports
+
+- name: Ensure the NFS server is running and enabled
+  ansible.builtin.service:
+    name: nfs-kernel-server
+    state: started
+    enabled: true

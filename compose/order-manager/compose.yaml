@@ -1,0 +1,37 @@
+name: order-manager
+
+services:
+  app:
+    image: ghcr.io/nikhcevov/order-manager-for-wife@sha256:577dc9d8b1b90422f80754693ea98d6e6c7516baa83887c9202fe351362c944f
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:4893:4893"
+    volumes:
+      - /mnt/appdata/order-manager/media:/app/var/media
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + process.env.PORT + '/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+  db:
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - /mnt/appdata/order-manager/data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s

@@ -1,0 +1,30 @@
+---
+# Docker VM on the Proxmox host (role: pve_vm).
+# Created once; the Docker playbook then configures the guest over SSH.
+
+pve_vm_id: 100
+pve_vm_name: docker-1
+pve_vm_memory: 18432   # MiB, 18 GiB
+pve_vm_cores: 6
+pve_vm_disk_size: "160G"
+pve_vm_storage: local-zfs
+pve_vm_bridge: vmbr0
+pve_vm_mac: "BC:24:11:36:00:01"   # pinned so the DHCP lease is stable
+pve_vm_ciuser: boss
+pve_vm_ssh_keys:
+  - starling.pub
+  - little-raven.pub
+pve_vm_autostart_order: 2
+
+# Immutable Debian build and SHA512 from its published SHA512SUMS.
+pve_vm_image_url: "https://cloud.debian.org/images/cloud/trixie/20261103-2651/debian-13-genericcloud-amd64-20261103-2651.qcow2"
+pve_vm_image_sha512: "d25999de0770d4cde1be72c299ba3ad94eac7ea8fd4d18f8cc86c69df69337e2e8a91d64465a9bfd8f2a78c566fcbcb0842eacc91c09efdef72d719d9f13b535"
+pve_vm_image_file: "debian-13-genericcloud-amd64-20261103-2651.qcow2"
+
+# PCI functions attached to the guest; the host must have them on vfio-pci.
+pve_vm_hostpci:
+  - "0000:01:00.0,pcie=1"
+  - "0000:01:00.1,pcie=1"
+
+pve_vm_appdata_size: 128
+pve_vm_private_mac: "BC:24:11:36:00:02"

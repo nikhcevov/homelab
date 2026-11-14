@@ -1,0 +1,179 @@
+############## Common ##################
+
+x-env: &default-env
+  TZ: ${TZ}
+  PUID: ${PUID}
+  PGID: ${PGID}
+
+x-common: &common
+  restart: unless-stopped
+  environment:
+    <<: *default-env
+  logging:
+    driver: json-file
+    options:
+      max-size: "50m"
+      max-file: "1"
+
+############## Services ##################
+
+services:
+  qbittorrent:
+    <<: *common
+    image: lscr.io/linuxserver/qbittorrent@sha256:caab2ebce30799ab342c374ea268fef4ec063a8ec3733a4e5d4a8e856ee32ce8
+    container_name: qbittorrent
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "6881:6881"
+      - "6881:6881/udp"
+    environment:
+      <<: *default-env
+      WEBUI_PORT: 8080
+      TORRENTING_PORT: 6881
+    volumes:
+      - ${APPDATA}/qbittorrent:/config
+      - ${TORRENTS}:/data/torrents
+
+  prowlarr:
+    <<: *common
+    image: lscr.io/linuxserver/prowlarr@sha256:f2b26429893d4c4cb71941b7ee50b1bdecd9d5f9f9e02d5410615e9f4f7c8d95
+    container_name: prowlarr
+    ports:
+      - "127.0.0.1:9696:9696"
+    volumes:
+      - ${APPDATA}/prowlarr:/config
+
+  sonarr:
+    <<: *common
+    image: lscr.io/linuxserver/sonarr@sha256:f247545d23ba8b233d6604575347e48a623fe6ad75dda02348bf81917f3b5c06
+    container_name: sonarr
+    ports:
+      - "127.0.0.1:8989:8989"
+    volumes:
+      - ${APPDATA}/sonarr:/config
+      - ${DATA}:/data
+
+  sonarr-anime:
+    <<: *common
+    image: lscr.io/linuxserver/sonarr@sha256:f247545d23ba8b233d6604575347e48a623fe6ad75dda02348bf81917f3b5c06
+    container_name: sonarr-anime
+    ports:
+      - "127.0.0.1:8990:8989"
+    volumes:
+      - ${APPDATA}/sonarr-anime:/config
+      - ${DATA}:/data
+
+  radarr:
+    <<: *common
+    image: lscr.io/linuxserver/radarr@sha256:adb6c09d6b729ea5e642c99cea35af72702ef476bf4763f153299ac5db9f0b4f
+    container_name: radarr
+    ports:
+      - "127.0.0.1:7878:7878"
+    volumes:
+      - ${APPDATA}/radarr:/config
+      - ${DATA}:/data
+
+  radarr-anime:
+    <<: *common
+    image: lscr.io/linuxserver/radarr@sha256:adb6c09d6b729ea5e642c99cea35af72702ef476bf4763f153299ac5db9f0b4f
+    container_name: radarr-anime
+    ports:
+      - "127.0.0.1:7879:7878"
+    volumes:
+      - ${APPDATA}/radarr-anime:/config
+      - ${DATA}:/data
+
+  bazarr:
+    <<: *common
+    image: lscr.io/linuxserver/bazarr@sha256:8b30e81c4aec2991f469e78fae8afaa89ecc9b21a80e3897f50427216b55470c
+    container_name: bazarr
+    ports:
+      - "127.0.0.1:6767:6767"
+    volumes:
+      - ${APPDATA}/bazarr:/config
+      - ${MEDIA}:/data/media
+
+  jellyfin:
+    <<: *common
+    image: lscr.io/linuxserver/jellyfin@sha256:51252e7a416e703cdc3cd91e8a54673a2430cc80409be8a38abe511411577b95
+    container_name: jellyfin
+    runtime: nvidia
+    ports:
+      - "8096:8096" # LAN discovery clients require a reachable HTTP endpoint
+      - "8920:8920"
+      - "1900:1900/udp"
+      - "7359:7359/udp"
+    environment:
+      <<: *default-env
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,video,utility
+    volumes:
+      - ${APPDATA}/jellyfin:/config
+      - ${MEDIA}:/data
+
+  seerr:
+    <<: *common
+    image: ghcr.io/seerr-team/seerr@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1
+    container_name: seerr
+    user: "${PUID}:${PGID}"
+    init: true
+    ports:
+      - "127.0.0.1:5055:5055"
+    environment:
+      <<: *default-env
+      PORT: 5055
+      LOG_LEVEL: debug
+      CA_TS_FALLBACK_DIR: /app/config
+    volumes:
+      - ${APPDATA}/seerr:/app/config
+      - ${APPDATA}/seerr/logs:/app/config/logs
+
+  whisparr:
+    <<: *common
+    image: ghcr.io/hotio/whisparr@sha256:0f2af8b840e937f1e7f06aa535179692428f8c4b3f2dc139591f1640e9b4c6fb
+    container_name: whisparr
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "127.0.0.1:6969:6969"
+    volumes:
+      - ${APPDATA}/whisparr:/config
+      - ${DATA}:/data
+
+  clonarr:
+    <<: *common
+    image: ghcr.io/prophetse7en/clonarr@sha256:9400d298b37a61b89f77ff3e46be4feb51fec68f294e00ba6c15beca00970d29
+    container_name: clonarr
+    ports:
+      - "127.0.0.1:6060:6060"
+    volumes:
+      - ${APPDATA}/clonarr:/config
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:6060/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Cloudflare challenge solver for Prowlarr indexers (for example rutracker).
+  flaresolverr:
+    <<: *common
+    image: ghcr.io/flaresolverr/flaresolverr@sha256:c80ae007ce2ccdcd217a12426e4f039ef763ff90738c808d38810c3e59323767
+    container_name: flaresolverr
+    ports:
+      - "127.0.0.1:8191:8191"
+
+  # Removes torrents whose files lost library hardlinks (deleted through Seerr).
+  qbit_manage:
+    image: ghcr.io/stuffanthings/qbit_manage@sha256:ea04167f627e506b3691304f4c639a52c05584cc9aea4af7ec87d4ed1299e7f5
+    container_name: qbit_manage
+    restart: unless-stopped
+    # The pinned scheduler can sleep 30s before honoring its SIGTERM flag.
+    stop_grace_period: 60s
+    environment:
+      <<: *default-env
+      QBT_SCHEDULE: "1440"
+      QBT_DIVIDER: "="
+    volumes:
+      - ${APPDATA}/qbit_manage:/config
+      - ${TORRENTS}:/data/torrents

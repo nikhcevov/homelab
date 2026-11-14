@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+# A directory on rpool must never masquerade as the surviving HDD datastore.
+[ "$(zfs get -H -o value mounted {{ pve_pbs_dataset | quote }})" = yes ]
+[ "$(findmnt -rn -M {{ pve_pbs_host_path | quote }} -o SOURCE)" = {{ pve_pbs_dataset | quote }} ]
+[ "$(zfs get -H -o value mountpoint {{ pve_pbs_dataset | quote }})" = {{ pve_pbs_host_path | quote }} ]
+# PBS garbage collection needs real access-time updates.
+[ "$(zfs get -H -o value atime {{ pve_pbs_dataset | quote }})" = on ]

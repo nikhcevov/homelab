@@ -1,0 +1,11 @@
+[Unit]
+Description=Pull VPS, Home Assistant and router recovery backups
+Wants=network-online.target
+After=network-online.target
+OnFailure=homelab-backup-failure@%n.service
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/usr/local/sbin/homelab-backup-collect
+TimeoutStartSec=6h

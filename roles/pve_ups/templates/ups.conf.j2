@@ -1,0 +1,9 @@
+# Managed by Ansible (role: pve_ups).
+[{{ pve_ups_name }}]
+	driver = {{ pve_ups_driver }}
+	port = auto
+	desc = "{{ pve_ups_desc }}"
+	# Match apcupsd MBATTCHG=25 and MINTIMEL=10 minutes.
+	ignorelb
+	override.battery.charge.low = 25
+	override.battery.runtime.low = 600

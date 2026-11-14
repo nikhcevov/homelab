@@ -39,3 +39,8 @@ jobs:
         env:
           ANSIBLE_COLLECTIONS_PATH: ${{ runner.temp }}/ansible-collections
         run: python tests/check_ansible.py
+
+      - name: Check Compose and migration comparison
+        run: |
+          python tests/check_compose.py
+          python -m unittest discover -s tests -p 'test_*.py'

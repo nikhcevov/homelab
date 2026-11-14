@@ -1,0 +1,28 @@
+---
+# Docker VM: base system, operator account, NFS mounts from the PVE host,
+# tailnet, Docker Engine with the NVIDIA runtime, and the compose stacks.
+# The VM itself is created at Phase 4 of docs/proxmox-migration.md; this
+# playbook starts on a booted Debian guest with the operator account.
+- name: Configure the Docker VM
+  hosts: docker
+  become: true
+  pre_tasks:
+    - name: Refuse physical hosts before any guest baseline mutation
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['distribution'] == 'Debian'
+          - ansible_facts['distribution_major_version'] == '13'
+          - ansible_facts['virtualization_role'] == 'guest'
+          - ansible_facts['virtualization_type'] in ['kvm', 'qemu']
+        fail_msg: This playbook targets the Debian13 Docker VM, never Unraid or the physical PVE host.
+      tags: [always]
+  roles:
+    - debian_common
+    - docker_vm
+    - docker_backup
+    - ssh
+    - tailscale
+    - docker_debian
+    - nvidia_guest
+    - role: compose_stacks
+      tags: [compose]

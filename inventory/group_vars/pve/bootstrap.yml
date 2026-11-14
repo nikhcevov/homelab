@@ -1,0 +1,39 @@
+---
+# Base system for the Proxmox VE host (role: debian_common).
+# PVE updates are deliberate: no unattended upgrades, and only safe upgrades
+# during a playbook run.
+
+bootstrap_apt_upgrade: safe
+
+bootstrap_timezone: Asia/Yerevan
+bootstrap_locale: en_US.UTF-8
+
+bootstrap_packages:
+  - sudo
+  - curl
+  - wget
+  - git
+  - ca-certificates
+  - vim
+  - htop
+  - jq
+  - rsync
+  - unzip
+  - gnupg
+  - python3-apt
+  - python3-debian
+  - lm-sensors
+  - smartmontools
+  - ethtool
+
+bootstrap_unattended_upgrades: false
+bootstrap_unattended_reboot: false
+bootstrap_unattended_reboot_time: "04:00"
+
+# Public SSH key files (from files/ssh/) authorized for root.
+bootstrap_root_ssh_keys:
+  - starling.pub
+  - little-raven.pub
+
+bootstrap_admin_user: ""
+bootstrap_admin_user_ssh_keys: []

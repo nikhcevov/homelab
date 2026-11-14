@@ -1,0 +1,6 @@
+# Managed by Ansible. Maximum on-battery time, independent of low-battery reserve.
+CMDSCRIPT /usr/local/sbin/homelab-ups-timer
+PIPEFN /run/nut/upssched/pipe
+LOCKFN /run/nut/upssched/lock
+AT ONBATT * START-TIMER onbattery-expired {{ pve_ups_onbattery_timeout_seconds }}
+AT ONLINE * CANCEL-TIMER onbattery-expired

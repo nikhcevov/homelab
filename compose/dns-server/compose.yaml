@@ -1,0 +1,23 @@
+# Technitium DNS stays directly reachable over both TCP and UDP.
+# The baseline disables systemd-resolved's conflicting wildcard-port stub.
+services:
+  dns-server:
+    container_name: dns-server
+    image: technitium/dns-server@sha256:eb48ac5c135f4ab936b536f74f853d53e15ab39ef37fdbc9598a089b90d9f245
+    restart: unless-stopped
+    user: "99:100"
+    command: /etc/dns
+    env_file:
+      - .env
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+      - "127.0.0.1:5380:5380"
+    volumes:
+      - /mnt/appdata/technitium-dnsserver:/etc/dns
+      - /mnt/appdata/technitium-dnsserver/logs:/var/log/technitium
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "1"

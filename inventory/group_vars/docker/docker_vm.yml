@@ -1,0 +1,19 @@
+---
+# Local appdata lives on the serial-identified second virtual disk.
+# Bulk NFS uses only the isolated host/guest storage bridge.
+
+docker_vm_user: boss
+docker_vm_ssh_keys:
+  - starling.pub
+  - little-raven.pub
+
+docker_vm_nfs_server: 10.77.0.1
+docker_vm_nfs_options: "rw,hard,_netdev,noatime,vers=4.1"
+docker_vm_initialize_appdata: false
+docker_vm_nfs_mounts:
+  - path: /mnt/photos
+    remote: /tank/photos
+  - path: /mnt/files
+    remote: /tank/files
+  - path: /mnt/data
+    remote: /media/data

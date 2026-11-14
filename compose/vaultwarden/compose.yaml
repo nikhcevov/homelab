@@ -1,0 +1,16 @@
+services:
+  vaultwarden:
+    container_name: vaultwarden
+    image: vaultwarden/server@sha256:4fe17f415f90087377d37c755e0ea3cf189dcc6794e49cdd2a9adbb4937d9e1f
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:4743:80"
+    volumes:
+      - /mnt/appdata/vaultwarden:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "1"

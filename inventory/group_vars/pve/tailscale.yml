@@ -1,0 +1,8 @@
+---
+# Tailscale mesh VPN for the Proxmox host (playbook: playbooks/pve.yml).
+# The physical host keeps the `great-hornbill` name; the Docker VM becomes
+# `docker-1` on the same bridge.
+
+tailscale_hostname: great-hornbill
+tailscale_auth_key: "{{ vault_tailscale_auth_key | default('') }}"
+tailscale_advertise_routes: ""

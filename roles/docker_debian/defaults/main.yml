@@ -1,0 +1,4 @@
+---
+# Plain user that may run docker without sudo. Matches `ansible_user` on the
+# Docker VM; does not create the account.
+docker_user: boss

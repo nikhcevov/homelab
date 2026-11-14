@@ -1,0 +1,145 @@
+---
+# Operator account, local appdata, required bulk mounts and guest agent.
+
+- name: Ensure the operator account exists
+  ansible.builtin.user:
+    name: "{{ docker_vm_user }}"
+    shell: /bin/bash
+    groups: sudo
+    append: true
+    create_home: true
+
+- name: Authorize operator SSH keys
+  ansible.posix.authorized_key:
+    user: "{{ docker_vm_user }}"
+    key: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../files/ssh/' ~ item) }}"
+  loop: "{{ docker_vm_ssh_keys }}"
+
+# Ansible connects as this account and becomes root; without NOPASSWD every
+# task would need a password prompt.
+- name: Allow passwordless sudo for the operator
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/90-ansible-{{ docker_vm_user }}"
+    content: "{{ docker_vm_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: visudo -cf %s
+
+- name: Inspect the serial-identified appdata disk
+  ansible.builtin.command:
+    argv:
+      - lsblk
+      - --json
+      - --output
+      - PATH,TYPE,SERIAL,FSTYPE,LABEL,MOUNTPOINTS
+      - "{{ docker_vm_appdata_device }}"
+  register: _appdata_lsblk
+  changed_when: false
+
+- name: Record appdata disk identity
+  ansible.builtin.set_fact:
+    _appdata_disk: "{{ (_appdata_lsblk.stdout | from_json).blockdevices | first }}"
+
+- name: Refuse unknown disks or partitioned appdata devices
+  ansible.builtin.assert:
+    that:
+      - _appdata_disk.type == 'disk'
+      - _appdata_disk.serial == 'homelab-appdata'
+      - _appdata_disk.children | default([]) | length == 0
+      - _appdata_disk.fstype in [none, '', 'ext4']
+      - _appdata_disk.fstype != 'ext4' or _appdata_disk.label == docker_vm_appdata_label
+    fail_msg: Refusing an unknown, partitioned or non-HOMELAB_APPDATA device; inspect the second disk manually.
+
+- name: Inspect all existing disk signatures
+  ansible.builtin.command:
+    argv: [wipefs, --json, "{{ docker_vm_appdata_device }}"]
+  register: _appdata_signatures
+  changed_when: false
+
+- name: Require explicit authorization for a signature-free disk
+  ansible.builtin.assert:
+    that:
+      - docker_vm_initialize_appdata | bool
+      - (_appdata_signatures.stdout | from_json).signatures | length == 0
+      - _appdata_disk.mountpoints | default([], true) | select | list | length == 0
+    fail_msg: Appdata is uninitialized. Only a verified empty serial homelab-appdata disk may be initialized with docker_vm_initialize_appdata=true.
+  when: _appdata_disk.fstype in [none, '']
+
+- name: Measure the authorized blank disk
+  ansible.builtin.command:
+    argv: [blockdev, --getsize64, "{{ docker_vm_appdata_device }}"]
+  register: _appdata_disk_bytes
+  changed_when: false
+  when: _appdata_disk.fstype in [none, '']
+
+- name: Refuse signature-free devices containing any existing data
+  ansible.builtin.command:
+    argv: [cmp, "--bytes={{ _appdata_disk_bytes.stdout }}", "{{ docker_vm_appdata_device }}", /dev/zero]
+  changed_when: false
+  when: _appdata_disk.fstype in [none, '']
+
+- name: Initialize only the authorized empty appdata disk
+  community.general.filesystem:
+    dev: "{{ docker_vm_appdata_device }}"
+    fstype: ext4
+    opts: "-L {{ docker_vm_appdata_label }}"
+    force: false
+  when: _appdata_disk.fstype in [none, '']
+
+- name: Mount local appdata before Docker installation
+  ansible.posix.mount:
+    path: "{{ docker_vm_appdata_path }}"
+    src: "{{ docker_vm_appdata_device }}"
+    fstype: ext4
+    opts: defaults,noatime
+    state: mounted
+
+# hard mount: the host is the same physical box, and a hung NFS server must
+# block I/O rather than silently corrupt a database.
+- name: Mount the PVE exports
+  ansible.posix.mount:
+    path: "{{ item.path }}"
+    src: "{{ docker_vm_nfs_server }}:{{ item.remote }}"
+    fstype: nfs4
+    opts: "{{ docker_vm_nfs_options }}"
+    state: mounted
+  loop: "{{ docker_vm_nfs_mounts }}"
+
+# Docker must not start before the bind-mount sources exist: a container with
+# a missing mount path starts empty and silently loses its data.
+- name: Create Docker systemd drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Require restored local appdata and bulk mounts before Docker
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/10-mounts.conf
+    content: |
+      [Unit]
+      RequiresMountsFor={{ ([docker_vm_appdata_path] + (docker_vm_nfs_mounts | map(attribute='path') | list)) | join(' ') }}
+      After=local-fs.target remote-fs.target
+      ConditionPathExists={{ docker_vm_appdata_path }}/.homelab-restored
+      ConditionPathExists=/etc/docker/homelab-compose-authorized
+      [Service]
+      ExecStartPre=/usr/bin/mountpoint -q {{ docker_vm_appdata_path }}
+      {% for mount in docker_vm_nfs_mounts %}
+      ExecStartPre=/usr/bin/mountpoint -q {{ mount.path }}
+      {% endfor %}
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Activate mount ordering before installing Docker
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure the QEMU guest agent is running
+  ansible.builtin.service:
+    name: qemu-guest-agent
+    state: started
+    enabled: true

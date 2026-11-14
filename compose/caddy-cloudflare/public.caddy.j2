@@ -1,0 +1,69 @@
+(public) {
+    encode zstd gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options nosniff
+        X-Frame-Options SAMEORIGIN
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+
+    tls {
+        dns cloudflare {$CLOUDFLARE_API_TOKEN}
+    }
+}
+
+photos.{{ vault_caddy_public_domain }} {
+    import public
+    reverse_proxy 127.0.0.1:2283
+}
+
+mc-map.{{ vault_caddy_public_domain }} {
+    import public
+    reverse_proxy 127.0.0.1:8100
+}
+
+mc-pack.{{ vault_caddy_public_domain }} {
+    import public
+    root /srv/pack/mc
+    file_server {
+        hide .git
+    }
+
+    # don't let browsers/proxies pin stale hashes
+    header Cache-Control "no-cache"
+
+    # optional: make .toml readable instead of a download prompt
+    @meta path *.toml
+    header @meta Content-Type "text/plain; charset=utf-8"
+}
+
+notes.{{ vault_caddy_public_domain }} {
+    import public
+    reverse_proxy 127.0.0.1:5984
+}
+
+llm.{{ vault_caddy_public_domain }} {
+    import public
+    @admin path /ui /ui/*
+    respond @admin "Forbidden" 403
+    reverse_proxy 127.0.0.1:4000
+}
+
+vault.{{ vault_caddy_public_domain }} {
+    import public
+    @admin path /admin /admin/*
+    respond @admin "Forbidden" 403
+    reverse_proxy 127.0.0.1:4743
+}
+
+matchagirlie.{{ vault_caddy_public_domain }} {
+    import public
+    reverse_proxy 127.0.0.1:4893
+}
+
+{{ vault_caddy_notes_domain }} {
+    import public
+    root /srv/obsidian
+    file_server
+}

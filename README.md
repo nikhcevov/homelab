@@ -13,6 +13,8 @@ Playbooks target inventory groups. Active hosts and connection settings live in 
 | `mon` | [playbooks/mon.yml](playbooks/mon.yml) | Native Uptime Kuma + Caddy, external watcher |
 | `routers` | [playbooks/openwrt.yml](playbooks/openwrt.yml) | OpenWrt configuration and Tailscale exit nodes; explicit upgrade tag |
 | `unraid` | [playbooks/unraid.yml](playbooks/unraid.yml) | Backup collection and local restic snapshots |
+| `pve` | [playbooks/pve.yml](playbooks/pve.yml) | Proxmox: private ZFS/NFS, VM/GPU/UPS, opt-in PBS and file backups |
+| `docker` | [playbooks/docker.yml](playbooks/docker.yml) | Debian VM: local appdata, private bulk mounts, NVIDIA, restore-gated stacks |
 | `workstations` | [playbooks/workstation.yml](playbooks/workstation.yml) | Arch/CachyOS development environment |
 
 Each host type has one setup/update playbook. Normal runs reconcile configuration;
@@ -49,13 +51,19 @@ before deployment.
 
 | Guide | Scope |
 | ----- | ----- |
+| [Current status](docs/status.md) | Snapshot: implemented, decided, open, verified |
 | [Getting started](docs/getting-started.md) | Requirements, repository layout, VPS day-0, secrets |
 | [Edge VPS](docs/edge.md) | Setup/update stages and tags, routing, local render, operations, troubleshooting |
 | [Tailscale policy](docs/tailscale.md) | Tags, access rules, GitOps setup, apply and rollback |
 | [VPN VPS](docs/vpn.md) | Deployment, application-state ownership, backups and restore |
 | [Monitoring](docs/monitoring.md) | Internal cron/ntfy checks and external Kuma watcher |
 | [OpenWrt routers](docs/openwrt.md) | LAN bootstrap, exit nodes, Wi-Fi, upgrades and management |
+| [Docker stacks](docs/docker-stacks.md) | Compose layout, secrets, deploy and verification |
+| [Proxmox host](docs/pve-host.md) | Host tuning, ZFS pools, NFS exports, UPS |
 | [Unraid backups](docs/backups-unraid.md) | Collection, manual schedules, restic and recovery |
+| [Proxmox backups](docs/backups-proxmox.md) | Consistent appdata/files, collector migration, PBS, secondary copies and recovery |
+| [Proxmox migration](docs/proxmox-migration.md) | Audit, target design, disk rules and cutover from Unraid |
+| [HDD price research](docs/hdd-price-research.md) | Price-per-TB method, snapshots and reproduction |
 | [Workstations](docs/workstations.md) | Bootstrap, chezmoi, keyboard/KDE behavior |
 | [Laptop power](docs/laptop-power.md) | Power profiles, measurements, caveats and removal |
 | [Media/Arr stack](docs/arr-stack.md) | Application configuration, media layout and maintenance |
@@ -67,6 +75,7 @@ For the solo-maintainer workflow, documentation upkeep, and local checks, see [C
 - [playbooks/](playbooks/) entrypoints select hosts and compose roles; see the infrastructure table above.
 - [inventory/](inventory/), [inventory/group_vars/](inventory/group_vars/), and [inventory/host_vars/](inventory/host_vars/) define hosts, shared settings, and per-host deltas.
 - [roles/](roles/) owns host configuration and deployment behavior; [monitoring assets](roles/monitoring/files/) include the deployed checks and cron schedule.
+- [compose/](compose/) holds the Docker VM's compose stacks and their `.env.j2` templates; secrets live in the vault.
 - [vars/proxy.example.yml](vars/proxy.example.yml) documents the local, gitignored edge routing map.
 - [scripts/](scripts/) holds operator tools such as laptop power benchmarks.
 - [files/](files/) holds shared SSH public keys, Unraid templates, and tailnet policy.

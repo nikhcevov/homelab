@@ -1,0 +1,8 @@
+---
+# Empty defaults keep the role harmless if a caller forgets the group vars.
+pve_storage_create: false
+pve_storage_pools: []
+pve_storage_datasets: []
+pve_nfs_exports: []
+
+pve_storage_approved_blank_disks: []

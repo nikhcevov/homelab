@@ -26,12 +26,12 @@ tailscale_ssh: true
 # --- DNS ---
 # Search domain for this site:
 owrt_dns_domain: trvl.home.arpa
-# Resolve through router-srt's dnsmasq over the tailnet, not locally:
+# Resolve through router-krm's dnsmasq over the tailnet, not locally:
 # answers (CDN localization, resolver egress) must look like they come
-# from the srt site, same as the MacBook's exit-node traffic. Cost: all
-# DNS on this LAN depends on the tailnet + router-srt being up.
+# from the krm site, same as the MacBook's exit-node traffic. Cost: all
+# DNS on this LAN depends on the tailnet + router-krm being up.
 owrt_dns_servers:
-  - 100.77.53.118 # router-srt
+  - 100.84.111.78 # router-krm
 
 # --- Wi-Fi ---
 # MT7981 DBDC paths; verify against the stock config on the device:
@@ -72,11 +72,11 @@ tailscale_advertise_routes: "192.168.102.0/24"
 # Tailscale admin console (Edit route settings), or autoApprovers.exitNode.
 # tailscale_advertise_exit_node: true
 
-# --- Full-tunnel exit node: the whole LAN exits via router-srt ---
+# --- Full-tunnel exit node: the whole LAN exits via router-krm ---
 # tailscaled installs a blanket `5270: from all lookup 52` when an exit
 # node is set — every LAN client rides the tunnel, no per-device policy
 # routing needed (this router serves only the MacBook anyway).
-tailscale_exit_node: router-srt
+tailscale_exit_node: router-krm
 # Keeps throw routes for the local subnet in table 52, so LAN traffic
 # is not eaten by the tunnel's default route.
 tailscale_exit_node_allow_lan_access: true
@@ -89,16 +89,15 @@ owrt_firewall_lan_wan_forwarding: false
 
 # The blanket 5270 rule also catches the router's OWN traffic (apk, NTP,
 # ntfy). Pin the management plane to the direct WAN: it must not depend
-# on the exit node being up (and downloads.openwrt.org/Fastly is blocked
-# from the srt egress anyway). Only LAN client traffic is forced into
-# the tunnel.
+# on the exit node being up (or on that egress allowing Fastly). Only LAN
+# client traffic is forced into the tunnel.
 #
 # netifd resolves `in`/`out` as UCI *interface* names, not device names:
 # `in: lo` matches no interface and the rule is dropped without a log
 # line (netifd 2026.x). The loopback section is `loopback`, whose device
 # is `lo`.
 owrt_network_rules:
-  - comment: router -> tailnet peers (e.g. DNS via router-srt) stays in the tunnel
+  - comment: router -> tailnet peers (e.g. DNS via router-krm) stays in the tunnel
     priority: 5264
     in: loopback
     dest: "100.64.0.0/10"

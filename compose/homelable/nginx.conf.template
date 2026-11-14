@@ -1,0 +1,59 @@
+# Resume starts saved containers directly, without Compose dependency ordering.
+# Resolve Docker service names at runtime, including after backend IP changes.
+upstream homelable_backend {
+    zone homelable_backend 64k;
+    resolver 127.0.0.11 valid=5s ipv6=off;
+    server ${BACKEND_UPSTREAM} resolve;
+}
+
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location /api/v1/status/ws/ {
+        proxy_pass http://homelable_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /api/ {
+        proxy_pass http://homelable_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /docs {
+        proxy_pass http://homelable_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /redoc {
+        proxy_pass http://homelable_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location = /openapi.json {
+        proxy_pass http://homelable_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /ws/ {
+        proxy_pass http://homelable_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

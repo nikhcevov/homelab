@@ -1,0 +1,193 @@
+---
+# NVIDIA driver in the guest and the Docker runtime that exposes it.
+# Requires the GPU to be passed through by the PVE host.
+
+- name: Check the Debian deb822 source file
+  ansible.builtin.stat:
+    path: /etc/apt/sources.list.d/debian.sources
+  register: _debian_sources
+
+- name: Fail when the expected deb822 sources are missing
+  ansible.builtin.fail:
+    msg: >-
+      /etc/apt/sources.list.d/debian.sources is missing. This role expects a
+      Debian 12+ deb822 layout; enable the non-free component by hand and
+      re-run.
+  when: not _debian_sources.stat.exists
+
+- name: Enable required Debian driver build components
+  ansible.builtin.replace:
+    path: /etc/apt/sources.list.d/debian.sources
+    regexp: '^Components:.*$'
+    replace: 'Components: main contrib non-free non-free-firmware'
+
+- name: Inspect current kernel header availability before package changes
+  ansible.builtin.stat:
+    path: "/lib/modules/{{ ansible_facts['kernel'] }}/build"
+  register: _nvidia_running_headers_before
+
+- name: Install paired cloud kernel and driver build headers
+  ansible.builtin.apt:
+    name:
+      - linux-image-cloud-amd64
+      - linux-headers-cloud-amd64
+      - build-essential
+      - dkms
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    update_cache: true
+  register: _nvidia_kernel
+
+- name: Reboot into the kernel paired with installed cloud headers
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+  when: _nvidia_kernel.changed or not _nvidia_running_headers_before.stat.exists
+
+- name: Refresh running kernel facts after kernel selection
+  ansible.builtin.setup:
+    gather_subset: [min]
+
+- name: Require headers for the running kernel
+  ansible.builtin.stat:
+    path: "/lib/modules/{{ ansible_facts['kernel'] }}/build"
+  register: _nvidia_headers
+
+- name: Refuse building a driver against a different kernel
+  ansible.builtin.assert:
+    that: _nvidia_headers.stat.exists
+    fail_msg: Boot the installed cloud kernel before configuring its NVIDIA modules.
+
+- name: Ensure the vendor signing-key directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the NVIDIA driver repository signing key
+  ansible.builtin.get_url:
+    url: "{{ nvidia_guest_driver_repository }}8793F200.pub"
+    dest: /etc/apt/keyrings/nvidia-driver.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configure the signed NVIDIA Debian 13 driver repository
+  ansible.builtin.deb822_repository:
+    name: nvidia-driver
+    types: [deb]
+    uris: "{{ nvidia_guest_driver_repository }}"
+    suites: [/]
+    architectures: [amd64]
+    signed_by: /etc/apt/keyrings/nvidia-driver.asc
+    state: present
+
+- name: Pin driver components to the selected source-compatible branch version
+  ansible.builtin.apt:
+    name: "nvidia-driver-pinning-{{ nvidia_guest_driver_active_version }}={{ nvidia_guest_driver_version }}"
+    state: present
+    update_cache: true
+
+- name: Remove the incomplete hand-written driver pinning policy
+  ansible.builtin.file:
+    path: /etc/apt/preferences.d/nvidia-driver
+    state: absent
+
+- name: Disable Nouveau before activating the passed-through GPU
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/homelab-nvidia.conf
+    content: |
+      blacklist nouveau
+      options nouveau modeset=0
+    owner: root
+    group: root
+    mode: "0644"
+  register: _nvidia_blacklist
+
+- name: Install the pinned NVIDIA driver and DKMS modules
+  ansible.builtin.apt:
+    name: "{{ nvidia_guest_driver_package }}={{ nvidia_guest_driver_version }}"
+    state: present
+    update_cache: true
+  register: _nvidia_driver
+  notify: Restart Docker
+
+- name: Load NVIDIA GPU and compute modules at boot
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/homelab-nvidia.conf
+    content: |
+      nvidia
+      nvidia_uvm
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Inspect whether a previous interrupted activation still needs reboot
+  ansible.builtin.command: nvidia-smi --query-gpu=driver_version --format=csv,noheader
+  register: _nvidia_before_reboot
+  changed_when: false
+  failed_when: false
+
+- name: Rebuild initramfs after driver activation changes
+  ansible.builtin.command: update-initramfs -u -k all
+  when: _nvidia_driver.changed or _nvidia_blacklist.changed or _nvidia_before_reboot.rc != 0 or nvidia_guest_driver_active_version not in _nvidia_before_reboot.stdout_lines
+  changed_when: true
+
+- name: Reboot to activate the installed GPU kernel modules
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+  when: _nvidia_driver.changed or _nvidia_blacklist.changed or _nvidia_before_reboot.rc != 0 or nvidia_guest_driver_active_version not in _nvidia_before_reboot.stdout_lines
+
+- name: Require the selected driver to be active before configuring workloads
+  ansible.builtin.command: nvidia-smi --query-gpu=driver_version --format=csv,noheader
+  register: _nvidia_active_driver
+  changed_when: false
+  failed_when: _nvidia_active_driver.rc != 0 or nvidia_guest_driver_active_version not in _nvidia_active_driver.stdout_lines
+
+- name: Install the container toolkit signing key
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+      | gpg --dearmor -o {{ nvidia_guest_toolkit_keyring }}
+  args:
+    creates: "{{ nvidia_guest_toolkit_keyring }}"
+    executable: /bin/bash
+
+- name: Add the container toolkit repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by={{ nvidia_guest_toolkit_keyring }}]
+      https://nvidia.github.io/libnvidia-container/stable/deb/amd64/ /
+    filename: nvidia-container-toolkit
+    state: present
+    update_cache: true
+
+- name: Install the container toolkit
+  ansible.builtin.apt:
+    name: nvidia-container-toolkit
+    state: present
+
+- name: Check whether Docker already knows the NVIDIA runtime
+  ansible.builtin.command: grep -q '"nvidia"' /etc/docker/daemon.json
+  register: _docker_nvidia
+  changed_when: false
+  failed_when: false
+
+- name: Register the NVIDIA runtime with Docker
+  ansible.builtin.command: nvidia-ctk runtime configure --runtime=docker
+  when: _docker_nvidia.rc != 0
+  notify: Restart Docker
+
+- name: Restart Docker before any GPU stack reconciliation
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify the GPU is visible in the guest
+  ansible.builtin.command: nvidia-smi --query-gpu=name --format=csv,noheader
+  register: _nvidia_smi
+  changed_when: false
+  retries: 3
+  delay: 2
+  until: _nvidia_smi.rc == 0

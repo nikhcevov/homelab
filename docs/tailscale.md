@@ -13,17 +13,24 @@ Ansible does **not** apply this file. The [Tailscale policy workflow](../.github
 | Desired machine | Required tag | Edge access |
 | --------------- | ------------ | ----------- |
 | `edge` | `tag:edge` | Source of the restricted grants |
-| `great-hornbill` | `tag:home` | TCP 443, TCP 25565, UDP 24454 |
+| `docker-1` (Docker VM100) | `tag:home` | TCP 443, TCP 25565, UDP 24454 |
 | `ha-krm` | `tag:homeassistant` | TCP 443 |
+
+At the [Proxmox cutover](proxmox-migration.md#phase-7--ingress-monitoring-and-decommission),
+the owner assigned `tag:home` to `docker-1`; the exact original node identity
+and live edge TCP443/25565 plus UDP24454 delivery were verified.
+PVE retains `great-hornbill`, without `tag:home`; it is not an application endpoint.
+Retarget the private edge application/game upstreams separately after checkpointing.
+Docker VM Tailscale SSH remains disabled; native key-based SSH is unchanged.
 
 The operator confirmed no device uses the retired `tag:vps`; the repository
 policy now declares only `tag:edge` for the restricted edge grants. Four native
 policy tests remain: edge TCP/UDP accept/deny tests and trusted-home SSH tests
 targeting the edge. This does not prove policy apply, machine-name or OS-hostname
 changes, or deployment health.
-Reserve `tag:edge` for restricted edge machines and `tag:home` for trusted Unraid
-backends. Never put a trusted-home tag on the edge: permissions from multiple
-tags are additive. Empty `tagOwners` lists leave assignment to tailnet
+Reserve `tag:edge` for restricted edge machines and `tag:home` for trusted home
+application backends, currently the Docker VM. Never put a trusted-home tag on
+the edge: permissions from multiple tags are additive. Empty `tagOwners` lists leave assignment to tailnet
 owners/admins/network admins.
 
 Follow the [existing-node identity cutover](edge.md#existing-node-identity-cutover):

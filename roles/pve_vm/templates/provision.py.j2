@@ -1,0 +1,124 @@
+#!/usr/bin/python3
+# Managed by Ansible. Only this provisioner's marked VM may be reconciled.
+import json
+import subprocess
+
+VM = {{ pve_vm_id | int }}
+STORAGE = {{ pve_vm_storage | to_json }}
+MARKER = 'homelab-managed-docker-vm'
+changed = False
+
+def run(*args):
+    return subprocess.check_output([str(a) for a in args], text=True).strip()
+
+def mutate(*args):
+    global changed
+    subprocess.check_call([str(a) for a in args])
+    changed = True
+
+def config():
+    return dict(line.split(': ', 1) for line in run('qm', 'config', VM).splitlines() if ': ' in line)
+
+exists = subprocess.run(['qm', 'config', str(VM)], capture_output=True).returncode == 0
+if exists:
+    c = config()
+    if c.get('description') != MARKER or c.get('name') != {{ pve_vm_name | to_json }}:
+        raise SystemExit('Refusing foreign VM: explicit operator inspection/adoption required')
+else:
+    # Never adopt orphan volumes from a different/previous VM.
+    volumes = json.loads(run('pvesh', 'get', f'/nodes/localhost/storage/{STORAGE}/content', '--vmid', VM, '--output-format', 'json'))
+    if volumes:
+        raise SystemExit('VM ID has orphan volumes; inspect them before provisioning')
+    mutate('qm', 'create', VM, '--name', {{ pve_vm_name | to_json }}, '--description', MARKER,
+           '--onboot', 0, '--memory', {{ pve_vm_memory }}, '--cores', {{ pve_vm_cores }},
+           '--cpu', 'host', '--machine', 'q35', '--bios', 'ovmf', '--ostype', 'l26',
+           '--scsihw', 'virtio-scsi-single', '--agent', 'enabled=1', '--serial0', 'socket', '--vga', 'serial0')
+c = config()
+status = run('qm', 'status', VM)
+# Reconcile only a stopped shell. A completed running VM is inspected, never hot-reconfigured.
+def ensure(key, value):
+    global c
+    if c.get(key) != str(value):
+        if 'running' in status:
+            raise SystemExit('VM configuration differs; stop it before reconciliation: ' + key)
+        mutate('qm', 'set', VM, '--' + key, value)
+        c = config()
+
+if 'running' not in status:
+    ensure('onboot', '0')
+if any(k.startswith('scsi') and k[4:].isdigit() and k not in ('scsi0', 'scsi1') for k in c):
+    raise SystemExit('Unexpected attached disk; operator inspection required')
+if 'scsi0' in c and any(k.startswith('unused') for k in c):
+    raise SystemExit('Unexpected unused disks; operator inspection required')
+ensure('memory', '{{ pve_vm_memory }}')
+ensure('cores', '{{ pve_vm_cores }}')
+ensure('cpu', 'host')
+ensure('machine', 'q35')
+ensure('bios', 'ovmf')
+ensure('scsihw', 'virtio-scsi-single')
+
+if 'scsi0' not in c:
+    if 'running' in status:
+        raise SystemExit('Incomplete VM must be stopped')
+    volumes = json.loads(run('pvesh', 'get', f'/nodes/localhost/storage/{STORAGE}/content', '--vmid', VM, '--output-format', 'json'))
+    candidates = [v['volid'] for v in volumes if 'cloudinit' not in v['volid']]
+    unused = [v.split(',')[0] for k, v in c.items() if k.startswith('unused')]
+    if candidates and (len(candidates) != 1 or candidates[0] not in unused):
+        raise SystemExit('Unknown orphan/root disk; inspect before attaching')
+    if not candidates:
+        mutate('qm', 'importdisk', VM, {{ ('/var/lib/vz/template/iso/' ~ pve_vm_image_file) | to_json }}, STORAGE)
+        c = config()
+        unused = [v.split(',')[0] for k, v in c.items() if k.startswith('unused')]
+    if len(unused) != 1:
+        raise SystemExit('Ambiguous imported disk')
+    ensure('scsi0', unused[0] + ',discard=on,ssd=1,iothread=1')
+if not c['scsi0'].startswith(STORAGE + ':vm-' + str(VM) + '-'):
+    raise SystemExit('Unknown root volume')
+# qm resize with an absolute size never shrinks a disk; reject unexpected sizes explicitly.
+size = c['scsi0'].split('size=')[-1].split(',')[0]
+if size != {{ pve_vm_disk_size | to_json }}:
+    if size.endswith('G') and int(size[:-1]) > int({{ pve_vm_disk_size[:-1] | to_json }}):
+        raise SystemExit('Root disk exceeds desired size; refusing shrink')
+    if 'running' in status:
+        raise SystemExit('Stop VM to resize root disk')
+    mutate('qm', 'resize', VM, 'scsi0', {{ pve_vm_disk_size | to_json }})
+    c = config()
+if 'scsi1' not in c:
+    ensure('scsi1', STORAGE + ':{{ pve_vm_appdata_size }},serial=homelab-appdata,discard=on,ssd=1,iothread=1')
+if not c['scsi1'].startswith(STORAGE + ':vm-' + str(VM) + '-') or 'serial=homelab-appdata' not in c['scsi1'] or 'size={{ pve_vm_appdata_size }}G' not in c['scsi1']:
+    raise SystemExit('Unknown appdata disk; never relabel or replace automatically')
+if 'ide2' not in c:
+    ensure('ide2', STORAGE + ':cloudinit')
+if not c['ide2'].startswith(STORAGE + ':') or 'media=cdrom' not in c['ide2']:
+    raise SystemExit('Unexpected cloud-init disk')
+if 'efidisk0' not in c:
+    ensure('efidisk0', STORAGE + ':1,efitype=4m,pre-enrolled-keys=0')
+efi_volume = c['efidisk0'].split(',')[0]
+if (not efi_volume.startswith(STORAGE + ':vm-' + str(VM) + '-')
+        or efi_volume in {c['scsi0'].split(',')[0], c['scsi1'].split(',')[0]}
+        or 'efitype=4m' not in c['efidisk0']
+        or 'pre-enrolled-keys=0' not in c['efidisk0']):
+    raise SystemExit('Unknown or shared EFI variable volume; operator inspection required')
+ensure('net0', 'virtio={{ pve_vm_mac }},bridge={{ pve_vm_bridge }}')
+ensure('net1', 'virtio={{ pve_vm_private_mac }},bridge=vmbr1')
+ensure('ipconfig0', 'ip=dhcp')
+ensure('ipconfig1', 'ip=10.77.0.2/29')
+ensure('ciuser', {{ pve_vm_ciuser | to_json }})
+ensure('ciupgrade', '0')
+ensure('boot', 'order=scsi0')
+ensure('startup', 'order={{ pve_vm_autostart_order }},down=300')
+# sshkeys in qm config are URL encoded; set only on stopped VM, from controller-owned keys.
+if 'running' not in status:
+    mutate('qm', 'set', VM, '--sshkeys', {{ ('/var/lib/vz/snippets/' ~ pve_vm_name ~ '-keys.pub') | to_json }})
+{% for pci in pve_vm_hostpci %}
+ensure('hostpci{{ loop.index0 }}', {{ pci | to_json }})
+{% endfor %}
+# Autostart requires both functions bound, not merely a created config file.
+ready = True
+{% for pci in pve_vm_hostpci %}
+ready = ready and run('readlink', '-f', '/sys/bus/pci/devices/{{ pci.split(",")[0] }}/driver').endswith('/vfio-pci')
+{% endfor %}
+ensure('onboot', '1' if ready else '0')
+if ready and 'running' not in status:
+    mutate('qm', 'start', VM)
+print('CHANGED' if changed else 'UNCHANGED')

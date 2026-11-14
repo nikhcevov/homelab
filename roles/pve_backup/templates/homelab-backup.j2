@@ -1,0 +1,244 @@
+#!/bin/bash
+source /usr/local/lib/homelab-backup/common.sh
+command=${1:-}
+shift || true
+# ExecStopPost must be able to resume without waiting for the long restic lock.
+if [[ "$command" = resume ]]; then
+    if [[ -f "$STATE/guest-needs-resume" ]]; then
+        if ! resume_guest; then
+            notify backup fail 'Application resume failed; retry homelab-backup resume immediately' || true
+            exit 1
+        fi
+    fi
+    if [[ "${SERVICE_RESULT:-success}" != success ]]; then
+        notify backup fail "Backup service failed ($SERVICE_RESULT); original containers resumed" || true
+    fi
+    exit 0
+fi
+if [[ "$command" = failure ]]; then
+    if [[ -f "$STATE/guest-needs-resume" ]]; then resume_guest || true; fi
+    service=${1:-unknown}
+    case "$service" in
+        homelab-backup.service) key=backup ;;
+        homelab-backup-collect.service) key=collector ;;
+        homelab-backup-check.service) key=check-data ;;
+        homelab-backup-freshness.service) key=freshness ;;
+        *) exit 64 ;;
+    esac
+    notify "$key" fail "Backup systemd unit $service failed; inspect its journal"
+    exit 0
+fi
+case "$command" in
+    backup|check-metadata|check-data|check-full|offsite-attach|offsite-detach|offsite-init|offsite-refresh|offsite-check-full|verify-restore|freshness) ;;
+    *) echo 'usage: homelab-backup {backup|resume|check-metadata|check-data|check-full|offsite-attach|offsite-detach|offsite-init UUID|offsite-refresh|offsite-check-full|verify-restore local|offsite SNAPSHOT /mnt/restore/MOUNT|freshness}' >&2; exit 64 ;;
+esac
+MOUNTS=()
+finish() {
+    local rc=$? path
+    trap - EXIT HUP INT TERM
+    # Resume is always attempted BEFORE cleanup or any further repository work.
+    if [[ -f "$STATE/guest-needs-resume" ]]; then
+        resume_guest || { log 'RESUME FAILED: retry homelab-backup resume immediately'; rc=1; }
+    fi
+    for path in "${MOUNTS[@]}"; do umount -- "$path" || rc=1; done
+    if [[ "$rc" = 0 ]]; then
+        notify "$command" ok "$command completed (metadata-only checks do not verify pack data)" || rc=1
+    else
+        notify "$command" fail "$command failed: ${FAILURE_REASON:-see journalctl and guest-needs-resume state}" || true
+    fi
+    exit "$rc"
+}
+trap finish EXIT
+trap 'exit 130' INT
+trap 'exit 143' HUP TERM
+exec 9>/run/lock/homelab-backup.lock
+flock -w 3600 9
+# Never let a subsequent check/copy scan data while a failed transaction still
+# has applications stopped. Failure here exits before any repository scanning.
+if [[ -f "$STATE/guest-needs-resume" ]]; then resume_guest; fi
+snapshot_sources() {
+    local snapshot=$1
+    mkdir -p /run/homelab-backup/sources/{appdata,photos,files}
+    # A killed restic may leave private bind views behind. With the host lock
+    # held, unmount only our own snapshot views before reusing these paths.
+    local path dataset source
+    for dataset in "$STAGING_DATASET" {% for item in pve_backup_bulk_datasets %}{{ item.dataset | quote }} {% endfor %}; do
+        path="/run/homelab-backup/sources/${dataset##*/}"
+        if mountpoint -q "$path"; then
+            source=$(findmnt -n -o SOURCE --mountpoint "$path")
+            [[ "$source" = "$dataset"@homelab-backup-* ]] || die "Unexpected mount at $path; refusing to replace it"
+            umount -- "$path"
+        fi
+    done
+    mount --bind "$STAGING/.zfs/snapshot/$snapshot" /run/homelab-backup/sources/appdata
+    MOUNTS+=(/run/homelab-backup/sources/appdata)
+    mount -o remount,bind,ro /run/homelab-backup/sources/appdata
+{% for source in pve_backup_bulk_datasets %}
+    mount --bind {{ (source.mount ~ '/.zfs/snapshot/') | quote }}"$snapshot" /run/homelab-backup/sources/{{ source.dataset.split('/')[-1] }}
+    MOUNTS+=(/run/homelab-backup/sources/{{ source.dataset.split('/')[-1] }})
+    mount -o remount,bind,ro /run/homelab-backup/sources/{{ source.dataset.split('/')[-1] }}
+{% endfor %}
+}
+expire_snapshots() {
+    local dataset snapshot count listing
+    for dataset in "$STAGING_DATASET" {% for source in pve_backup_bulk_datasets %}{{ source.dataset | quote }} {% endfor %}; do
+        listing=$(zfs list -H -t snapshot -o name -s creation -d 1 "$dataset")
+        mapfile -t owned <<<"$listing"
+        count=0
+        for snapshot in "${owned[@]}"; do
+            [[ "$snapshot" != "$dataset"@homelab-backup-* ]] || count=$((count + 1))
+        done
+        for snapshot in "${owned[@]}"; do
+            [[ "$snapshot" = "$dataset"@homelab-backup-* ]] || continue
+            [[ "$count" -gt {{ pve_backup_snapshot_keep }} ]] || break
+            zfs destroy "$snapshot"
+            count=$((count - 1))
+        done
+    done
+}
+recovery_archives() {
+    local recovery="$STATE/recovery"
+    # sqlite online backup avoids copying a potentially open WAL database.
+    sqlite3 /var/lib/pve-cluster/config.db ".backup '$recovery/pmxcfs-config.db.tmp'"
+    mv -- "$recovery/pmxcfs-config.db.tmp" "$recovery/pmxcfs-config.db"
+    tar --acls --xattrs --numeric-owner -czf "$recovery/pve-config.tar.gz.tmp" \
+        -C / etc/pve etc/network etc/hosts etc/hostname etc/fstab etc/ssh \
+        etc/homelab-backup etc/systemd/system root/.ssh root/.config/homelab/pbs-token.json \
+        var/lib/homelab-backup/recovery/pmxcfs-config.db
+    mv -- "$recovery/pve-config.tar.gz.tmp" "$recovery/pve-config.tar.gz"
+    # Bind datastore is intentionally NOT archived. PBS keys, tokens and config
+    # are; failure to obtain current recovery configuration fails the backup.
+    pct exec {{ pve_backup_pbs_vmid }} -- tar --acls --xattrs --numeric-owner -czf - \
+        -C / etc/proxmox-backup >"$recovery/pbs-config.tar.gz.tmp"
+    gzip -t "$recovery/pbs-config.tar.gz.tmp"
+    mv -- "$recovery/pbs-config.tar.gz.tmp" "$recovery/pbs-config.tar.gz"
+}
+case "$command" in
+backup)
+    require_local
+    require_dataset "$STAGING" "$STAGING_DATASET"
+{% for source in pve_backup_bulk_datasets %}
+    require_dataset {{ source.mount | quote }} {{ source.dataset | quote }}
+{% endfor %}
+    # Resume an interrupted prior transaction FIRST. prepare never overwrites
+    # a durable manifest, so retries cannot lose the original running set.
+    touch "$STATE/guest-needs-resume"
+    sync -f "$STATE"
+    resume_guest
+    collector_failed=0
+    if ! HOMELAB_BACKUP_COORDINATOR=1 /usr/local/sbin/homelab-backup-collect; then
+        collector_failed=1
+        log 'Collector failed; continuing local protection with last collected archives'
+    fi
+    touch "$STATE/guest-needs-resume"
+    sync -f "$STATE"
+    "${SSH[@]}" "root@$GUEST" /usr/local/sbin/homelab-appdata-backup prepare
+    rsync -aHAX --numeric-ids --delete-delay --delay-updates --timeout=300 \
+{% for exclude in pve_backup_rsync_excludes %}
+        --exclude={{ exclude | quote }} \
+{% endfor %}
+        -e "$RSYNC_SSH" "root@$GUEST:/" "$STAGING/"
+    # The parent is root-only; preserve guest root ownership/mode in this copy.
+    sync -f "$STAGING"
+    snapshot="homelab-backup-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+    # ZFS cannot snapshot across pools in one call; keep writers stopped
+    # across every dataset snapshot to preserve the quiesced checkpoint.
+    zfs snapshot "$STAGING_DATASET@$snapshot"
+{% for source in pve_backup_bulk_datasets %}
+    zfs snapshot {{ source.dataset | quote }}"@$snapshot"
+{% endfor %}
+    resume_guest
+    # No restic scan, archive, retention, or integrity check occurs in downtime.
+    recovery_archives
+    snapshot_sources "$snapshot"
+    restic backup --host pve-backup --tag pve-owned \
+{% for exclude in pve_backup_restic_excludes %}
+        --exclude={{ ('**' ~ exclude) | quote }} \
+{% endfor %}
+        /run/homelab-backup/sources/appdata /run/homelab-backup/sources/photos \
+        /run/homelab-backup/sources/files "$STATE/recovery"
+    restic forget --host pve-backup --tag pve-owned --group-by host,tags \
+        --keep-daily {{ pve_backup_keep_daily }} --keep-weekly {{ pve_backup_keep_weekly }} --keep-monthly {{ pve_backup_keep_monthly }} --prune
+    log 'Checking repository metadata only (no pack data read)'
+    restic check
+    # Unmount snapshot views before expiry; other snapshots are never touched.
+    for path in "${MOUNTS[@]}"; do umount -- "$path"; done
+    MOUNTS=()
+    expire_snapshots
+    date +%s >"$STATE/local-last-success"
+    [[ "$collector_failed" = 0 ]] || die 'Local data backed up, but remote collection failed; inspect per-source alerts'
+    ;;
+check-metadata) require_local; log 'Metadata only; does not verify pack contents'; restic check ;;
+check-data) require_local; log 'Random {{ pve_backup_check_subset }} subset; repeated runs do not guarantee full coverage'; restic check --read-data-subset={{ pve_backup_check_subset | quote }} ;;
+check-full) require_local; restic check --read-data; date +%s >"$STATE/local-full-data-check" ;;
+offsite-attach)
+    [[ -n "$OFFSITE_UUID" && "$OFFSITE_UUID" != "$VAULT_UUID" ]] || die 'Configure a distinct offsite UUID first'
+    [[ "$(blkid -s TYPE -o value "/dev/disk/by-uuid/$OFFSITE_UUID")" = xfs ]] || die 'Offsite device is not existing XFS'
+    mountpoint -q "$OFFSITE" || mount -- "$OFFSITE"
+    require_offsite
+    ;;
+offsite-detach) require_offsite; sync -f "$OFFSITE"; umount -- "$OFFSITE" ;;
+offsite-init)
+    require_local
+    require_offsite
+    [[ "${1:-}" = "$OFFSITE_UUID" ]] || die 'Initialization requires explicit matching UUID argument'
+    [[ ! -e "$OFFSITE/restic" ]] || die 'Refusing initialization over any existing restic path'
+    # This initializes ONLY a new repository on an already mounted, verified
+    # disk. It never partitions, formats, deletes, or erases source staging.
+    restic -r "$OFFSITE/restic" init --copy-chunker-params \
+        --from-repo "$RESTIC_REPOSITORY" --from-password-file "$RESTIC_PASSWORD_FILE"
+    ;;
+offsite-refresh)
+    require_local
+    require_offsite
+    [[ -s "$OFFSITE/restic/config" ]] || die 'Offsite repository missing; deliberate offsite-init required'
+    restic -r "$OFFSITE/restic" copy --from-repo "$RESTIC_REPOSITORY" --from-password-file "$RESTIC_PASSWORD_FILE"
+    restic -r "$OFFSITE/restic" forget --host pve-backup --tag pve-owned --group-by host,tags \
+        --keep-daily {{ pve_backup_keep_daily }} --keep-weekly {{ pve_backup_keep_weekly }} --keep-monthly {{ pve_backup_keep_monthly }} --prune
+    restic -r "$OFFSITE/restic" check
+    date +%s >"$STATE/offsite-last-success.tmp"
+    mv -- "$STATE/offsite-last-success.tmp" "$STATE/offsite-last-success"
+    log 'Offsite copy and metadata check completed; full data and restore verification are separate commands'
+    ;;
+offsite-check-full)
+    require_offsite
+    restic -r "$OFFSITE/restic" check --read-data
+    date +%s >"$STATE/offsite-full-data-check"
+    ;;
+verify-restore)
+    location=${1:-}; snapshot=${2:-}; target=${3:-}
+    [[ -n "$snapshot" && "$target" = /mnt/restore/* ]] || die 'Supply a snapshot ID and dedicated mounted target under /mnt/restore/'
+    [[ "$(realpath -m "$target")" = "$target" ]] || die 'Restore target must be a canonical path'
+    mountpoint -q "$target" || die 'Restore target must be a dedicated mounted filesystem'
+    [[ -z "$(find "$target" -mindepth 1 -maxdepth 1 -print -quit)" ]] || die 'Restore target must be empty'
+    case "$location" in
+        local) require_local ;;
+        offsite) require_offsite; export RESTIC_REPOSITORY="$OFFSITE/restic" ;;
+        *) die 'Select local or offsite' ;;
+    esac
+    chmod 700 "$target"
+    restic restore "$snapshot" --verify --target "$target"
+    printf '%s %s\n' "$(date +%s)" "$snapshot" >"$STATE/$location-restore-verified"
+    log 'Restore bytes verified; application/database import validation remains a separate recovery exercise'
+    ;;
+freshness)
+    now=$(date +%s)
+    problems=()
+    for location in local offsite; do
+        # A deferred, unconfigured copy target is not an off-site protection claim.
+        [[ "$location" != offsite || -n "$OFFSITE_UUID" ]] || continue
+        if [[ "$location" = local ]]; then limit=$(( {{ pve_backup_local_max_age_hours }} * 3600 )); else limit=$(( {{ pve_backup_offsite_max_age_days }} * 86400 )); fi
+        if [[ ! -s "$STATE/$location-last-success" ]]; then
+            problems+=("No successful $location backup recorded")
+            continue
+        fi
+        last=$(cat "$STATE/$location-last-success")
+        if [[ ! "$last" =~ ^[0-9]+$ || "$last" -gt "$now" ]]; then
+            problems+=("Invalid $location freshness timestamp")
+        elif (( now - last > limit )); then
+            problems+=("$location backup overdue (maximum age $limit seconds)")
+        fi
+    done
+    [[ -z "${problems[*]}" ]] || die "${problems[*]}"
+    ;;
+esac

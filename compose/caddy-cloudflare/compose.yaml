@@ -1,0 +1,25 @@
+# Caddy with the Cloudflare DNS module. Host networking is required, not a
+# preference: every upstream in the Caddyfile is 127.0.0.1:<port>, which only
+# reaches the other stacks inside the host network namespace. A bridge would
+# need host.docker.internal or a shared Docker network for every stack.
+# The admin API stays on localhost:2019 and is not exposed.
+services:
+  caddy-cloudflare:
+    container_name: caddy-cloudflare
+    image: caddybuilds/caddy-cloudflare@sha256:b817cd806ebf46ad91530243d100bd3f2d2cde12c8e07c3378c8610a7aecb0bf
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      - /mnt/appdata/caddy/Caddyfile:/etc/caddy/Caddyfile:rw
+      - /mnt/appdata/caddy/data:/data:rw
+      - /mnt/appdata/caddy/config:/config:rw
+      - /mnt/appdata/obsidian/blog/public:/srv/obsidian:rw
+      - /mnt/appdata/minecraft/mc/client_pack:/srv/pack/mc:rw
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "1"
