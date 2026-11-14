@@ -1,8 +1,8 @@
 ---
-# Explicit day-0 gate; reruns never adopt an unrelated CT101.
-pve_pbs_enabled: false
-# Provision first; arm schedules only after real backup and isolated restore.
-pve_pbs_schedules_enabled: false
+# Existing CT101 backup/restore gates passed; reconcile it and its schedules.
+pve_pbs_enabled: true
+# Native recovery and timezone/catch-up checks passed before activation.
+pve_pbs_schedules_enabled: true
 pve_pbs_id: 101
 pve_pbs_hostname: pbs
 pve_pbs_memory: 5120
@@ -24,10 +24,12 @@ pve_pbs_token: pve
 # Host-only recovery secret, also collect in the host recovery backup.
 pve_pbs_secret_path: /root/.config/homelab/pbs-token.json
 pve_pbs_backup_vm: 100
+# PVE and PBS schedules use bootstrap_timezone (Asia/Yerevan, UTC+04).
+# Leave the measured ~3h restic window from03:00 clear of PBS maintenance.
 pve_pbs_backup_schedule: '02:00'
-pve_pbs_verify_schedule: 'sun 08:00'
-pve_pbs_prune_schedule: '04:00'
-pve_pbs_gc_schedule: '05:00'
+pve_pbs_verify_schedule: 'sun 10:00'
+pve_pbs_prune_schedule: '07:00'
+pve_pbs_gc_schedule: '08:00'
 pve_pbs_keep_daily: 7
 pve_pbs_keep_weekly: 4
 pve_pbs_keep_monthly: 6

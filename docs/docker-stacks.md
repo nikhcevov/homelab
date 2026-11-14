@@ -184,6 +184,56 @@ no global resolver/router change or expiring cache workaround is used.
   and assign its backend tag. Changing only LAN DNS leaves public ingress pointing
   at the physical host. See [migration phase7](proxmox-migration.md#phase-7--ingress-monitoring-and-decommission).
 
+### Stable LAN identity and local DNS
+
+The current LAN remains `192.168.15.0/24`, gateway/DHCP server `192.168.15.1`.
+VM100's `net0` MAC is `BC:24:11:36:00:01`; its observed `192.168.15.49`
+is a dynamic24-hour lease, **not a reservation**. The guest retains cloud-init
+Netplan/systemd-networkd and `ipconfig0=ip=dhcp`; no assumed-free static IP was set.
+
+On2026-11-15 the owner confirmed no current GPON-router administrator access
+and explicitly chose temporary manual DNS on selected PCs until router replacement.
+Configure those clients with **only `192.168.15.49` as DNS**; do not add the
+router/public DNS as an alternate that cannot resolve the local zone.
+No hosts file or client network profile was changed by this migration step.
+The current controller still inherits router DNS alongside its manual VM DNS;
+that fallback is not reliable local-zone configuration for other clients.
+If the VM lease changes, update the client DNS address and authoritative A record.
+
+Using the owner-supplied existing administrator password through a loopback-only
+SSH tunnel, the supported Technitium API migrated only `home.arpa`:
+
+- `docker-1.home.arpa` A → the current VM address, TTL300.
+- `*.home.arpa` CNAME → `docker-1.home.arpa`, TTL300; the explicit old `unraid` A was removed.
+- Home-zone NS/SOA now name the real in-zone Docker identity, not an old container ID;
+  SOA contact/timers were preserved and its native serial increased.
+
+Unrelated `lab` records were unchanged. Existing admin credentials and global
+DNS settings were not reset. The temporary login session was logged out,
+the supplied private secret file deleted, and the temporary tunnel closed.
+
+Direct UDP/TCP DNS passed for the VM and four application names. After a resolver
+cache flush, ordinary client `getent ahostsv4 jellyfin.home.arpa` returned `.49`,
+and ordinary `curl --noproxy '*' -L http://jellyfin.home.arpa/` reached HTTP200
+from `.49`, without `--resolve` or hosts overrides. External recursion also passed
+over UDP/TCP. Managed-browser `.arpa` navigation was blocked by its client policy;
+no rendered Jellyfin UI, personal sign-in or playback claim follows from HTTP200.
+
+Router `.1` still returns NXDOMAIN for the zone and advertises only itself via
+DHCP option6. **Unconfigured ordinary LAN clients are not fixed.** After router
+access/replacement, create a real reservation for the exact VM MAC, then prefer
+conditional forwarding of `home.arpa` to Technitium. If advertising Technitium
+through DHCP instead, verify external recursion and keep the VM's boot resolver
+independent of its own not-yet-started DNS container; avoid forwarding loops.
+Review the accepted tailnet route before the deferred LAN-subnet migration.
+
+Private rollback/acceptance evidence on PVE:
+`/root/migration-automation-20261114T195553Z`, including
+`local-dns/zones.before.tar`, `home-zone.api.before.json`,
+`home-zone.api.after.json` and `local-dns.COMPLETE.json`.
+Restore records through supported administration, not binary edits in a running
+server. Do not expose DNS/admin publicly or add a physical-PVE proxy workaround.
+
 ## Secrets and databases
 
 Rendered `.env` files and configurations are root-only; sensitive Ansible tasks

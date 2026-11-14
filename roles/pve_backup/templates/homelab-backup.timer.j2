@@ -2,7 +2,7 @@
 Description=Schedule homelab-backup
 
 [Timer]
-OnCalendar={{ pve_backup_calendar }}
+OnCalendar={{ pve_backup_calendar }} {{ bootstrap_timezone }}
 Persistent=true
 RandomizedDelaySec=5m
 

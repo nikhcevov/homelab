@@ -7,12 +7,12 @@ Sources: [host role](../roles/pve_backup/), [guest helpers](../roles/docker_back
 [PBS variables](../inventory/group_vars/pve/pbs.yml),
 [migration gates](proxmox-migration.md#migration-plan).
 
-PBS CT101 and manual backup prerequisites are applied; schedules/timers remain off.
-The first PBS image and isolated OS/appdata restoration passed. A small encrypted
-SQL/Vaultwarden recovery point was byte-restored and all four SQL imports verified.
-The full bulk restic checkpoint and bounded photo/PDF restoration passed.
-Keep the existing Unraid repository and staging copy through operator acceptance
-and cutover; automatic schedules remain off.
+PBS CT101 and host automatic backups are enabled after native backup/recovery
+and first-activation checks. The first PBS image and isolated OS/appdata restore,
+four SQL imports, and full restic photo/PDF recovery passed.
+The first scheduled nightly PBS/restic executions have not yet been observed;
+enabled future schedules are not a claim that a new backup already completed.
+Preserve the existing repository, all eleven historical snapshots and staging.
 
 ## Ownership and coverage
 
@@ -25,8 +25,10 @@ and cutover; automatic schedules remain off.
 
 The old XFS vault is mounted at `/mnt/vault`; repository `/mnt/vault/restic`
 and `vault_restic_password` are retained. No local repository initialization or
-disk formatting is performed. New restic snapshots use only the `pve-owned` tag
-for pruning, so legacy Unraid snapshots are not removed by the new retention.
+disk formatting is performed. Automatic restic retention requires both host
+`pve-backup` and tag `pve-owned`, grouped by host/tags. All eleven historical
+Unraid/migration snapshots are outside that selector; never broaden it to the
+whole repository. The same selector protects history in a secondary copy.
 
 Before the refresh, a read-only Unraid check on2026-11-12 decrypted10 retained
 snapshot records. The latest historical snapshot, `3e3d300f4008` from2026-11-08
@@ -41,11 +43,35 @@ the Home Assistant disk and user-data samples were restored and verified against
 staging. This is not a full repository data scan or off-site protection.
 Its `migration-pre-pve` tag is outside automatic `pve-owned` retention.
 
-Desired schedule: collector daily01:00, PBS daily02:00, restic daily03:00;
-restic keeps 7 daily, 8 weekly, 6 monthly recovery points. Hourly freshness checks
-alert after24 hours without a local success. When a secondary UUID is configured,
-they also alert after30 days without its copy refresh; a blank UUID defers that
-check, not local freshness. Confirm timezone and measure actual job durations.
+Reviewed cadence uses the existing `bootstrap_timezone=Asia/Yerevan` authority
+(UTC+04, no daylight-saving changes), not a separate PBS timezone variable:
+
+| Job | Local time | UTC |
+| --- | --- | --- |
+| Collector | daily01:00 +0–5min jitter | previous day21:00 +0–5min |
+| PBS VM100 | daily02:00 | previous day22:00 |
+| Restic | daily03:00 +0–5min jitter | previous day23:00 +0–5min |
+| PBS prune | daily07:00 | daily03:00 |
+| PBS GC | daily08:00 | daily04:00 |
+| PBS verify | Sunday10:00 | Sunday06:00 |
+| Restic random10% data check | first day of month12:00 +0–5min | 08:00 +0–5min |
+| Freshness | hourly at:30 +0–5min | hourly at:30 +0–5min |
+
+Host timer calendars explicitly include that timezone. PBS provisioning refuses
+a host timezone mismatch, sets CT101's persistent LXC timezone and reconciles its
+live timezone. The CT shares the synchronized host kernel clock; a separate CT
+NTP client is not required. PBS calendars use the CT's local time; PVE uses the
+host's. Maintenance was moved out of the observed03:00–~06:00 restic window
+(2h46m55s coordinator, PBS8m47s). These are measurements, not maximum runtimes.
+PBS has native task locks; it does not share the host restic/collector `flock`.
+The host commands share a lock with a1h wait; independent collection also has
+its own lock. Long contention fails visibly, rather than running concurrently.
+
+Restic keeps7 daily,8 weekly,6 monthly points; PBS keeps7 daily,4 weekly,6 monthly.
+Only PBS performs PBS pruning: the PVE image job explicitly uses `keep-all=1`.
+Hourly freshness alerts after36h without a local success, allowing daily scan
+duration/jitter to vary without false24h overdue alerts. A configured secondary
+UUID also alerts after30 days; a blank UUID defers only that copy's check.
 Neither the internal replica nor successful checks establish off-site protection.
 
 ## Consistency protocol
@@ -107,7 +133,7 @@ Prerequisites:
 Provision PBS alone, leaving `pve_pbs_schedules_enabled=false`:
 
 ```bash
-ansible-playbook playbooks/pve.yml --limit great-hornbill --tags pbs -e pve_pbs_enabled=true
+ansible-playbook playbooks/pve.yml --limit great-hornbill --tags pbs -e pve_pbs_enabled=true -e pve_pbs_schedules_enabled=false
 ```
 
 The role discovers the official Debian13 LXC template, creates managed CT101,
@@ -145,7 +171,7 @@ Reruns preserve this state. Do not arm schedules merely to provision storage.
 Prepare host backup staging/credentials with timers still off:
 
 ```bash
-ansible-playbook playbooks/pve.yml --limit great-hornbill --tags backup -e pve_backup_provision=true -e pve_backup_bootstrap_known_hosts=true
+ansible-playbook playbooks/pve.yml --limit great-hornbill --tags backup -e pve_backup_provision=true -e pve_backup_enabled=false
 ```
 
 `pve_backup_provision` creates the staging datasets and validates credentials/pins;
@@ -185,17 +211,82 @@ disable a source or suppress that result to claim complete collection.
 
 ### Arm only after recovery proof
 
-After a real current backup, file/dump import and isolated VM restoration pass,
-persist reviewed activation settings and enable the two independent schedule gates:
+After a real current backup, file/dump import and isolated VM restoration pass:
 
-```bash
-ansible-playbook playbooks/pve.yml --limit great-hornbill --tags pbs -e pve_pbs_enabled=true -e pve_pbs_schedules_enabled=true
-ansible-playbook playbooks/pve.yml --limit great-hornbill --tags backup -e pve_backup_enabled=true
-```
+1. For initial preparation or a deliberate maintenance re-arm, first require no
+   active backup service; use the provisioning commands above with their explicit
+   schedule/timer disable overrides. Current inventory is armed: a normal scoped
+   apply preserves activation. Existing strict pins suffice; do not bootstrap again.
+2. Require no backup/collector/check/freshness service active, no durable guest
+   resume manifest, the retained UUID mounted RW, pinned PBS storage active, and
+   all eleven historical IDs still present. Confirm host and CT timezone/NTP
+   state and inspect the native catalogs and saved recovery results below.
+3. Inspect disabled timer stamps and pending schedules **before** activation:
 
-Extra-vars are per-run. Default schedule/timer activation remains off in Git.
-Verify host/CT timezones and actual job duration before enabling the daily cadence.
-Do not arm restic before PBS recovery configuration can be captured.
+   ```bash
+   systemctl show homelab-backup{,-collect,-check,-freshness}.timer \
+     -p Id -p ActiveState -p UnitFileState -p Persistent -p LastTriggerUSec -p NextElapseUSecRealtime
+   find /var/lib/systemd/timers -maxdepth 1 -name '*homelab-backup*' -printf '%f %TY-%Tm-%TdT%TH:%TM:%TS\n'
+   systemd-analyze calendar --iterations=2 '*-*-* 03:00:00 Asia/Yerevan'
+   pct exec 101 -- proxmox-backup-debug api get /admin/prune --output-format json
+   pct exec 101 -- proxmox-backup-debug api get /admin/verify --output-format json
+   pct exec 101 -- proxmox-backup-debug api get /admin/gc --output-format json
+   ```
+
+   All four timers use `Persistent=true`: an old stamp can immediately catch up
+   a missed run after activation/boot, including application quiescence. The
+   initial automation preflight found **no stamps**, disabled/inactive timers
+   and empty LAST/NEXT; a first enable creates stamps at the current time and
+   waits for the next calendar event (plus up to5min jitter/1min accuracy).
+   If stamps now exist, review their age; do not blindly start timers while
+   production/DNS work is in progress. To intentionally discard catch-up for a
+   maintenance re-arm, first stop/disable timers, confirm associated services
+   inactive, then use `systemctl clean --what=state UNIT.timer` for each timer.
+   Never erase the backup's own durable state or a guest resume manifest.
+   PVE explicitly sets `repeat-missed=0`. PBS job state is independent: review
+   native `next-run` fields for overdue maintenance, not just systemd NEXT.
+4. The integration owner persists `pve_pbs_enabled: true`,
+   `pve_pbs_schedules_enabled: true` and `pve_backup_enabled: true` in their
+   inventory files **only after readiness review**, then applies:
+
+   ```bash
+   ansible-playbook playbooks/pve.yml --limit great-hornbill --tags pbs
+   ansible-playbook playbooks/pve.yml --limit great-hornbill --tags backup
+   ```
+
+   Extra-vars are per-run; inventory flags determine later reconciliation.
+   Do not arm restic before PBS recovery configuration can be captured.
+   Verify enabled/waiting timers and **future** NEXT times immediately;
+   do not manually launch heavy jobs just to demonstrate activation.
+
+Initial capacity preflight (2026-11-15 local): vault available6,875,949,281,280
+of9,998,694,297,600 bytes; PBS quota1,099,511,627,776, used54,942,691,328,
+available1,044,568,936,448 bytes. This is ample current headroom, not a guarantee
+that all retention generations fit without deduplication. Monitor native quota,
+free space and task results as new generations accumulate. Keep the staging disk
+unmounted; do not initialize a repository or prune history to manufacture space.
+
+### Observed automation activation — 2026-11-15
+
+The reviewed source was first applied with explicit schedule overrides off, then
+the persistent inventory flags were enabled and scoped PBS/backup applies passed.
+No timer stamps existed before activation, all four services were inactive and
+no guest-resume manifest existed. Native acceptance found all four timers enabled
+and waiting, with future NEXT values and no surprise service start.
+PVE VM100 backup is enabled with `repeat-missed=0` and `keep-all=1`; PBS alone
+owns its prune policy. PBS prune, GC and verify report future native next runs.
+Host and CT both persist Asia/Yerevan, sharing the synchronized host clock.
+
+A read-only retention dry-run preserved all eleven historical IDs among thirteen
+snapshots, outside the automatic selector. One isolated notification-state fixture
+exercised the real ntfy helper: HTTP200 and a message ID were returned; production
+success/failure markers were untouched. Phone receipt was not tested.
+The first nightly scheduled PBS/restic execution remains unobserved; existing
+manual backup/restore evidence above is not a new automatic-run result.
+
+Evidence: `/root/migration-automation-20261114T195553Z`,
+`activation.guard.json`, `backup-automation.COMPLETE.json`,
+`schedules.after-activation.json` and `notification.acceptance.json`.
 
 ## Verify
 

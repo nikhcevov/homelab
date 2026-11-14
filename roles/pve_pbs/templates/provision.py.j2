@@ -19,6 +19,7 @@ AUTH = USER + '!' + TOKEN
 SECRET = Path({{ pve_pbs_secret_path | to_json }})
 MARKER = 'homelab-managed-pbs/v1'
 SCHEDULES = {{ 'True' if pve_pbs_schedules_enabled | bool else 'False' }}
+TIMEZONE = {{ bootstrap_timezone | to_json }}
 changed = False
 
 
@@ -66,6 +67,10 @@ def save_secret(value):
 
 # Dataset creation belongs to corestorage. Never create an empty fallback here.
 run('/usr/local/sbin/homelab-pbs-mount-guard')
+# Both native schedulers use local civil time. Fail closed rather than silently
+# arming PVE and PBS in different timezones when bootstrap has not been applied.
+if run('timedatectl', 'show', '--property=Timezone', '--value').stdout.strip() != TIMEZONE:
+    raise RuntimeError('Host timezone differs from bootstrap_timezone; reconcile bootstrap before PBS schedules')
 # Enabling PVE filtering must not introduce a host/guest-wide default deny.
 # Existing explicit host management rules remain owned by the host role.
 mutate('pvesh', 'set', '/cluster/firewall/options', '--enable', '1',
@@ -118,6 +123,10 @@ if not conf.exists():
            '--mp0', str(HOST_PATH) + ',mp=' + STORE_PATH + ',backup=0',
            '--onboot', '1', '--startup', 'order=10', '--features', 'nesting=0')
 
+# Persist the same authority in LXC configuration for every subsequent boot.
+if not re.search(r'^timezone:\s*' + re.escape(TIMEZONE) + r'\s*$', conf.read_text(), re.M):
+    mutate('pct', 'set', CT, '--timezone', TIMEZONE)
+
 # With datacenter firewall enabled: no LAN API/SSH exposure, DHCP and outbound apt work.
 firewall = Path('/etc/pve/firewall/' + CT + '.fw')
 firewall_text = '''[OPTIONS]
@@ -135,6 +144,9 @@ if not firewall.exists() or firewall.read_text() != firewall_text:
 run('/usr/local/sbin/homelab-pbs-mount-guard')
 if 'running' not in run('pct', 'status', CT).stdout:
     mutate('pct', 'start', CT)
+if guest('timedatectl', 'show', '--property=Timezone', '--value').stdout.strip() != TIMEZONE:
+    guest('timedatectl', 'set-timezone', TIMEZONE)
+    changed = True
 
 # Stop on wrong distro rather than installing PBS4 into an incompatible guest.
 if guest('sh', '-c', '. /etc/os-release; printf %s "$VERSION_CODENAME"').stdout != 'trixie':
@@ -275,6 +287,8 @@ endpoint = '/cluster/backup/' + jobid if job else '/cluster/backup'
 args = [] if job else ['--id', jobid]
 run('pvesh', 'set' if job else 'create', endpoint, *args,
     '--vmid', '{{ pve_pbs_backup_vm }}', '--storage', STORAGE, '--schedule', '{{ pve_pbs_backup_schedule }}',
-    '--mode', 'snapshot', '--enabled', '1' if SCHEDULES else '0', '--notes-template', '{{ '{{guestname}}' }}')
+    '--mode', 'snapshot', '--enabled', '1' if SCHEDULES else '0',
+    '--repeat-missed', '0', '--prune-backups', 'keep-all=1',
+    '--notes-template', '{{ '{{guestname}}' }}')
 # Reconciliation updates may rewrite schedules/ACLs; report changed conservatively.
 print('CHANGED')

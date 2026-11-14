@@ -2,7 +2,7 @@
 
 [Repository overview](../README.md)
 
-Snapshot: 2026-11-14. Entry point for the Unraid → Proxmox migration.
+Snapshot: 2026-11-15. Entry point for the Unraid → Proxmox migration.
 Baseline cold staging passed full checksum comparisons for all eight trees.
 Unraid writers remained stopped through the verified migration checkpoint.
 PVE9.2.26 management is applied, tailnet-only and verified after the new-kernel reboot.
@@ -19,6 +19,8 @@ running, all configured healthchecks healthy and zero container restarts.
 Existing application data and bounded GPU/client paths were exercised.
 Public HTTPS and game ingress now target Docker VM100; external MQTT remains unavailable.
 The populated physical UPS cycle and automatic power-return recovery passed.
+Automatic backup schedules are armed. Local `home.arpa` works for manually
+configured DNS clients; the VM's current LAN lease is not reserved.
 
 Sources: [migration/runbook](proxmox-migration.md), [host](pve-host.md),
 [Docker](docker-stacks.md), [backups/recovery](backups-proxmox.md),
@@ -36,14 +38,14 @@ Sources: [migration/runbook](proxmox-migration.md), [host](pve-host.md),
 | Docker baseline | Ext4 appdata/private NFS and NVIDIA/toolkit/tailnet applied; Docker guarded and active | `docker_vm`, `nvidia_guest`, `docker_debian` |
 | Workload deployment | Explicitly authorized after cold restore; native data/API/GPU proofs recorded | `compose_stacks` |
 | Guest appdata restoration | 49.1 GB copied; full checksum/metadata/extra-file gate and independent topology comparison passed | [Cold restore](proxmox-migration.md#phase-5--restore-and-authorize-workloads) |
-| PBS | CT101/PBS4.2.10; full VM image, isolated restoration and repaired proxy boot recovery passed; schedules off | `pve_pbs` |
-| Restic/collector | Full current backup, metadata check, SQL imports and photo/PDF restore passed;11 historical snapshots retained; timers off | `pve_backup`, `docker_backup` |
+| PBS | CT101/PBS4.2.10; native restore and proxy boot recovery passed; daily backup and maintenance schedules enabled | `pve_pbs` |
+| Restic/collector | Full backup/recovery passed; eleven historical snapshots protected; four timers enabled with future NEXT at activation | `pve_backup`, `docker_backup` |
 | Cloud restic | Cancelled after account loss; partial quota-limited upload is not usable protection | Cancellation markers and retained diagnostic log |
 | Local staging | Final stopped mirror completed, exit0; eight zero-data-delta/metadata proofs retain baseline full checksums | [Final stopped sync](proxmox-migration.md#final-stopped-sync) |
 | Independent migration backup | Completed, exit0; all eight trees/recovery, metadata check and22 GiB real restore passed | [Vault refresh](proxmox-migration.md#independent-pre-cutover-vault-refresh) |
 | CI gates | Ansible, all-stack Compose, vaulted references, migration safety regressions | `tests/`, Ansible workflow |
 | Monitoring | Existing external Kuma retained | Monitoring guide |
-| Cutover/decommission | Public edge cutover verified; operator accepted availability-only client gate; local DNS, schedules and decommission remain | Sequential migration gates |
+| Cutover/decommission | Public edge and temporary manual-client DNS verified; schedules armed; first automatic nightly result, stable LAN and decommission remain | Sequential migration gates |
 
 ## Decisions now in force
 
@@ -639,9 +641,36 @@ no FSD, shortened UPS timeout or physical power interruption was injected.
 - Evidence: `/root/migration-ingress-20261114T164316Z`,
   `checkpoint.before-publication.json`, `backend-ready.json` and
   `public-cutover.COMPLETE.json`; original edge configuration is retained there.
-  Local `home.arpa` records still point at the old PVE address; this does not
-  affect the verified public names. Reserve a stable VM LAN address before
-  changing local DNS.
+  Local `home.arpa` was still stale at that ingress checkpoint; the next phase
+  below implements the owner's temporary manual-client DNS decision.
+
+## Backup automation and manual-client DNS — 2026-11-15
+
+- Persistent inventory enables PBS provisioning/schedules and four host backup
+  timers. Source was first reconciled with explicit off overrides, then armed.
+  Host and CT use Asia/Yerevan; maintenance windows avoid the measured restic scan.
+  All four timers were enabled/waiting with future NEXT and inactive services
+  at activation; native PBS maintenance next runs were also future.
+- PVE disables missed-image catch-up and leaves retention to PBS. A native dry-run
+  proved all eleven legacy snapshots remain outside automatic restic retention.
+  Vault/quota headroom was checked, and the actual notification helper returned
+  HTTP200/message ID using isolated state. No production success marker was forged.
+- The first scheduled nightly PBS/restic run has not yet been observed. Existing
+  full manual backups/restores remain established; no extra long scan was started.
+- Router credentials were unavailable. The owner explicitly accepted current
+  DHCP `.49` plus manual DNS on selected PCs; no reservation or whole-LAN fix is
+  claimed. `home.arpa` now uses Docker A/wildcard CNAME and correct NS/SOA metadata;
+  old explicit Unraid A was removed, unrelated `lab` stayed unchanged.
+- Five names passed direct UDP/TCP. Actual client getent and ordinary Jellyfin
+  HTTP reached `.49`/HTTP200 without overrides after flushing resolver cache.
+  Browser navigation remained client-blocked; sign-in/playback were not tested.
+  Router `.1` still lacks the local zone; use only VM DNS on intended clients.
+- Existing password was used only through encrypted SSH transport and not changed.
+  Temporary admin session, secret file and tunnel were cleaned up. Public ingress,
+  Tailscale policy, router configuration and client hosts/profiles were untouched.
+- Evidence: `/root/migration-automation-20261114T195553Z`,
+  `backup-automation.COMPLETE.json`, `notification.acceptance.json`,
+  `local-dns.COMPLETE.json` and `owner-scope-and-verification-limits.json`.
 
 ## Verification performed
 
@@ -697,11 +726,12 @@ OS/file/SQL restoration, populated timer-driven UPS recovery and public ingress 
    the full current restic checkpoint and bounded bulk restore also passed.
    Router changes remain deferred; review the
    accepted `192.168.103.0/24` tailnet route before moving the LAN into that subnet.
-4. Activate timers only after restored workloads, credentials/pins, existing vault
-   mount and PBS recovery configuration are ready. Prove failures resume apps.
-5. Public edge cutover passed with only the Docker VM as application/game backend.
-   Local `home.arpa` DNS still needs a stable VM LAN address and corrected records;
-   keep management private and do not point application names back at PVE.
+4. Automatic schedules are armed after recovery proof. Observe the first real
+   nightly PBS/restic result and ongoing freshness/capacity alerts; do not treat
+   future NEXT timestamps as successful backup execution.
+5. Public ingress and temporary manual-client local DNS passed. A stable VM
+   reservation and ordinary LAN DHCP/forwarding remain deferred to router access;
+   keep management private and do not point applications back at PVE.
 6. Remove Unraid automation only after a complete new backup and restore cycle.
    Preserve the migrated collector. Commit reviewed repository changes before cutover.
 

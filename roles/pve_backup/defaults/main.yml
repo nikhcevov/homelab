@@ -24,10 +24,12 @@ pve_backup_keep_daily: 7
 pve_backup_keep_weekly: 8
 pve_backup_keep_monthly: 6
 pve_backup_offsite_max_age_days: 30
-pve_backup_local_max_age_hours: 24
+# Daily completion times vary; allow the next run's scan plus timer jitter.
+pve_backup_local_max_age_hours: 36
 pve_backup_collect_calendar: '*-*-* 01:00:00'
 pve_backup_calendar: '*-*-* 03:00:00'
-pve_backup_check_calendar: '*-*-01 08:00:00'
+# Avoid the measured daily restic window and Sunday PBS verification.
+pve_backup_check_calendar: '*-*-01 12:00:00'
 pve_backup_check_subset: '10%'
 pve_backup_rsync_sources:
   - {name: vpn-nl, host: 100.100.146.5, path: /opt/vpn-backup/archives/, user: root, rsync_path: rsync}
