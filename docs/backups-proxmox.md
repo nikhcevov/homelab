@@ -10,8 +10,9 @@ Sources: [host role](../roles/pve_backup/), [guest helpers](../roles/docker_back
 PBS CT101 and host automatic backups are enabled after native backup/recovery
 and first-activation checks. The first PBS image and isolated OS/appdata restore,
 four SQL imports, and full restic photo/PDF recovery passed.
-The first scheduled nightly PBS/restic executions have not yet been observed;
-enabled future schedules are not a claim that a new backup already completed.
+The first scheduled nightly PBS/restic execution and bounded recovery passed.
+Remote VPS/HA archive generation happens later than collection; see the timing
+warning in the first-night evidence below.
 Preserve the existing repository, all eleven historical snapshots and staging.
 
 ## Ownership and coverage
@@ -281,12 +282,61 @@ A read-only retention dry-run preserved all eleven historical IDs among thirteen
 snapshots, outside the automatic selector. One isolated notification-state fixture
 exercised the real ntfy helper: HTTP200 and a message ID were returned; production
 success/failure markers were untouched. Phone receipt was not tested.
-The first nightly scheduled PBS/restic execution remains unobserved; existing
-manual backup/restore evidence above is not a new automatic-run result.
+At this activation checkpoint, the first nightly execution was still unobserved.
+The subsequent first-night acceptance below establishes the automatic result.
 
 Evidence: `/root/migration-automation-20261114T195553Z`,
 `activation.guard.json`, `backup-automation.COMPLETE.json`,
 `schedules.after-activation.json` and `notification.acceptance.json`.
+
+### First scheduled night and recovery — 2026-11-15
+
+Observed times use Asia/Yerevan:
+
+| Job | Started–finished | Result |
+| --- | --- | --- |
+| Collector | 01:02:31–01:02:44 | exit0,13s |
+| PBS VM100 | 02:00:01–02:05:12 | native taskOK,5m11s |
+| Restic coordinator | 03:05:09–03:20:09 | exit0,15m |
+
+New PBS volume `vm/100/2026-11-14T22:00:01Z` and the retained original image
+both passed native PBS verification. Scheduled prune, GC and verify reportedOK;
+GC reported no bad chunks. The monthly restic data check is not due until Dec01.
+
+New restic point `53ae0b7ab959` processed884,457 files /1.945 TiB; its scan took
+5m32s, adding2.201 GiB stored through deduplication. Metadata checking found no
+errors across14 snapshots; all eleven historical IDs remain present.
+Production helpers resumed the original containers around03:12, before scanning.
+All34 original container IDs/pinned references match, all are running, configured
+healthchecks are healthy, and restart counts/resume manifests show no pending failure.
+Ordinary Immich, Vaultwarden and local Jellyfin HTTP probes returned200.
+
+Bounded restoration used only these **new automatic** points:
+
+- PBS native file recovery extracted guest OS identity plus Vaultwarden SQLite
+  and its matching WAL. OS hash matched; SQLite `quick_check=ok`,597 ciphers.
+  No full VM was restored or booted.
+- Restic verified the original photo/PDF bytes and UID/GID/mode/mtime/xattrs
+  against matching frozen ZFS sources. All four latest SQL gzip/hash checks passed.
+  One new Immich dump replayed into an isolated pinned-image container: all66
+  table counts matched that dump, including216,918 assets.
+- Recovery helpers, disposable database/container/volume and sensitive fixtures
+  were removed. Production was not stopped for this acceptance exercise.
+  This is not a full2-TB restore, replay of every SQL application or UI sign-in proof.
+
+**Upstream timing warning:** the frozen nightly point contains VPS/HA archives
+dated Nov14, while newer Nov15 archives now exist on those sources. The collector
+at01:00 and the coordinator's embedded collection precede their generation.
+In current timezones, HA's new archive mtime is about04:00 Yerevan, Kuma's daily
+cron runs05:00, and VPN's03:30 Europe/Amsterdam cron runs06:30 Yerevan in CET.
+Successful rsync is not proof of current-generation source archives.
+Align generation/collection and source-freshness expectations before calling this
+same-night remote coverage. This verification changed no schedules or jobs.
+
+Private evidence: `/root/migration-overnight-20261115T075700Z`,
+`night.verdict.json`, `pbs.recovery-result.json`, `restic.sql.json`,
+`legacy-preservation.json`, `upstream.frozen-archive-proof.json` and
+`upstream.archive-generation.json`. Keep raw worker transcripts private.
 
 ## Verify
 

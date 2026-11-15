@@ -45,7 +45,7 @@ Sources: [migration/runbook](proxmox-migration.md), [host](pve-host.md),
 | Independent migration backup | Completed, exit0; all eight trees/recovery, metadata check and22 GiB real restore passed | [Vault refresh](proxmox-migration.md#independent-pre-cutover-vault-refresh) |
 | CI gates | Ansible, all-stack Compose, vaulted references, migration safety regressions | `tests/`, Ansible workflow |
 | Monitoring | Existing external Kuma retained | Monitoring guide |
-| Cutover/decommission | Public edge and temporary manual-client DNS verified; schedules armed; first automatic nightly result, stable LAN and decommission remain | Sequential migration gates |
+| Cutover/decommission | Public/local access and first automatic backup/recovery passed; upstream archive timing, stable LAN and decommission remain | Sequential migration gates |
 
 ## Decisions now in force
 
@@ -655,8 +655,8 @@ no FSD, shortened UPS timeout or physical power interruption was injected.
   proved all eleven legacy snapshots remain outside automatic restic retention.
   Vault/quota headroom was checked, and the actual notification helper returned
   HTTP200/message ID using isolated state. No production success marker was forged.
-- The first scheduled nightly PBS/restic run has not yet been observed. Existing
-  full manual backups/restores remain established; no extra long scan was started.
+- At activation the first nightly run was still unobserved; the subsequent
+  acceptance below verifies actual automatic execution and new-point recovery.
 - Router credentials were unavailable. The owner explicitly accepted current
   DHCP `.49` plus manual DNS on selected PCs; no reservation or whole-LAN fix is
   claimed. `home.arpa` now uses Docker A/wildcard CNAME and correct NS/SOA metadata;
@@ -671,6 +671,33 @@ no FSD, shortened UPS timeout or physical power interruption was injected.
 - Evidence: `/root/migration-automation-20261114T195553Z`,
   `backup-automation.COMPLETE.json`, `notification.acceptance.json`,
   `local-dns.COMPLETE.json` and `owner-scope-and-verification-limits.json`.
+
+## First automatic night acceptance — 2026-11-15
+
+- Collector succeeded in13s; PBS VM100 completed02:00:01–02:05:12; the restic
+  coordinator completed03:05:09–03:20:09, exit0. Times are Asia/Yerevan.
+  New restic `53ae0b7ab959` processed884,457 files /1.945 TiB, adding2.201 GiB
+  stored; scanning took5m32s. Metadata checks passed for14 snapshots, preserving
+  every one of the eleven historical IDs.
+- New PBS `vm/100/2026-11-14T22:00:01Z` and the retained original image passed
+  native verification. Scheduled PBS prune/GC/verify finishedOK, no bad chunks;
+  the monthly restic subset check is not due until Dec01.
+- Bounded native file recovery from the new PBS point recovered matching OS
+  identity and valid Vaultwarden SQLite/WAL with597 ciphers.
+  New-point restic photo/PDF bytes and metadata matched frozen sources; all four
+  latest SQL dumps passed hash/gzip checks. Isolated Immich replay matched all66
+  table counts, including216,918 assets. No full VM/2-TB recovery claim is made.
+- All34 original production IDs/pinned references match and are running, with
+  healthy configured checks, zero restart counts and no pending resume manifests.
+  Immich/Vaultwarden/local Jellyfin HTTP returned200. Owned recovery helpers,
+  database container/volume and sensitive fixtures were removed.
+- Timing warning: the frozen nightly point contains Nov14 VPN/Kuma/HA archives.
+  Their new Nov15 archives are generated later than PVE's01:00/03:00 collection.
+  Native source clocks/cron and archive metadata confirm the ordering; rsync
+  success alone does not establish fresh remote coverage. No schedules were changed.
+- Evidence: `/root/migration-overnight-20261115T075700Z`, `night.verdict.json`,
+  `pbs.recovery-result.json`, `restic.sql.json`,
+  `production.baseline-match.json` and `upstream.archive-generation.json`.
 
 ## Verification performed
 
@@ -726,9 +753,9 @@ OS/file/SQL restoration, populated timer-driven UPS recovery and public ingress 
    the full current restic checkpoint and bounded bulk restore also passed.
    Router changes remain deferred; review the
    accepted `192.168.103.0/24` tailnet route before moving the LAN into that subnet.
-4. Automatic schedules are armed after recovery proof. Observe the first real
-   nightly PBS/restic result and ongoing freshness/capacity alerts; do not treat
-   future NEXT timestamps as successful backup execution.
+4. The first automatic nightly backup and bounded restore passed. Align upstream
+   VPS/HA archive generation with collection, then continue freshness/capacity
+   monitoring; successful transfer alone does not prove source-archive freshness.
 5. Public ingress and temporary manual-client local DNS passed. A stable VM
    reservation and ordinary LAN DHCP/forwarding remain deferred to router access;
    keep management private and do not point applications back at PVE.
