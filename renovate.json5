@@ -4,9 +4,25 @@
   // Compose files are the only update surface. Host packages, Ansible
   // collections and GitHub Actions stay manually pinned.
   "enabledManagers": ["docker-compose"],
+  // The default docker-compose pattern also matches
+  // inventory/group_vars/docker/compose.yml, which is Ansible variables.
+  "docker-compose": {
+    "managerFilePatterns": ["compose/*/compose.yaml"]
+  },
   "extends": ["config:recommended", "docker:pinDigests"],
   "timezone": "Europe/Moscow",
   "schedule": ["before 6am"],
+
+  // The hosted runner shares public registry limits. Keep GHCR lookups
+  // serial and treat 429 as a skipped lookup instead of aborting the run.
+  "hostRules": [
+    {
+      "matchHost": "ghcr.io",
+      "concurrentRequestLimit": 1,
+      "maxRequestsPerSecond": 1,
+      "abortIgnoreStatusCodes": [429]
+    }
+  ],
 
   // The dashboard is the update list; one issue instead of a PR per image.
   "dependencyDashboard": {
@@ -37,10 +53,7 @@
       // LinuxServer build tags carry a build suffix that is part of the
       // published version, not a compatibility variant.
       "matchDatasources": ["docker"],
-      "matchPackageNames": [
-        "lscr.io/linuxserver/*",
-        "ghcr.io/linuxserver/*"
-      ],
+      "matchPackageNames": ["ghcr.io/linuxserver/*"],
       "versioning": "loose"
     },
     { "matchFileNames": ["compose/caddy-cloudflare/compose.yaml"], "groupName": "caddy-cloudflare stack" },
