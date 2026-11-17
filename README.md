@@ -38,7 +38,7 @@ before deployment.
 2. **Declarative.** Desired state lives in YAML; configs are generated artifacts.
 3. **Idempotent reconciliation.** Re-running setup/update preserves credentials and application data; configuration changes use existing reload/restart handlers. Package upgrades or cache refreshes can still report changes.
 4. **Restorable.** Infrastructure configuration is rebuilt from this repo; application databases and user data are recovered from backups.
-5. **Minimal resources.** VPS services run on 1 vCPU / 500 MB RAM. No Docker, no Prometheus.
+5. **Minimal resources.** VPS services run on 1 vCPU / 500 MB RAM and stay Docker/Prometheus-free. Home observability runs on `docker-1` under explicit memory and retention caps.
 6. **Signal over noise.** Alerts only on state transitions, severity-based ntfy channels.
 
 ## Configuration ownership
@@ -57,6 +57,7 @@ before deployment.
 | [Tailscale policy](docs/tailscale.md) | Tags, access rules, GitOps setup, apply and rollback |
 | [VPN VPS](docs/vpn.md) | Deployment, application-state ownership, backups and restore |
 | [Monitoring](docs/monitoring.md) | Internal cron/ntfy checks and external Kuma watcher |
+| [Observability](docs/observability.md) | Local Grafana/Prometheus/Loki stack and host agents |
 | [OpenWrt routers](docs/openwrt.md) | LAN bootstrap, exit nodes, Wi-Fi, upgrades and management |
 | [Docker stacks](docs/docker-stacks.md) | Compose layout, secrets, deploy and verification |
 | [Proxmox host](docs/pve-host.md) | Host tuning, ZFS pools, NFS exports, UPS |
@@ -84,7 +85,7 @@ For the solo-maintainer workflow, documentation upkeep, and local checks, see [C
 
 ## Non-goals
 
-- Prometheus / Grafana / Loki / ELK / SIEM.
+- ELK / SIEM.
 - Kubernetes, Docker Swarm, Nomad.
 - TLS termination on the edge VPS.
 - Hosting applications on the VPS.
