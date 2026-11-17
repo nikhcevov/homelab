@@ -38,7 +38,11 @@
   loop/OOM, NTP sync/offset, and UPS charge rules added.
 - [ ] Task 5 (remaining): PVE backup freshness/failure, ZFS scrub/checksum,
   Tailscale daemon state, SMART standby proof.
-- [ ] Tasks 6-7 pending.
+- [x] Task 6 (partial): runbook URLs and descriptions added to all rules;
+  notification body includes description/runbook; overlap/maintenance procedure
+  documented in `docs/runbooks/monitoring.md`.
+- [ ] Task 6 (remaining): active maintenance windows and canary test.
+- [ ] Task 7 pending.
 
 ## Review Focus
 

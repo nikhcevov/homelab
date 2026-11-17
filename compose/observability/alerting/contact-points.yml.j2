@@ -16,7 +16,10 @@ contactPoints:
 
             - **Status:** {{ .Status }}
             - **Severity:** {{ .CommonLabels.severity }}
-            - **Component:** {{ .CommonLabels.component }}{% endraw %}
+            - **Component:** {{ .CommonLabels.component }}
+            {{ if .CommonAnnotations.description }}- **Details:** {{ .CommonAnnotations.description }}
+            {{ end }}{{ if .CommonAnnotations.runbook_url }}- **Runbook:** {{ .CommonAnnotations.runbook_url }}
+            {{ end }}{% endraw %}
 
         disableResolveMessage: false
   - orgId: 1
@@ -34,6 +37,9 @@ contactPoints:
 
             - **Status:** {{ .Status }}
             - **Severity:** {{ .CommonLabels.severity }}
-            - **Component:** {{ .CommonLabels.component }}{% endraw %}
+            - **Component:** {{ .CommonLabels.component }}
+            {{ if .CommonAnnotations.description }}- **Details:** {{ .CommonAnnotations.description }}
+            {{ end }}{{ if .CommonAnnotations.runbook_url }}- **Runbook:** {{ .CommonAnnotations.runbook_url }}
+            {{ end }}{% endraw %}
 
         disableResolveMessage: false

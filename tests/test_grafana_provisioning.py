@@ -23,6 +23,13 @@ class GrafanaProvisioningTest(unittest.TestCase):
                 for rule in group["rules"]
             )
         )
+        self.assertTrue(
+            all(
+                rule["annotations"].get("description")
+                and rule["annotations"].get("runbook_url")
+                for rule in group["rules"]
+            )
+        )
         self.assertEqual(policies["policies"][0]["receiver"], "ntfy-alerts")
         self.assertEqual(
             policies["policies"][0]["routes"][0]["receiver"], "ntfy-critical"

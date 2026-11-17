@@ -55,6 +55,8 @@ groups:
     for: 5m
     annotations:
       summary: A scrape target has been down for 5 minutes
+      description: Prometheus cannot scrape a target.
+      runbook_url: docs/runbooks/monitoring.md#scrape-target-down
     labels:
       component: Monitor
       severity: critical
@@ -109,6 +111,8 @@ groups:
     for: 15m
     annotations:
       summary: A monitored filesystem is above 85%
+      description: A monitored filesystem is above the warning threshold.
+      runbook_url: docs/runbooks/monitoring.md#filesystem-above-85
     labels:
       component: Disk
       severity: warning
@@ -163,6 +167,8 @@ groups:
     for: 10m
     annotations:
       summary: A disk temperature is above 50C
+      description: A disk temperature crossed 50C.
+      runbook_url: docs/runbooks/monitoring.md#disk-temperature-above-50c
     labels:
       component: Disk
       severity: warning
@@ -217,6 +223,8 @@ groups:
     for: 5m
     annotations:
       summary: A disk reports failed SMART health
+      description: A disk reports failed SMART health.
+      runbook_url: docs/runbooks/monitoring.md#smart-health-failed
     labels:
       component: Disk
       severity: critical
@@ -271,6 +279,8 @@ groups:
     for: 15m
     annotations:
       summary: A Proxmox storage is above 85%
+      description: A Proxmox storage is above the warning threshold.
+      runbook_url: docs/runbooks/monitoring.md#pve-storage-above-85
     labels:
       component: PVE
       severity: warning
@@ -325,6 +335,8 @@ groups:
     for: 5m
     annotations:
       summary: A ZFS pool is not online
+      description: A ZFS pool is not online.
+      runbook_url: docs/runbooks/monitoring.md#zfs-pool-not-online
     labels:
       component: PVE
       severity: critical
@@ -379,6 +391,8 @@ groups:
     for: 5m
     annotations:
       summary: A disk reports pending, reallocated, or offline-uncorrectable sectors
+      description: A disk has pending, reallocated, or offline-uncorrectable sectors.
+      runbook_url: docs/runbooks/monitoring.md#smart-pending-or-reallocated-sectors
     labels:
       component: Disk
       severity: critical
@@ -433,6 +447,8 @@ groups:
     for: 10m
     annotations:
       summary: A disk CRC error counter increased in the last hour
+      description: A disk CRC error counter increased.
+      runbook_url: docs/runbooks/monitoring.md#smart-crc-errors-increasing
     labels:
       component: Disk
       severity: warning
@@ -487,6 +503,8 @@ groups:
     for: 1m
     annotations:
       summary: The UPS is running on battery power
+      description: The UPS is running on battery.
+      runbook_url: docs/runbooks/monitoring.md#ups-on-battery
     labels:
       component: UPS
       severity: critical
@@ -541,6 +559,8 @@ groups:
     for: 1m
     annotations:
       summary: The UPS battery is low
+      description: The UPS battery is low.
+      runbook_url: docs/runbooks/monitoring.md#ups-low-battery
     labels:
       component: UPS
       severity: critical
@@ -595,6 +615,8 @@ groups:
     for: 5m
     annotations:
       summary: The UPS reports an overload condition
+      description: The UPS reports an overload.
+      runbook_url: docs/runbooks/monitoring.md#ups-overloaded
     labels:
       component: UPS
       severity: warning
@@ -649,6 +671,8 @@ groups:
     for: 15m
     annotations:
       summary: A filesystem is above 90% inode usage
+      description: A monitored filesystem is above 90% inode usage.
+      runbook_url: docs/runbooks/monitoring.md#inode-usage-above-90
     labels:
       component: Disk
       severity: warning
@@ -703,6 +727,8 @@ groups:
     for: 5m
     annotations:
       summary: A Docker healthcheck reports unhealthy
+      description: A Docker healthcheck reports unhealthy.
+      runbook_url: docs/runbooks/monitoring.md#docker-container-unhealthy
     labels:
       component: Docker
       severity: warning
@@ -757,6 +783,8 @@ groups:
     for: 10m
     annotations:
       summary: A Docker container restarted more than once in 15 minutes
+      description: A Docker container restarted repeatedly.
+      runbook_url: docs/runbooks/monitoring.md#docker-container-restart-loop
     labels:
       component: Docker
       severity: warning
@@ -811,6 +839,8 @@ groups:
     for: 5m
     annotations:
       summary: A monitored host reports NTP not synchronized
+      description: A host reports NTP not synchronized.
+      runbook_url: docs/runbooks/monitoring.md#ntp-not-synchronized
     labels:
       component: Monitor
       severity: warning
@@ -865,6 +895,8 @@ groups:
     for: 10m
     annotations:
       summary: A monitored host clock offset is above 250ms
+      description: A host clock offset is above 250ms.
+      runbook_url: docs/runbooks/monitoring.md#ntp-offset-above-250ms
     labels:
       component: Monitor
       severity: warning
@@ -919,6 +951,8 @@ groups:
     for: 5m
     annotations:
       summary: The UPS battery charge is below 50%
+      description: The UPS battery charge is below 50%.
+      runbook_url: docs/runbooks/monitoring.md#ups-battery-charge-below-50
     labels:
       component: UPS
       severity: warning
@@ -973,6 +1007,8 @@ groups:
     for: 1m
     annotations:
       summary: A Docker container was killed by the OOM killer
+      description: A Docker container was killed by the OOM killer.
+      runbook_url: docs/runbooks/monitoring.md#docker-container-oom-kill
     labels:
       component: Docker
       severity: critical

@@ -185,7 +185,8 @@ with a 10s group wait and 2h repeat interval. The normal repeat interval is 4h.
 
 Presentation is defined once in [Notifications](notifications.md). Grafana
 contact points use a title template and a Markdown message template; the
-webhook URL enables Markdown rendering.
+webhook URL enables Markdown rendering. Alert actions and the Gatus/Grafana
+overlap policy are in [Monitoring runbooks](runbooks/monitoring.md).
 
 Configured rules:
 
