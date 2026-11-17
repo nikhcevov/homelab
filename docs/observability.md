@@ -163,6 +163,9 @@ dashboards are Node Exporter Full (`/d/rYdddlPWk/node-exporter-full`), cAdvisor
 excluded to prevent a log-feedback loop. The cAdvisor scrape relabels the Compose service
 label to `name` and the instance to `docker-1`. Disk temperatures and SMART
 health come from `smartctl_device_temperature` and `smartctl_device_smart_status`.
+Disk Health also exposes raw SMART counters: reallocated, pending, offline
+uncorrectable, CRC errors, power-on hours, power cycles, start/stop and load
+cycles.
 Export production dashboards as JSON after editing them in the UI; do not leave
 the only copy in Grafana's database.
 
