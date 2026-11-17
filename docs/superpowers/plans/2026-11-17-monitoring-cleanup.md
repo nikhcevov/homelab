@@ -20,6 +20,16 @@
 - Never commit plaintext tokens; ntfy and push secrets stay in vault.
 - Keep `ntfy` messages in the envelope defined by `docs/notifications.md`.
 
+## Progress
+
+- [x] Task 1: Kuma roles/runtime/cron, mon backup check, and Gatus push
+  endpoints removed. Gatus validates 18 endpoints and 0 external endpoints.
+- [x] Task 2: `vault_monitoring_domain` / `monitoring_domain` replaced the
+  Kuma-named variable; DNS value unchanged.
+- [ ] Task 3: Unraid backup-collector deletion is waiting for the in-flight PVE
+  backup refactor to settle.
+- [ ] Tasks 4-7 pending.
+
 ## Review Focus
 
 - Removing Kuma must not break Caddy, the monitoring domain, or existing Gatus checks.
@@ -33,6 +43,7 @@
 ### Task 1: Retire Kuma and remove Gatus push monitors
 
 **Files:**
+
 - Modify: `inventory/group_vars/mon/gatus.yml`
 - Modify: `inventory/group_vars/mon/mon.yml`
 - Modify: `inventory/group_vars/mon/monitoring.yml`
@@ -45,6 +56,7 @@
 - Test: `tests/test_ntfy_style.py` plus rendered Gatus config validation.
 
 **Interfaces:**
+
 - Consumes: `gatus_port`, `gatus_push_token` (only while push endpoints exist), `kuma_domain`.
 - Produces: Gatus config with `external-endpoints` omitted when empty; no Kuma role or backup role.
 
@@ -97,6 +109,7 @@ git commit -m "chore: retire Kuma and remove push monitors"
 ### Task 2: Rename the monitoring domain and remove Kuma vocabulary
 
 **Files:**
+
 - Modify: `inventory/group_vars/mon/vault.yml`
 - Modify: `inventory/group_vars/mon/mon.yml`
 - Modify: `roles/gatus/defaults/main.yml`
@@ -111,6 +124,7 @@ git commit -m "chore: retire Kuma and remove push monitors"
 ### Task 3: Remove the Unraid backup-collector subsystem
 
 **Files:**
+
 - Delete: `playbooks/unraid.yml`
 - Delete: `files/unraid/`
 - Delete: `docs/backups-unraid.md`
@@ -127,6 +141,7 @@ git commit -m "chore: retire Kuma and remove push monitors"
 ### Task 4: Put Grafana dashboards and alerting into Git
 
 **Files:**
+
 - Create: `compose/observability/dashboards/*.json`
 - Create: `compose/observability/alerting/contact-points.json`
 - Create: `compose/observability/alerting/rules.json`
