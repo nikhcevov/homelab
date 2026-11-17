@@ -28,7 +28,11 @@
   Kuma-named variable; DNS value unchanged.
 - [ ] Task 3: Unraid backup-collector deletion is waiting for the in-flight PVE
   backup refactor to settle.
-- [ ] Tasks 4-7 pending.
+- [x] Task 4 (dashboards): six dashboards exported to
+  `compose/observability/dashboards/` and provisioned from Git; live Grafana
+  reports `provisioned: true`.
+- [ ] Task 4 (alert rules/contact points/policies) still live in Grafana DB.
+- [ ] Tasks 5-7 pending.
 
 ## Review Focus
 
