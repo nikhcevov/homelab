@@ -111,9 +111,8 @@ components, blacklists Nouveau, and reboots as needed before requiring the
 selected active driver. Toolkit runtime configuration and Docker restart occur
 before GPU stacks start. Real Immich CUDA inference and app-bundled Jellyfin
 NVDEC/NVENC overlapped successfully in a bounded smoke check. This is not peak
-capacity or HDR-quality proof. Frigate retains its restored viewer-only mode;
-do not enable detection/recording merely to test TensorRT. The real4 GiB VRAM
-limit remains; `nvidia-smi` alone is not application acceleration proof.
+capacity or HDR-quality proof. The real4 GiB VRAM limit remains; `nvidia-smi`
+alone is not application acceleration proof.
 Do not change to a driver branch that drops Turing support without explicitly
 changing this hardware decision.
 
@@ -122,8 +121,15 @@ changing this hardware decision.
 The authoritative deployment list remains
 [`compose_stacks`](../inventory/group_vars/docker/compose.yml): twelve stacks.
 `compose/scrutiny` is retained but not deployed because physical SMART belongs
-on the PVE host, not in the Docker VM. Do not revive the stopped StirlingPDF
-container or legacy HAOS guest merely because their files were preserved.
+on the PVE host, not in the Docker VM. Frigate now runs on the krm HA host; its
+stack, Caddy route, and secrets are removed from this Docker VM. Removing a
+stack from `compose_stacks` stops reconciliation; it does not delete the
+existing container or `/opt/compose/<stack>`. After confirming Frigate runs on
+the krm HA host, remove the old `frigate-krm` container and directory, and
+delete `/mnt/appdata/frigate` only after verifying no data is needed. The
+Homelable stack's next `compose up --remove-orphans` removes the old MCP
+container. Do not revive the stopped StirlingPDF container or legacy HAOS
+guest merely because their files were preserved.
 
 Each stack has a static `compose.yaml` and vaulted `.env.j2`. Source application
 images are pinned to audited digests, including Paperless2.20.15 and Immich3.1.0;
@@ -164,13 +170,10 @@ no global resolver/router change or expiring cache workaround is used.
 
 - VM private storage is `.2`, host `.1` on host-only `vmbr1`. LAN DHCP changes
   cannot change the NFS endpoint. Tailscale accepts the existing remote-site
-  subnet routes for Frigate/MQTT; route approval/ACLs remain required.
+  subnet routes; route approval/ACLs remain required.
 - Caddy retains host networking and loopback upstreams. Proxied services publish
   to loopback unless direct access is deliberate. Its admin API is explicitly
   `localhost:2019`, not a LAN management surface.
-- Frigate's unauthenticated5000 listener is loopback-only. The home Caddy route
-  uses authenticated8971 and trusts the source self-signed certificate only on
-  that local loopback hop. RTSP/WebRTC remain deliberate direct integrations.
 - Minecraft, torrent peer ports and discovery traffic stay direct. Jellyfin HTTP
   remains direct for discovery clients. Loopback publication is not authentication
   for routes that Caddy itself exposes; review the intended audience per route.
@@ -269,8 +272,8 @@ ssh docker-1 'docker ps --format "table {{.Names}}\t{{.Status}}"'
 
 Exercise restored state and real client paths: Paperless documents, Immich
 originals/albums, Vaultwarden login, order-manager data, Arr queues/hardlinks,
-Jellyfin playback, Frigate decode/authentication, Minecraft and LiteLLM. Test a
-reboot, missing NFS, GPU concurrency and remote camera routes before public
+Jellyfin playback, Minecraft and LiteLLM. Test a
+reboot, missing NFS and GPU concurrency before public
 cutover. Parsing Compose and waiting for container health are not recovery proof.
 
 ## Recover
