@@ -9,42 +9,49 @@ gatus_endpoints:
     conditions:
       - "[STATUS] == 200"
       - "[RESPONSE_TIME] < 5000"
+      - "[CERTIFICATE_EXPIRATION] > 720h"
   - name: Bitwarden Vault
     group: Edge
     url: "https://vault.han-diatonic.uk/alive"
     conditions:
       - "[STATUS] == 200"
       - "[RESPONSE_TIME] < 5000"
+      - "[CERTIFICATE_EXPIRATION] > 720h"
   - name: Blog
     group: Edge
     url: "https://nikhcevov.me"
     conditions:
       - "[STATUS] == 200"
       - "[RESPONSE_TIME] < 5000"
+      - "[CERTIFICATE_EXPIRATION] > 720h"
   - name: Homeassistant KRM
     group: KRM
     url: "https://ha-krm.han-diatonic.uk/"
     conditions:
       - "[STATUS] == 200"
       - "[RESPONSE_TIME] < 5000"
+      - "[CERTIFICATE_EXPIRATION] > 720h"
   - name: Immich
     group: KRM
     url: "https://photos.han-diatonic.uk/api/server/ping"
     conditions:
       - "[STATUS] == 200"
       - "[RESPONSE_TIME] < 5000"
+      - "[CERTIFICATE_EXPIRATION] > 720h"
   - name: MC Map
     group: KRM
     url: "https://mc-map.han-diatonic.uk"
     conditions:
       - "[STATUS] == 200"
       - "[RESPONSE_TIME] < 5000"
+      - "[CERTIFICATE_EXPIRATION] > 720h"
   - name: Notes obsidian database
     group: KRM
     url: "https://notes.han-diatonic.uk/_up"
     conditions:
       - "[STATUS] == 200"
       - "[RESPONSE_TIME] < 5000"
+      - "[CERTIFICATE_EXPIRATION] > 720h"
   - name: Reality vpn port
     group: VPN NL
     url: "tcp://panel.han-diatonic.uk:8443"
@@ -56,6 +63,7 @@ gatus_endpoints:
     conditions:
       - "[STATUS] == 200"
       - "[RESPONSE_TIME] < 5000"
+      - "[CERTIFICATE_EXPIRATION] > 720h"
   - name: router-alm SSH
     group: Router ALM
     enabled: false

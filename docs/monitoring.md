@@ -46,8 +46,9 @@ Kuma is removed. There is no Kuma service, database, or backup path on the
 monitoring host; Gatus is the only external watcher.
 
 The declarative endpoint list lives in
-[`inventory/group_vars/mon/gatus.yml`](../inventory/group_vars/mon/gatus.yml);
-the binary is a pinned local artifact, not a Docker image. Build it elsewhere:
+[`inventory/group_vars/mon/gatus.yml`](../inventory/group_vars/mon/gatus.yml).
+HTTPS checks require certificate expiry to be more than 30 days away. The
+binary is a pinned local artifact, not a Docker image. Build it elsewhere:
 
 ```bash
 docker run --rm -v /tmp/gatus-build:/out -e CGO_ENABLED=0 -e GOBIN=/out \

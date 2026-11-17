@@ -31,10 +31,14 @@
 - [x] Task 4 (dashboards): six dashboards exported to
   `compose/observability/dashboards/` and provisioned from Git; live Grafana
   reports `provisioned: true`.
-- [x] Task 4 (alerting): contact points, notification policy, and 11 alert
+- [x] Task 4 (alerting): contact points, notification policy, and 18 alert
   rules are file-provisioned from `compose/observability/alerting/`; live
   Grafana reports `provenance: file` and all rules are healthy.
-- [ ] Tasks 5-7 pending.
+- [x] Task 5 (partial): TLS expiry in Gatus; inode, Docker unhealthy/restart
+  loop/OOM, NTP sync/offset, and UPS charge rules added.
+- [ ] Task 5 (remaining): PVE backup freshness/failure, ZFS scrub/checksum,
+  Tailscale daemon state, SMART standby proof.
+- [ ] Tasks 6-7 pending.
 
 ## Review Focus
 

@@ -202,9 +202,16 @@ Configured rules:
 | UPS on battery | 1m | critical |
 | UPS low battery | 1m | critical |
 | UPS overloaded | 5m | warning |
+| Inode usage above 90% | 15m | warning |
+| Docker container unhealthy | 5m | warning |
+| Docker container restart loop | 10m | warning |
+| Docker container OOM kill | 1m | critical |
+| NTP not synchronized | 5m | warning |
+| NTP offset above 250ms | 10m | warning |
+| UPS battery charge below 50% | 5m | warning |
 
-Both webhook tests returned HTTP 200. External availability checks are owned by
-[Gatus](monitoring.md), not Grafana.
+Both webhook tests returned HTTP 200. External availability checks, including
+TLS certificate expiry, are owned by [Gatus](monitoring.md), not Grafana.
 
 ## Rollback
 

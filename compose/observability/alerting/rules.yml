@@ -599,3 +599,381 @@ groups:
       component: UPS
       severity: warning
     isPaused: false
+  - uid: inode-usage-90
+    title: Inode usage above 90%
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: 100 * (1 - node_filesystem_files_free{instance=~"10.77.0.1:9100|10.77.0.2:9100",mountpoint=~"/mnt/appdata|/mnt/photos|/mnt/files|/mnt/data|/"} / node_filesystem_files{instance=~"10.77.0.1:9100|10.77.0.2:9100",mountpoint=~"/mnt/appdata|/mnt/photos|/mnt/files|/mnt/data|/"}) > 90
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 15m
+    annotations:
+      summary: A filesystem is above 90% inode usage
+    labels:
+      component: Disk
+      severity: warning
+    isPaused: false
+  - uid: docker-unhealthy
+    title: Docker container unhealthy
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: container_health_state == 0
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 5m
+    annotations:
+      summary: A Docker healthcheck reports unhealthy
+    labels:
+      component: Docker
+      severity: warning
+    isPaused: false
+  - uid: docker-restart-loop
+    title: Docker container restart loop
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: changes(container_start_time_seconds[15m]) > 1
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 10m
+    annotations:
+      summary: A Docker container restarted more than once in 15 minutes
+    labels:
+      component: Docker
+      severity: warning
+    isPaused: false
+  - uid: ntp-unsynced
+    title: NTP not synchronized
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: node_timex_sync_status == 0
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 5m
+    annotations:
+      summary: A monitored host reports NTP not synchronized
+    labels:
+      component: Monitor
+      severity: warning
+    isPaused: false
+  - uid: ntp-offset-high
+    title: NTP offset above 250ms
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: abs(node_timex_offset_seconds) > 0.25
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 10m
+    annotations:
+      summary: A monitored host clock offset is above 250ms
+    labels:
+      component: Monitor
+      severity: warning
+    isPaused: false
+  - uid: ups-charge-low
+    title: UPS battery charge below 50%
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: network_ups_tools_battery_charge < 50
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 5m
+    annotations:
+      summary: The UPS battery charge is below 50%
+    labels:
+      component: UPS
+      severity: warning
+    isPaused: false
+  - uid: docker-oom-kill
+    title: Docker container OOM kill
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: increase(container_oom_events_total[10m]) > 0
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 1m
+    annotations:
+      summary: A Docker container was killed by the OOM killer
+    labels:
+      component: Docker
+      severity: critical
+    isPaused: false
