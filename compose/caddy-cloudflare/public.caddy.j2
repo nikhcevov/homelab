@@ -43,13 +43,6 @@ notes.{{ vault_caddy_public_domain }} {
     reverse_proxy 127.0.0.1:5984
 }
 
-llm.{{ vault_caddy_public_domain }} {
-    import public
-    @admin path /ui /ui/*
-    respond @admin "Forbidden" 403
-    reverse_proxy 127.0.0.1:4000
-}
-
 vault.{{ vault_caddy_public_domain }} {
     import public
     @admin path /admin /admin/*

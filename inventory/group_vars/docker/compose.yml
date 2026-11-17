@@ -38,7 +38,6 @@ compose_stacks:
   - dns-server
   - immich
   - homelable
-  - litellm
   - media
   - minecraft
   - obsidian
@@ -46,7 +45,6 @@ compose_stacks:
   - order-manager
   - paperless
   - vaultwarden
-# scrutiny is excluded: the disks live on the PVE host, not in the VM.
 
 # Code-owned compose extension files live beside the deployed definitions.
 compose_extra_files:
@@ -70,9 +68,6 @@ compose_config_templates:
   - stack: caddy-cloudflare
     src: ../compose/caddy-cloudflare/public.caddy.j2
     dest: "{{ compose_appdata }}/caddy/config/public.caddy"
-  - stack: litellm
-    src: ../compose/litellm/config.yaml.j2
-    dest: "{{ compose_appdata }}/litellm/config.yaml"
   - stack: observability
     src: ../compose/observability/prometheus.yml.j2
     dest: "{{ compose_appdata }}/observability/prometheus/prometheus.yml"
