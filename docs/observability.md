@@ -49,10 +49,11 @@ the LAN or internet.
 | `/mnt/appdata/observability/loki/loki-config.yml` | Loki config |
 | `/opt/compose/observability/.env` | root-only Compose secrets, including the PVE token |
 
-Prometheus keeps `30d` and caps the TSDB at `8GB`. Loki keeps `720h` and uses
-filesystem storage. This is sized for the current `75 GiB` appdata headroom.
-Measure ingestion before extending to 90 or 365 days; one year needs external
-storage.
+Prometheus keeps `30d` and caps the TSDB at `8GB`. Loki keeps `720h`, uses
+filesystem storage, and allows `8 MB/s` with a `16 MB` burst so Alloy can absorb
+the initial Docker-log tail without dropping entries. This is sized for the
+current appdata headroom. Measure ingestion before extending to 90 or 365 days;
+one year needs external storage.
 
 ## Resource ceilings
 
@@ -140,8 +141,11 @@ Datasources are provisioned from
 Homelab Overview (`/d/homelab-overview/homelab-overview`). Supporting
 dashboards are Node Exporter Full (`/d/rYdddlPWk/node-exporter-full`), cAdvisor
 (`/d/pMEd7m0Mz/cadvisor-exporter`), PVE
-(`/d/pve-via-prometheus/proxmox-via-prometheus`), and Disk Health
-(`/d/disk-health/disk-health`). The cAdvisor scrape relabels the Compose service
+(`/d/pve-via-prometheus/proxmox-via-prometheus`), Disk Health
+(`/d/disk-health/disk-health`), and Logs & Errors
+(`/d/logs-errors/logs-and-errors`). Docker logs carry `container`,
+`compose_project`, and `service` labels; the observability containers are
+excluded to prevent a log-feedback loop. The cAdvisor scrape relabels the Compose service
 label to `name` and the instance to `docker-1`. Disk temperatures and SMART
 health come from `smartctl_device_temperature` and `smartctl_device_smart_status`.
 Export production dashboards as JSON after editing them in the UI; do not leave
