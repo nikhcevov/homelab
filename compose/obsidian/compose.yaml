@@ -6,7 +6,7 @@ x-logging: &logging
 
 services:
   livesync-db:
-    image: couchdb:3@sha256:5fc596110eac7f412173a7d9de14f70aa5d3e816790fb6e70642755d4a4cf464
+    image: couchdb:3@sha256:907eab5b7e55ab7cfd241d39b90b2a335ea40bef82acee5a37388c08bf201dda
     container_name: livesync-db
     restart: always
     mem_limit: 384m
