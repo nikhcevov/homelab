@@ -175,6 +175,10 @@ Grafana Alerting has two webhook contact points, both using
 to `ntfy-alerts`; a child route sends `severity=critical` to `ntfy-critical`
 with a 10s group wait and 2h repeat interval. The normal repeat interval is 4h.
 
+Presentation is defined once in [Notifications](notifications.md). Grafana
+contact points use a title template and a Markdown message template; the
+webhook URL enables Markdown rendering.
+
 Configured rules:
 
 | Rule | For | Severity |

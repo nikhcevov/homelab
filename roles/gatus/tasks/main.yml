@@ -1,0 +1,80 @@
+---
+- name: Require a pinned Gatus binary artifact
+  ansible.builtin.assert:
+    that:
+      - gatus_binary_src | length > 0
+      - gatus_binary_sha256 | length == 64
+    fail_msg: >-
+      Set gatus_binary_src to the local linux/amd64 Gatus {{ gatus_version }}
+      binary and gatus_binary_sha256 to its SHA-256.
+
+- name: Install Gatus runtime dependency
+  ansible.builtin.apt:
+    name: ca-certificates
+    state: present
+    update_cache: true
+
+- name: Create Gatus system group
+  ansible.builtin.group:
+    name: "{{ gatus_group }}"
+    system: true
+
+- name: Create Gatus system user
+  ansible.builtin.user:
+    name: "{{ gatus_user }}"
+    group: "{{ gatus_group }}"
+    system: true
+    home: "{{ gatus_data_dir }}"
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Create Gatus directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ gatus_group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ gatus_dir }}", owner: root, mode: "0750" }
+    - { path: "{{ gatus_data_dir }}", owner: "{{ gatus_user }}", mode: "0750" }
+
+- name: Install Gatus binary
+  ansible.builtin.copy:
+    src: "{{ gatus_binary_src }}"
+    dest: /usr/local/bin/gatus
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart gatus
+
+- name: Verify installed Gatus binary SHA-256
+  ansible.builtin.command:
+    argv: [sha256sum, /usr/local/bin/gatus]
+  register: _gatus_binary_hash
+  changed_when: false
+  failed_when: _gatus_binary_hash.stdout.split()[0] != gatus_binary_sha256
+
+- name: Render Gatus configuration
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: "{{ gatus_dir }}/config.yaml"
+    owner: root
+    group: "{{ gatus_group }}"
+    mode: "0640"
+  no_log: true
+  notify: Restart gatus
+
+- name: Install Gatus systemd unit
+  ansible.builtin.template:
+    src: gatus.service.j2
+    dest: /etc/systemd/system/gatus.service
+    mode: "0644"
+  notify: Restart gatus
+
+- name: Ensure Gatus is running and enabled
+  ansible.builtin.service:
+    name: gatus
+    state: started
+    enabled: true
+  when: not ansible_check_mode

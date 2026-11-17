@@ -3,12 +3,11 @@ set -euo pipefail
 
 source /opt/homelab-monitoring/scripts/notify.sh
 
-HOSTNAME=$(hostname)
-
 if ! apt-get update -qq >/dev/null 2>&1; then
-	notify_transition "apt-update-failed" "failed" "alert" \
-		"APT update failed" "warning,package" \
-		"❌ apt-get update failed on $HOSTNAME"
+	notify_transition "apt-update-failed" "failed" "warning" "Updates" "apt update failed" \
+		"APT metadata refresh failed" \
+		"\`apt-get update\` returned a non-zero exit code." \
+		"Inspect APT sources and network reachability."
 	exit 1
 fi
 
@@ -24,16 +23,8 @@ if [ "$TOTAL" -eq 0 ]; then
 fi
 
 STATE="updates-$TOTAL-$SECURITY"
-EMOJI="📦"
-if [ "$SECURITY" -gt 0 ]; then
-	EMOJI="🚨"
-fi
 
-MESSAGE="$EMOJI Updates available
-
-Host: $HOSTNAME
-Packages: $TOTAL
-Security: $SECURITY"
-
-notify_transition "updates-available" "$STATE" "alert" \
-	"Updates available" "warning,update" "$MESSAGE"
+notify_transition "updates-available" "$STATE" "warning" "Updates" "${TOTAL} packages available" \
+	"${TOTAL} package updates are available" \
+	"Security updates: \`${SECURITY}\`; total: \`${TOTAL}\`." \
+	"Review the list, then apply during a maintenance window."

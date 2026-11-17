@@ -1,0 +1,26 @@
+# Managed by Ansible (role: gatus). Source: inventory/group_vars/mon/gatus.yml
+[Unit]
+Description=Gatus health dashboard
+Documentation=https://github.com/TwiN/gatus
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ gatus_user }}
+Group={{ gatus_group }}
+WorkingDirectory={{ gatus_data_dir }}
+Environment=GATUS_CONFIG_PATH={{ gatus_dir }}/config.yaml
+StateDirectory=gatus
+StateDirectoryMode=0750
+ExecStart=/usr/local/bin/gatus
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths={{ gatus_data_dir }}
+
+[Install]
+WantedBy=multi-user.target

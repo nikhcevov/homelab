@@ -1,0 +1,62 @@
+# Managed by Ansible (role: gatus). Source: inventory/group_vars/mon/gatus.yml
+storage:
+  type: sqlite
+  path: {{ gatus_data_dir }}/data.db
+  maximum-number-of-results: 200
+  maximum-number-of-events: 50
+
+alerting:
+  custom:
+    url: {{ ntfy_url | to_json }}
+    method: POST
+    headers:
+      Content-Type: application/json
+    body: |
+      {
+        "topic": {{ ntfy_topic_critical | to_json }},
+        "title": "[ALERT_TRIGGERED_OR_RESOLVED] Homelab · Monitor · [ENDPOINT_NAME]",
+        "message": "**External check [ALERT_TRIGGERED_OR_RESOLVED]**\n\n- **Host:** `mon-1`\n- **Component:** `Monitor`\n- **Endpoint:** `[ENDPOINT_NAME]`\n- **Details:** Gatus detected the endpoint as failing or unreachable.",
+        "tags": ["external", "monitor"],
+        "priority": 4,
+        "markdown": true
+      }
+    placeholders:
+      ALERT_TRIGGERED_OR_RESOLVED:
+        TRIGGERED: "🚨"
+        RESOLVED: "✅"
+    default-alert:
+      failure-threshold: 3
+      success-threshold: 2
+      send-on-resolved: true
+
+endpoints:
+{% for endpoint in gatus_endpoints %}
+  - name: {{ endpoint.name | to_json }}
+    group: {{ endpoint.group | to_json }}
+    url: {{ endpoint.url | to_json }}
+    interval: {{ endpoint.interval | default('60s') | to_json }}
+    enabled: {{ endpoint.enabled | default(true) | bool | to_json }}
+{% if endpoint.dns is defined %}
+    dns:
+      query-name: {{ endpoint.dns.query_name | to_json }}
+      query-type: {{ endpoint.dns.query_type | default('A') | to_json }}
+{% endif %}
+    conditions:
+{% for condition in endpoint.conditions %}
+      - {{ condition | to_json }}
+{% endfor %}
+    alerts:
+      - type: custom
+{% endfor %}
+
+external-endpoints:
+{% for endpoint in gatus_external_endpoints %}
+  - name: {{ endpoint.name | to_json }}
+    group: {{ endpoint.group | default('Backup') | to_json }}
+    token: {{ gatus_push_token | to_json }}
+    enabled: {{ endpoint.enabled | default(false) | bool | to_json }}
+    heartbeat:
+      interval: {{ endpoint.heartbeat | default('25h') | to_json }}
+    alerts:
+      - type: custom
+{% endfor %}

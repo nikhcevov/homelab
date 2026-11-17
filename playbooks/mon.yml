@@ -1,8 +1,8 @@
 ---
 # Full deployment for the central monitoring VPS, in layer order:
-# bootstrap -> security -> network -> kuma -> proxy (caddy) -> backup -> self-monitoring.
-# External black-box watcher (Uptime Kuma) for the whole fleet;
-# local cron checks cover this host's own internals.
+# bootstrap -> security -> network -> gatus -> proxy (caddy) -> backup -> self-monitoring.
+# External black-box watcher (Gatus) for the whole fleet;
+# local cron checks cover this host's own internals. Kuma is stopped rollback.
 - name: Bootstrap base system
   hosts: mon
   become: true
@@ -23,15 +23,17 @@
   roles:
     - tailscale
 
-- name: Install Uptime Kuma (native)
+- name: Install Gatus
   hosts: mon
   become: true
+  tags: [gatus]
   roles:
-    - kuma
+    - gatus
 
 - name: Configure Caddy reverse proxy
   hosts: mon
   become: true
+  tags: [caddy]
   roles:
     - caddy
 
@@ -44,5 +46,6 @@
 - name: Configure monitoring
   hosts: mon
   become: true
+  tags: [monitoring]
   roles:
     - monitoring

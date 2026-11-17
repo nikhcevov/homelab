@@ -12,13 +12,71 @@ STATE_DIR=/root/.update-check
 . "$ENV_FILE"
 mkdir -p "$STATE_DIR"
 
+HOSTNAME=$(cat /proc/sys/kernel/hostname)
+
+_ntfy_priority_for() {
+	case "$1" in
+	critical) echo "urgent" ;;
+	warning) echo "high" ;;
+	*) echo "default" ;;
+	esac
+}
+
+_ntfy_emoji_for() {
+	case "$1" in
+	critical) echo "🚨" ;;
+	warning) echo "⚠️" ;;
+	resolved) echo "✅" ;;
+	info) echo "ℹ️" ;;
+	test) echo "🧪" ;;
+	esac
+}
+
+_ntfy_tag_for() {
+	case "$1" in
+	critical) echo "rotating_light" ;;
+	warning) echo "warning" ;;
+	resolved) echo "white_check_mark" ;;
+	info) echo "information_source" ;;
+	test) echo "test_tube" ;;
+	esac
+}
+
 send_ntfy() {
-	# $1 title  $2 tags  $3 message
+	# $1 severity  $2 component  $3 event  $4 summary  $5 details  $6 action
+	_severity=$1
+	_component=$2
+	_event=$3
+	_summary=$4
+	_details=${5:-}
+	_action=${6:-}
+
+	_priority=$(_ntfy_priority_for "$_severity")
+	_emoji=$(_ntfy_emoji_for "$_severity")
+	_tag=$(_ntfy_tag_for "$_severity")
+	_component_tag=$(printf '%s' "$_component" | tr '[:upper:]' '[:lower:]')
+	_title="$_emoji Homelab · $_component · $_event"
+	_message="**$_summary**
+
+- **Host:** \`$HOSTNAME\`
+- **Component:** \`$_component\`
+- **State:** \`$_event\`"
+
+	if [ -n "$_details" ]; then
+		_message="$_message
+- **Details:** $_details"
+	fi
+	if [ -n "$_action" ]; then
+		_message="$_message
+- **Action:** $_action"
+	fi
+
 	curl --fail --silent --show-error --max-time 10 --retry 2 \
-		-H "Title: $HOST_PREFIX $1" \
-		-H "Priority: high" \
-		-H "Tags: $2" \
-		-d "$3" \
+		-H "Title: $_title" \
+		-H "Priority: $_priority" \
+		-H "Tags: $_tag,$_component_tag" \
+		-H "Markdown: yes" \
+		-d "$_message" \
 		"${NTFY_URL%/}/$NTFY_TOPIC_ALERTS" >/dev/null
 }
 
@@ -26,9 +84,12 @@ send_ntfy() {
 notify_transition() {
 	_key=$1
 	_signature=$2
-	_title=$3
-	_tags=$4
-	_message=$5
+	_severity=$3
+	_component=$4
+	_event=$5
+	_summary=$6
+	_details=${7:-}
+	_action=${8:-}
 
 	_file="$STATE_DIR/$_key"
 	_prev=""
@@ -36,7 +97,7 @@ notify_transition() {
 
 	[ "$_prev" = "$_signature" ] && return 0
 
-	send_ntfy "$_title" "$_tags" "$_message" || return 1
+	send_ntfy "$_severity" "$_component" "$_event" "$_summary" "$_details" "$_action" || return 1
 	echo "$_signature" >"$_file"
 }
 
@@ -44,13 +105,13 @@ clear_state() {
 	rm -f "$STATE_DIR/$1"
 }
 
-HOSTNAME=$(cat /proc/sys/kernel/hostname)
-
 # --- apk package updates ---
 if ! apk update >/dev/null 2>&1; then
 	notify_transition "apk-update-failed" "failed" \
-		"apk update failed" "warning,package" \
-		"❌ apk update failed on $HOSTNAME"
+		"warning" "Updates" "apk update failed" \
+		"APK metadata refresh failed" \
+		"\`apk update\` returned a non-zero exit code." \
+		"Inspect APK repositories and network reachability."
 	exit 1
 fi
 clear_state "apk-update-failed"
@@ -62,15 +123,12 @@ if [ "$TOTAL" -eq 0 ]; then
 	clear_state "apk-updates"
 else
 	SIGNATURE=$(printf '%s\n' "$UPGRADABLE" | md5sum | awk '{print $1}')
-	LIST=$(printf '%s\n' "$UPGRADABLE" | head -20)
+	LIST=$(printf '%s\n' "$UPGRADABLE" | head -20 | tr '\n' ' ')
 	notify_transition "apk-updates" "$SIGNATURE" \
-		"Updates available" "warning,update" \
-		"📦 Updates available
-
-Host: $HOSTNAME
-Packages: $TOTAL
-
-$LIST"
+		"warning" "Updates" "$TOTAL packages available" \
+		"$TOTAL APK package updates are available" \
+		"Upgradable: $LIST" \
+		"Apply with: playbooks/openwrt.yml --tags upgrade"
 fi
 
 # --- firmware update (owut / ASU) ---
@@ -78,22 +136,20 @@ if [ "$OWRT_OWUT_CHECK" = "1" ]; then
 	OWUT_OUT=$(owut check 2>&1)
 	if [ $? -ne 0 ]; then
 		notify_transition "owut-failed" "failed" \
-			"owut check failed" "warning,package" \
-			"❌ owut check failed on $HOSTNAME"
+			"warning" "Updates" "owut check failed" \
+			"Firmware update check failed" \
+			"\`owut check\` returned a non-zero exit code." \
+			"Inspect \`owut check\` output on the router."
 	else
 		clear_state "owut-failed"
 		VERSION_FROM=$(printf '%s\n' "$OWUT_OUT" | awk '/^Version-from/ {print $2}')
 		VERSION_TO=$(printf '%s\n' "$OWUT_OUT" | awk '/^Version-to/ {print $2}')
 		if [ -n "$VERSION_TO" ] && [ "$VERSION_TO" != "$VERSION_FROM" ]; then
 			notify_transition "firmware-update" "$VERSION_FROM-$VERSION_TO" \
-				"Firmware update available" "warning,arrow_up" \
-				"⬆️ Firmware update available
-
-Host: $HOSTNAME
-Current: $VERSION_FROM
-Available: $VERSION_TO
-
-Apply with: playbooks/openwrt.yml --tags upgrade"
+				"warning" "Updates" "firmware $VERSION_TO available" \
+				"Firmware update is available" \
+				"Current: \`$VERSION_FROM\`; available: \`$VERSION_TO\`." \
+				"Apply with: playbooks/openwrt.yml --tags upgrade"
 		else
 			clear_state "firmware-update"
 		fi

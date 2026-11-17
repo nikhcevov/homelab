@@ -3,8 +3,6 @@ set -euo pipefail
 
 source /opt/homelab-monitoring/scripts/notify.sh
 
-HOSTNAME=$(hostname)
-
 : "${DISK_THRESHOLD:?DISK_THRESHOLD is required}"
 : "${DISK_MOUNTS:?DISK_MOUNTS is required}"
 
@@ -21,9 +19,10 @@ check_mount() {
 	fi
 
 	if [ "$usage" -ge "$DISK_THRESHOLD" ]; then
-		notify_transition "$key" "high" "alert" \
-			"Disk usage high" "warning,floppy_disk" \
-			"⚠️ Disk usage on $mount is ${usage}% (threshold ${DISK_THRESHOLD}%) on $HOSTNAME"
+		notify_transition "$key" "high" "warning" "Disk" "$mount at ${usage}%" \
+			"Disk usage is high on \`$mount\`" \
+			"Usage: \`${usage}%\`; threshold: \`${DISK_THRESHOLD}%\`." \
+			"Free space or lower the threshold deliberately."
 	else
 		clear_state "$key"
 	fi

@@ -3,8 +3,6 @@ set -euo pipefail
 
 source /opt/homelab-monitoring/scripts/notify.sh
 
-HOSTNAME=$(hostname)
-
 BACKUP_DIR="${BACKUP_DIR:-}"
 BACKUP_MAX_AGE_HOURS="${BACKUP_MAX_AGE_HOURS:-25}"
 
@@ -20,9 +18,10 @@ if [ -d "$BACKUP_DIR" ]; then
 fi
 
 if [ -z "$newest" ]; then
-    notify_transition "$KEY" "missing" "alert" \
-        "No backups found" "warning,package" \
-        "⚠️ No backup archives in $BACKUP_DIR on $HOSTNAME"
+    notify_transition "$KEY" "missing" "warning" "Backup" "no archives" \
+        "No backup archives found" \
+        "Directory: \`$BACKUP_DIR\`" \
+        "Check the backup timer and collector mount."
     exit 0
 fi
 
@@ -30,11 +29,12 @@ now=$(date +%s)
 age_h=$(((now - ${newest%.*}) / 3600))
 
 if [ "$age_h" -gt "$BACKUP_MAX_AGE_HOURS" ]; then
-    notify_transition "$KEY" "stale" "alert" \
-        "Backup stale" "warning,package" \
-        "⚠️ Latest backup is ${age_h}h old (max ${BACKUP_MAX_AGE_HOURS}h) on $HOSTNAME"
+    notify_transition "$KEY" "stale" "warning" "Backup" "stale ${age_h}h" \
+        "Latest backup is ${age_h}h old" \
+        "Directory: \`$BACKUP_DIR\`; maximum age: \`${BACKUP_MAX_AGE_HOURS}h\`" \
+        "Inspect the backup timer and collector journal."
 else
-    notify_transition "$KEY" "ok" "info" \
-        "Backup resumed" "white_check_mark,package" \
-        "✅ Backups are fresh again on $HOSTNAME (latest ${age_h}h old)"
+    notify_transition "$KEY" "ok" "resolved" "Backup" "fresh again" \
+        "Backups are fresh again" \
+        "Latest archive is ${age_h}h old."
 fi

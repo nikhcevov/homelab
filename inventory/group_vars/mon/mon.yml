@@ -14,7 +14,7 @@ caddy_acme_email: ""
 caddy_sites:
   - {
       domain: "{{ kuma_domain }}",
-      upstream_port: "{{ kuma_port }}",
+      upstream_port: "{{ gatus_port }}",
       healthz: true,
     }
 
