@@ -1,0 +1,75 @@
+---
+# ZFS pools, datasets and NFS exports on the Proxmox host (role: pve_storage).
+#
+# Pool creation is destructive and opt-in: fill `disks` with /dev/disk/by-id
+# paths and run with `-e pve_storage_create=true` once, at Phase 3 of
+# docs/proxmox-migration.md. Datasets and exports reconcile on every run.
+
+pve_storage_create: false
+
+pve_storage_pools:
+  - name: tank
+    type: mirror
+    ashift: 12
+    # Two 8 TB members; the old 10 TB becomes the restic target.
+    disks: []
+  - name: media
+    type: stripe
+    ashift: 12
+    # Single 4 TB disk: replaceable Arr data, no redundancy by design.
+    disks: []
+
+pve_storage_datasets:
+  # Hot tier: the PVE root pool. Databases, config and the VM disks live here.
+  - name: rpool/backup-staging
+    properties:
+      atime: "off"
+      acltype: posix
+      xattr: sa
+      compression: zstd
+      recordsize: 16K
+      quota: 128G
+  # Cold tier: HDDs.
+  - name: tank/photos
+    properties:
+      atime: "off"
+      acltype: posix
+      xattr: sa
+      compression: zstd
+  - name: tank/pbs
+    properties:
+      atime: "on"
+      acltype: posix
+      xattr: sa
+      compression: zstd
+      recordsize: 1M
+      quota: 1T
+  - name: tank/files
+    properties:
+      atime: "off"
+      acltype: posix
+      xattr: sa
+      compression: zstd
+  - name: media/data
+    properties:
+      atime: "off"
+      acltype: posix
+      xattr: sa
+      compression: zstd
+      recordsize: 1M
+
+# NFSv4.1 exports restricted to the private Docker guest NIC.
+pve_nfs_clients: "10.77.0.2/32"
+
+pve_nfs_exports:
+  - path: /tank/photos
+    clients: "{{ pve_nfs_clients }}"
+    options: "rw,sync,no_subtree_check,no_root_squash,mountpoint"
+  - path: /tank/files
+    clients: "{{ pve_nfs_clients }}"
+    options: "rw,sync,no_subtree_check,no_root_squash,mountpoint"
+  - path: /media/data
+    clients: "{{ pve_nfs_clients }}"
+    options: "rw,sync,no_subtree_check,no_root_squash,mountpoint"
+# tank/pbs is not exported: PBS runs as a guest on this host and reads the
+# dataset directly. Add an export if PBS becomes a VM.

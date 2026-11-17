@@ -1,0 +1,57 @@
+---
+- name: Read all assigned PCI device IOMMU groups
+  ansible.builtin.shell: |
+    set -eu
+    group=$(readlink -f /sys/bus/pci/devices/{{ item }}/iommu_group)
+    test -d "$group/devices"
+    for device in "$group"/devices/*; do basename "$device"; done
+  args:
+    executable: /bin/bash
+  loop: "{{ pve_gpu_devices }}"
+  register: _gpu_groups
+  changed_when: false
+
+- name: Reject unexpected IOMMU group members
+  ansible.builtin.assert:
+    that:
+      - item.stdout_lines | difference(pve_gpu_devices + pve_gpu_allowed_bridge_devices) | length == 0
+      - item.item in item.stdout_lines
+  loop: "{{ _gpu_groups.results }}"
+
+- name: Read explicitly allowed companion bridge classes
+  ansible.builtin.slurp:
+    src: "/sys/bus/pci/devices/{{ item }}/class"
+  loop: "{{ pve_gpu_allowed_bridge_devices }}"
+  register: _gpu_bridges
+
+- name: Require every exempt IOMMU companion to be a PCI bridge
+  ansible.builtin.assert:
+    that: item.content | b64decode | trim == '0x060400'
+  loop: "{{ _gpu_bridges.results }}"
+
+- name: Confirm host console is not the passthrough adapter
+  ansible.builtin.slurp:
+    src: "/sys/bus/pci/devices/{{ item }}/boot_vga"
+  loop: "{{ pve_gpu_devices | reject('search', '\\.1$') | list }}"
+  register: _gpu_boot_vga
+
+- name: Preserve host boot console
+  ansible.builtin.assert:
+    that: item.content | b64decode | trim == '0'
+  loop: "{{ _gpu_boot_vga.results }}"
+
+- name: Apply hardware binding only with explicit approval
+  ansible.builtin.include_tasks: configure.yml
+  when: pve_gpu_configure | bool
+
+- name: Read both current PCI driver bindings
+  ansible.builtin.command: "readlink -f /sys/bus/pci/devices/{{ item }}/driver"
+  loop: "{{ pve_gpu_devices }}"
+  register: _gpu_bindings
+  changed_when: false
+  failed_when: false
+
+- name: Report pending hardware activation
+  ansible.builtin.debug:
+    msg: "{{ item.item }}: {{ item.stdout | basename }}; VM autostart requires every assigned function on vfio-pci."
+  loop: "{{ _gpu_bindings.results }}"

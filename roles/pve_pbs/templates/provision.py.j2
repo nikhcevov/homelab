@@ -1,0 +1,294 @@
+#!/usr/bin/python3
+"""Host-owned, fail-closed PBS lifecycle; never destroys a CT or datastore."""
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import tempfile
+
+CT = '{{ pve_pbs_id }}'
+DATASET = {{ pve_pbs_dataset | to_json }}
+HOST_PATH = Path({{ pve_pbs_host_path | to_json }})
+STORE = {{ pve_pbs_datastore | to_json }}
+STORE_PATH = {{ pve_pbs_datastore_path | to_json }}
+STORAGE = {{ pve_pbs_storage_id | to_json }}
+USER = {{ pve_pbs_user | to_json }}
+TOKEN = {{ pve_pbs_token | to_json }}
+AUTH = USER + '!' + TOKEN
+SECRET = Path({{ pve_pbs_secret_path | to_json }})
+MARKER = 'homelab-managed-pbs/v1'
+SCHEDULES = {{ 'True' if pve_pbs_schedules_enabled | bool else 'False' }}
+TIMEZONE = {{ bootstrap_timezone | to_json }}
+changed = False
+
+
+def run(*args, check=True):
+    result = subprocess.run([str(a) for a in args], text=True, capture_output=True)
+    if check and result.returncode:
+        # Never include subprocess output: it can contain newly generated secrets.
+        raise RuntimeError('Command failed: ' + str(args[0]))
+    return result
+
+
+def mutate(*args):
+    global changed
+    result = run(*args)
+    changed = True
+    return result
+
+
+def guest(*args, check=True):
+    return run('pct', 'exec', CT, '--', *args, check=check)
+
+
+def manager(*args):
+    return guest('proxmox-backup-manager', *args)
+
+
+def listing(*args):
+    return json.loads(manager(*args, '--output-format', 'json').stdout)
+
+
+def save_secret(value):
+    # Temp file is private from creation; rename is atomic across interruptions.
+    fd, name = tempfile.mkstemp(prefix='.pbs-token-', dir=SECRET.parent)
+    try:
+        with os.fdopen(fd, 'w') as stream:
+            json.dump(value, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(name, SECRET)
+        os.chmod(SECRET, 0o600)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+# Dataset creation belongs to corestorage. Never create an empty fallback here.
+run('/usr/local/sbin/homelab-pbs-mount-guard')
+# Both native schedulers use local civil time. Fail closed rather than silently
+# arming PVE and PBS in different timezones when bootstrap has not been applied.
+if run('timedatectl', 'show', '--property=Timezone', '--value').stdout.strip() != TIMEZONE:
+    raise RuntimeError('Host timezone differs from bootstrap_timezone; reconcile bootstrap before PBS schedules')
+# Enabling PVE filtering must not introduce a host/guest-wide default deny.
+# Existing explicit host management rules remain owned by the host role.
+mutate('pvesh', 'set', '/cluster/firewall/options', '--enable', '1',
+       '--policy_in', 'ACCEPT', '--policy_out', 'ACCEPT')
+if all(run('systemctl', 'is-active', '--quiet', service, check=False).returncode
+       for service in ('pve-firewall', 'proxmox-firewall')):
+    mutate('systemctl', 'enable', '--now', 'pve-firewall')
+conf = Path('/etc/pve/lxc/' + CT + '.conf')
+if Path('/etc/pve/qemu-server/' + CT + '.conf').exists():
+    raise RuntimeError('CT101 is occupied by a VM; refusing to overwrite it')
+if conf.exists():
+    text = conf.read_text()
+    if MARKER not in text or 'unprivileged: 1' not in text:
+        raise RuntimeError('Refusing to adopt an unmarked or privileged CT101')
+    mp = re.search(r'^mp0:\s*(.+)$', text, re.M)
+    parts = mp.group(1).split(',') if mp else []
+    if (not parts or parts[0] != str(HOST_PATH)
+            or 'mp=' + STORE_PATH not in parts or 'backup=0' not in parts
+            or 'bridge={{ pve_pbs_private_bridge }}' not in text
+            or 'ip={{ pve_pbs_address }}/29' not in text):
+        raise RuntimeError('Existing CT101 topology differs; inspect manually before continuing')
+
+# Only change ownership of a genuinely empty dataset root, never its contents.
+if not any(HOST_PATH.iterdir()) and HOST_PATH.stat().st_uid != 100034:
+    os.chown(HOST_PATH, 100034, 100034)
+    os.chmod(HOST_PATH, 0o750)
+    changed = True
+if HOST_PATH.stat().st_uid != 100034 or HOST_PATH.stat().st_gid != 100034:
+    raise RuntimeError('Datastore must belong to unprivileged backup UID/GID100034; no recursive chown is performed')
+
+if not conf.exists():
+    meminfo = dict(re.findall(r'^(\w+):\s+(\d+)', Path('/proc/meminfo').read_text(), re.M))
+    if int(meminfo['MemAvailable']) < ({{ pve_pbs_memory }} + 1024) * 1024:
+        raise RuntimeError('Insufficient available host RAM for PBS plus 1GiB host headroom; measure the full guest/ZFS budget first')
+    mutate('pveam', 'update')
+    available = run('pveam', 'available', '--section', 'system').stdout
+    templates = re.findall(r'\b(debian-13-standard_[^\s]+_amd64\.tar\.(?:zst|gz|xz))\b', available)
+    if not templates:
+        raise RuntimeError('No official Debian13 standard template is available; update PVE first')
+    # Use the official PVE catalogue; pveam downloads and checks its catalogue checksum.
+    template = sorted(set(templates))[-1]
+    mutate('pveam', 'download', '{{ pve_pbs_template_storage }}', template)
+    mutate('pct', 'create', CT, '{{ pve_pbs_template_storage }}:vztmpl/' + template,
+           '--hostname', '{{ pve_pbs_hostname }}', '--description', MARKER,
+           '--unprivileged', '1', '--memory', '{{ pve_pbs_memory }}',
+           '--cores', '{{ pve_pbs_cores }}', '--swap', '512',
+           '--rootfs', '{{ pve_pbs_root_storage }}:{{ pve_pbs_root_size }}',
+           '--net0', 'name=eth0,bridge={{ pve_pbs_lan_bridge }},ip=dhcp,firewall=1',
+           '--net1', 'name=eth1,bridge={{ pve_pbs_private_bridge }},ip={{ pve_pbs_address }}/29,firewall=1',
+           '--mp0', str(HOST_PATH) + ',mp=' + STORE_PATH + ',backup=0',
+           '--onboot', '1', '--startup', 'order=10', '--features', 'nesting=0')
+
+# Persist the same authority in LXC configuration for every subsequent boot.
+if not re.search(r'^timezone:\s*' + re.escape(TIMEZONE) + r'\s*$', conf.read_text(), re.M):
+    mutate('pct', 'set', CT, '--timezone', TIMEZONE)
+
+# With datacenter firewall enabled: no LAN API/SSH exposure, DHCP and outbound apt work.
+firewall = Path('/etc/pve/firewall/' + CT + '.fw')
+firewall_text = '''[OPTIONS]
+enable: 1
+policy_in: DROP
+policy_out: ACCEPT
+
+[RULES]
+IN ACCEPT -i net1 -source {{ pve_pbs_host_address }}/32 -p tcp -dport 8007
+IN ACCEPT -i net0 -p udp -sport 67 -dport 68
+'''
+if not firewall.exists() or firewall.read_text() != firewall_text:
+    firewall.write_text(firewall_text)
+    changed = True
+run('/usr/local/sbin/homelab-pbs-mount-guard')
+if 'running' not in run('pct', 'status', CT).stdout:
+    mutate('pct', 'start', CT)
+if guest('timedatectl', 'show', '--property=Timezone', '--value').stdout.strip() != TIMEZONE:
+    guest('timedatectl', 'set-timezone', TIMEZONE)
+    changed = True
+
+# Stop on wrong distro rather than installing PBS4 into an incompatible guest.
+if guest('sh', '-c', '. /etc/os-release; printf %s "$VERSION_CODENAME"').stdout != 'trixie':
+    raise RuntimeError('PBS4 requires Debian13/trixie')
+if guest('test', '-x', '/usr/sbin/proxmox-backup-manager', check=False).returncode:
+    guest('sh', '-ec', '''
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y ca-certificates wget
+wget -q https://enterprise.proxmox.com/debian/proxmox-archive-keyring-trixie.gpg -O /usr/share/keyrings/proxmox-archive-keyring.gpg
+printf '%s\\n' 'deb [signed-by=/usr/share/keyrings/proxmox-archive-keyring.gpg] http://download.proxmox.com/debian/pbs trixie pbs-no-subscription' > /etc/apt/sources.list.d/pbs.list
+apt-get update
+apt-get install -y proxmox-backup-server
+# No subscription is assumed; retain the signed no-subscription source above.
+rm -f /etc/apt/sources.list.d/pbs-enterprise.list /etc/apt/sources.list.d/pbs-enterprise.sources
+''')
+    changed = True
+# All appliance administration is through pct/PBS; no guest SSH listener.
+guest('systemctl', 'mask', '--now', 'ssh.service', 'ssh.socket')
+if guest('id', '-u', 'backup').stdout.strip() != '34' or guest('id', '-g', 'backup').stdout.strip() != '34':
+    raise RuntimeError('Unexpected backup UID/GID; do not change the datastore mapping blindly')
+# /run is volatile; recreate the proxy's writable directory on every boot.
+runtime_path = '/etc/tmpfiles.d/homelab-pbs.conf'
+runtime_rule = 'd /run/proxmox-backup 0755 backup backup -'
+if guest('cat', runtime_path, check=False).stdout != runtime_rule + '\n':
+    guest('sh', '-ec', 'echo "$1" > "$2"; chmod 0644 "$2"',
+          'sh', runtime_rule, runtime_path)
+    changed = True
+runtime_before = guest('stat', '-c', '%u:%g %a', '/run/proxmox-backup', check=False)
+guest('systemd-tmpfiles', '--create', runtime_path)
+if runtime_before.stdout.strip() != '34:34 755':
+    changed = True
+guest('systemctl', 'enable', '--now', 'proxmox-backup', 'proxmox-backup-proxy')
+
+stores = listing('datastore', 'list')
+existing = next((row for row in stores if row['name'] == STORE), None)
+if existing and existing['path'] != STORE_PATH:
+    raise RuntimeError('Existing datastore points elsewhere; refusing to replace it')
+if not existing:
+    entries = list(HOST_PATH.iterdir())
+    reuse = (HOST_PATH / '.chunks').is_dir()
+    if entries and not reuse:
+        raise RuntimeError('Nonempty directory is not a PBS datastore; refusing to initialize')
+    manager('datastore', 'create', STORE, STORE_PATH, '--reuse-datastore', 'true' if reuse else 'false')
+    changed = True
+if SCHEDULES:
+    manager('datastore', 'update', STORE, '--gc-schedule', '{{ pve_pbs_gc_schedule }}')
+else:
+    manager('datastore', 'update', STORE, '--delete', 'gc-schedule')
+
+users = listing('user', 'list')
+if not any(row['userid'] == USER for row in users):
+    manager('user', 'create', USER, '--comment', 'PVE VM backups, no interactive password')
+    changed = True
+tokens = listing('user', 'list-tokens', USER)
+exists = any(row.get('tokenid') == AUTH for row in tokens)
+if SECRET.exists():
+    os.chmod(SECRET, 0o600)
+    credentials = json.loads(SECRET.read_text())
+    if credentials['auth-id'] != AUTH or not exists:
+        raise RuntimeError('Saved PBS token does not match server; explicit credential recovery required')
+else:
+    if exists:
+        raise RuntimeError('Token exists but secret is missing. Restore recovery secret or explicitly remove that token and rerun')
+    # Unlike list commands, generate-token has no output-format flag and prints
+    # a documented "Result: " prefix before its one-time JSON secret.
+    output = manager('user', 'generate-token', USER, TOKEN).stdout
+    prefix, separator, payload = output.partition('Result:')
+    if prefix.strip() or not separator:
+        raise RuntimeError('Unexpected PBS token response; secret output withheld')
+    try:
+        credentials = json.loads(payload)
+    except json.JSONDecodeError:
+        raise RuntimeError('Invalid PBS token JSON; secret output withheld') from None
+    if (not isinstance(credentials, dict) or credentials.get('tokenid') != AUTH
+            or not isinstance(credentials.get('value'), str) or not credentials['value']):
+        raise RuntimeError('Unexpected PBS token credentials; secret output withheld')
+    credentials['auth-id'] = AUTH
+    save_secret(credentials)
+    changed = True
+# Privilege-separated token needs both user and token grants. Backup only; pruning is server-owned.
+for auth in (USER, AUTH):
+    manager('acl', 'update', '/datastore/' + STORE, 'DatastoreBackup', '--auth-id', auth)
+
+for kind, jobid, args in (
+    ('verify-job', 'homelab-verify', ['--store', STORE, '--outdated-after', '7']),
+    ('prune-job', 'homelab-prune', ['--store', STORE, '--schedule', '{{ pve_pbs_prune_schedule }}',
+                                 '--keep-daily', '{{ pve_pbs_keep_daily }}', '--keep-weekly', '{{ pve_pbs_keep_weekly }}',
+                                 '--keep-monthly', '{{ pve_pbs_keep_monthly }}',
+                                 '--disable', 'false' if SCHEDULES else 'true']),
+):
+    jobs = listing(kind, 'list')
+    action = 'update' if any(row['id'] == jobid for row in jobs) else 'create'
+    if kind == 'verify-job':
+        if SCHEDULES:
+            args += ['--schedule', '{{ pve_pbs_verify_schedule }}']
+        elif action == 'update':
+            args += ['--delete', 'schedule']
+    manager(kind, action, jobid, *args)
+
+# Pin the current PBS TLS certificate locally, never use insecure certificate bypass.
+cert = manager('cert', 'info').stdout
+match = re.search(r'(?:[0-9a-fA-F]{2}:){31}[0-9a-fA-F]{2}', cert)
+if not match:
+    raise RuntimeError('Unable to obtain the local PBS certificate fingerprint')
+fingerprint = match.group(0)
+storages = json.loads(run('pvesh', 'get', '/storage', '--output-format', 'json').stdout)
+current = next((row for row in storages if row['storage'] == STORAGE), None)
+if current and (current['type'] != 'pbs' or current.get('server') != '{{ pve_pbs_address }}' or current.get('datastore') != STORE):
+    raise RuntimeError('Storage ID is already used by another target')
+# Keep the secret out of process arguments as well as Ansible logs. This is the
+# native PVE PBS password file, protected by pmxcfs's root-only priv directory.
+password_dir = Path('/etc/pve/priv/storage')
+password_dir.mkdir(exist_ok=True)
+password_file = password_dir / (STORAGE + '.pw')
+# Native on_add_hook deletes a password omitted from argv. Register disabled
+# first, then write the private secret and activate without exposing it in argv.
+if not current:
+    run('pvesm', 'add', 'pbs', STORAGE,
+        '--server', '{{ pve_pbs_address }}', '--datastore', STORE, '--username', AUTH,
+        '--fingerprint', fingerprint, '--content', 'backup', '--disable', '1')
+fd = os.open(password_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with os.fdopen(fd, 'w') as stream:
+    stream.write(credentials['value'] + '\n')
+if password_file.stat().st_mode & 0o777 != 0o600:
+    raise RuntimeError('Native PBS password file is not root-only')
+run('pvesm', 'set', STORAGE,
+    '--username', AUTH, '--fingerprint', fingerprint,
+    '--content', 'backup', '--disable', '0')
+status = json.loads(run('pvesh', 'get', '/nodes/localhost/storage/' + STORAGE + '/status',
+                        '--output-format', 'json').stdout)
+if not status.get('active'):
+    raise RuntimeError('Registered PBS storage is not active; inspect credentials and TLS pin')
+jobs = json.loads(run('pvesh', 'get', '/cluster/backup', '--output-format', 'json').stdout)
+jobid = 'homelab-vm100-pbs'
+job = next((row for row in jobs if row['id'] == jobid), None)
+endpoint = '/cluster/backup/' + jobid if job else '/cluster/backup'
+args = [] if job else ['--id', jobid]
+run('pvesh', 'set' if job else 'create', endpoint, *args,
+    '--vmid', '{{ pve_pbs_backup_vm }}', '--storage', STORAGE, '--schedule', '{{ pve_pbs_backup_schedule }}',
+    '--mode', 'snapshot', '--enabled', '1' if SCHEDULES else '0',
+    '--repeat-missed', '0', '--prune-backups', 'keep-all=1',
+    '--notes-template', '{{ '{{guestname}}' }}')
+# Reconciliation updates may rewrite schedules/ACLs; report changed conservatively.
+print('CHANGED')

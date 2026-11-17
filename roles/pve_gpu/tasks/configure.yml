@@ -1,0 +1,57 @@
+---
+- name: Pin only assigned GPU PCI IDs without blacklisting host console drivers
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/pve-gpu-passthrough.conf
+    content: |
+      options vfio-pci ids={{ pve_gpu_ids | join(',') }}
+      softdep nouveau pre: vfio-pci
+      softdep nvidia pre: vfio-pci
+    mode: "0644"
+  register: _gpu_pin
+
+- name: Load VFIO early
+  ansible.builtin.blockinfile:
+    path: /etc/initramfs-tools/modules
+    marker: '# {mark} HOMELAB VFIO'
+    block: |
+      vfio
+      vfio_iommu_type1
+      vfio_pci
+  register: _gpu_modules
+
+- name: Detect systemd boot command line
+  ansible.builtin.stat:
+    path: /etc/kernel/cmdline
+  register: _gpu_cmdline
+
+- name: Add IOMMU parameters to systemd boot
+  ansible.builtin.lineinfile:
+    path: /etc/kernel/cmdline
+    regexp: '^(?!.*intel_iommu=on)(.*)$'
+    line: '\1 {{ pve_gpu_kernel_params }}'
+    backrefs: true
+  when: _gpu_cmdline.stat.exists
+  register: _gpu_systemd
+
+- name: Add IOMMU parameters to GRUB
+  ansible.builtin.replace:
+    path: /etc/default/grub
+    regexp: '^(GRUB_CMDLINE_LINUX_DEFAULT=")(?!.*intel_iommu=on)(.*)(")$'
+    replace: '\1\2 {{ pve_gpu_kernel_params }}\3'
+  when: not _gpu_cmdline.stat.exists
+  register: _gpu_grub
+
+- name: Refresh systemd boot
+  ansible.builtin.command: proxmox-boot-tool refresh
+  when: _gpu_systemd.changed | default(false)
+  changed_when: true
+
+- name: Refresh GRUB
+  ansible.builtin.command: update-grub
+  when: _gpu_grub.changed | default(false)
+  changed_when: true
+
+- name: Refresh GPU initramfs
+  ansible.builtin.command: update-initramfs -u -k all
+  when: _gpu_pin.changed or _gpu_modules.changed or (_gpu_systemd.changed | default(false)) or (_gpu_grub.changed | default(false))
+  changed_when: true

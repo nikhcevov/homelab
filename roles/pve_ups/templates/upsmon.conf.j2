@@ -1,0 +1,15 @@
+# Managed by Ansible (role: pve_ups).
+MONITOR {{ pve_ups_name }}@localhost 1 {{ pve_ups_user }} {{ pve_ups_password }} primary
+
+MINSUPPLIES 1
+SHUTDOWNCMD "/sbin/shutdown -h +0"
+POLLFREQ 5
+POLLFREQALERT 5
+HOSTSYNC 15
+DEADTIME 15
+POWERDOWNFLAG /etc/killpower
+
+NOTIFYCMD /usr/sbin/upssched
+NOTIFYFLAG ONBATT SYSLOG+WALL+EXEC
+NOTIFYFLAG ONLINE SYSLOG+WALL+EXEC
+FINALDELAY 5

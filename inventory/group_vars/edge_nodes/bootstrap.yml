@@ -8,6 +8,9 @@ bootstrap_apt_upgrade: dist
 bootstrap_timezone: Europe/Moscow
 bootstrap_locale: en_US.UTF-8
 
+# Explicit opt-in: do not replace an existing time daemon on other host groups.
+bootstrap_timesyncd_enabled: true
+
 # Base packages every node should have.
 bootstrap_packages:
   - sudo

@@ -1,0 +1,34 @@
+---
+- name: Install guest backup tools
+  ansible.builtin.apt:
+    name: [rsync, jq, openssh-server]
+    state: present
+
+- name: Create protected backup state and SSH directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - /var/lib/homelab-appdata-backup
+    - /root/.ssh
+
+- name: Install guest quiesce and SSH restriction helpers
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/usr/local/sbin/{{ item }}"
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - homelab-appdata-backup
+    - homelab-backup-ssh
+
+- name: Authorize the preserved collector identity for restricted private-link access
+  ansible.posix.authorized_key:
+    user: root
+    key: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../files/ssh/great-hornbill.pub') }}"
+    key_options: 'restrict,from="{{ docker_backup_source_address }}",command="/usr/local/sbin/homelab-backup-ssh"'
+    state: present

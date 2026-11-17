@@ -1,0 +1,17 @@
+---
+# Enable only after moving the existing XFS vault disk and configuring its UUID,
+# restoring the collector tree/history, and pinning SSH hosts. Never initialize
+# the local restic repository: its existing password/history are retained.
+pve_backup_enabled: true
+# Host calendars use bootstrap_timezone explicitly; Persistent timers can catch
+# up after downtime. Review stamps/NEXT before first activation (backup guide).
+pve_backup_vault_uuid: 6d3f33cb-faaf-4497-8131-2f40f07cfbbd
+# Optional second XFS repository UUID; blank defers this copy and its freshness check.
+# The new internal staging disk uses plain XFS, not LUKS.
+pve_backup_offsite_uuid: ""
+# One deliberate bootstrap scans from PVE (private guest link is host-only).
+# Review fingerprints out-of-band, run with this true, then return it to false.
+# Existing pins are never overwritten, even during bootstrap.
+pve_backup_bootstrap_known_hosts: false
+pve_backup_ssh_private_key: "{{ vault_pve_backup_ssh_private_key }}"
+pve_backup_known_hosts: "{{ vault_pve_backup_known_hosts }}"

@@ -1,0 +1,7 @@
+---
+# Deployment is a separate, explicitly authorized cutover after data restore.
+compose_data_restored: false
+compose_restore_marker: "{{ compose_appdata }}/.homelab-restored"
+compose_extra_files: []
+# Controller template paths are resolved relative to playbook_dir.
+compose_config_templates: []

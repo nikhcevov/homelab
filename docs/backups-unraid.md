@@ -6,6 +6,11 @@ Sources: [playbooks/unraid.yml](../playbooks/unraid.yml), [homelab-backup-pull.s
 
 Run commands from the repository root.
 
+This remains the running host's backup path until cutover. The replacement
+[Proxmox backup lifecycle](backups-proxmox.md) retains its collector sources,
+SSH identity, repository password and history; do not remove these jobs merely
+because the replacement roles exist.
+
 ## Weekly schedule (Sunday-night chain)
 
 One chain so the array wakes once a night and the `vault` pool disk only for restic:

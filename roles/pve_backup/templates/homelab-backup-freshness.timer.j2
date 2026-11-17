@@ -1,0 +1,10 @@
+[Unit]
+Description=Schedule homelab-backup-freshness
+
+[Timer]
+OnCalendar=*-*-* *:30:00 {{ bootstrap_timezone }}
+Persistent=true
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target

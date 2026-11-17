@@ -1,0 +1,45 @@
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "1"
+
+services:
+  livesync-db:
+    image: couchdb:3@sha256:5fc596110eac7f412173a7d9de14f70aa5d3e816790fb6e70642755d4a4cf464
+    container_name: livesync-db
+    restart: always
+    mem_limit: 384m
+    logging: *logging
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:${COUCHDB_PORT:-5984}:5984"
+    volumes:
+      - /mnt/appdata/obsidian/couchdb/data:/opt/couchdb/data
+      - /mnt/appdata/obsidian/couchdb/etc/local.d:/opt/couchdb/etc/local.d
+      - /mnt/appdata/obsidian/couchdb/logs:/opt/couchdb/var/log
+    environment:
+      COUCHDB_USER: ${COUCHDB_USER}
+      COUCHDB_PASSWORD: ${COUCHDB_PASSWORD}
+
+  livesync-publisher:
+    image: ghcr.io/nikhcevov/livesync-publisher:0.3.0@sha256:be24ada586a1e6cb0bba933598538ae5bb7595c53acc5da635cc04c4048cc616
+    container_name: livesync-publisher
+    restart: unless-stopped
+    mem_limit: 384m
+    logging: *logging
+    depends_on:
+      - livesync-db
+    env_file:
+      - .env
+    environment:
+      COUCHDB_URL: http://livesync-db:${COUCHDB_PORT}
+      COUCHDB_DB: ${COUCHDB_DB}
+      COUCHDB_USER: ${COUCHDB_USER}
+      COUCHDB_PASSWORD: ${COUCHDB_PASSWORD}
+      REBUILD_ON_START: true
+    volumes:
+      - /mnt/appdata/obsidian/blog/public:/public
+      - /mnt/appdata/obsidian/blog/state:/state
+      - /mnt/appdata/obsidian/blog/hugo:/hugo

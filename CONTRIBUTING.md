@@ -68,11 +68,22 @@ Dependency installation downloads packages from PyPI and Ansible Galaxy. Once in
 [the gate](tests/check_ansible.py) runs locally without network access, `.vault_pass`,
 private `vars/proxy.yml`, production credentials, or SSH:
 
-- Syntax-check every entrypoint in the flat `playbooks/` directory (currently 14);
+- Syntax-check every entrypoint in the flat `playbooks/` directory (currently 9);
   fail if no playbooks are discovered. Root `requirements.yml` is collection metadata.
 - Render the existing nginx templates with [the public routing example](vars/proxy.example.yml).
 - Reject duplicate SNI names, SNI over UDP, mixed SNI/plain listeners, multiple defaults,
   empty upstreams, missing backend ports, and missing listeners before rendering.
+- Parse every stack with [the Compose gate](tests/check_compose.py), rendering
+  synthetic secrets in a temporary directory. Docker CLI with Compose is required,
+  but no daemon, vault password, real application data or SSH is used.
+- Check all Compose `vault_*` references exist and reject plaintext Compose
+  `.env` files. Literal dotenv dollar/quote/backslash handling is exercised.
+- Run migration safety regressions with real rsync and isolated temporary files:
+
+  ```bash
+  python tests/check_compose.py
+  python -m unittest discover -s tests -p 'test_*.py'
+  ```
 
 Each run creates and removes a temporary Ansible configuration, localhost-only inventory,
 and render directory. It ignores inherited vault/controller overrides, preserves an

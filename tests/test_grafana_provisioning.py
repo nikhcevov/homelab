@@ -1,0 +1,49 @@
+from __future__ import annotations
+
+from pathlib import Path
+import unittest
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+ALERTING = ROOT / "compose/observability/alerting"
+
+
+class GrafanaProvisioningTest(unittest.TestCase):
+    def test_alerting_yaml_is_parseable_and_complete(self) -> None:
+        rules = yaml.safe_load((ALERTING / "rules.yml").read_text())
+        policies = yaml.safe_load((ALERTING / "policies.yml").read_text())
+
+        group = rules["groups"][0]
+        self.assertEqual(group["folder"], "Homelab Alerts")
+        self.assertEqual(len(group["rules"]), 18)
+        self.assertTrue(
+            all(
+                rule["labels"]["severity"] in {"critical", "warning"}
+                for rule in group["rules"]
+            )
+        )
+        self.assertTrue(
+            all(
+                rule["annotations"].get("description")
+                and rule["annotations"].get("runbook_url")
+                for rule in group["rules"]
+            )
+        )
+        self.assertTrue(
+            all(
+                rule["notification_settings"]["receiver"]
+                == ("ntfy-critical" if rule["labels"]["severity"] == "critical" else "ntfy-alerts")
+                for rule in group["rules"]
+            )
+        )
+        self.assertEqual(policies["policies"][0]["receiver"], "ntfy-alerts")
+        self.assertNotIn("routes", policies["policies"][0])
+
+    def test_contact_points_do_not_commit_plaintext_topics(self) -> None:
+        template = (ALERTING / "contact-points.yml.j2").read_text()
+        self.assertIn("{{ ntfy_url }}", template)
+        self.assertIn("{{ ntfy_topic_alerts }}", template)
+        self.assertIn("{{ ntfy_topic_critical }}", template)
+        self.assertNotIn("ntfy.sh/han-", template)
+        self.assertNotIn("🚨", template)

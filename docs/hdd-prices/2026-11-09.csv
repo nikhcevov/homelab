@@ -1,0 +1,14 @@
+date,series,capacity_tb,condition,recording,price_usd,price_per_tb,drive,url
+2026-11-09,new-cmr,4,new,cmr,189.27,47.32,Seagate Constellation ES.3 ST4000NM0033,https://terabytewise.com/price-per-tb-history
+2026-11-09,new-cmr,6,new,cmr,328.57,54.76,Seagate Exos 7E8 ST6000NM021A,https://terabytewise.com/price-per-tb-history
+2026-11-09,new-cmr,8,new,cmr,380.17,47.52,Seagate Enterprise Capacity ST8000NM0055,https://terabytewise.com/price-per-tb-history
+2026-11-09,new-cmr,10,new,cmr,399.95,39.99,Seagate Enterprise Capacity ST10000NM0016,https://terabytewise.com/price-per-tb-history
+2026-11-09,new-cmr,12,new,cmr,469.99,39.17,Toshiba MG07ACA12TE,https://terabytewise.com/price-per-tb-history
+2026-11-09,new-cmr,14,new,cmr,567.75,40.55,WD Ultrastar DC HC530 WUH721414ALE6L4,https://terabytewise.com/price-per-tb-history
+2026-11-09,new-cmr,16,new,cmr,626.49,39.16,Toshiba N300 Pro HDWG81GXZSTB,https://terabytewise.com/price-per-tb-history
+2026-11-09,new-cmr,18,new,cmr,689.00,38.28,Seagate Exos X18 ST18000NM000J,https://terabytewise.com/price-per-tb-history
+2026-11-09,new-cmr,20,new,cmr,829.99,41.50,Seagate IronWolf Pro ST20000NT001,https://terabytewise.com/price-per-tb-history
+2026-11-09,new-cmr,22,new,cmr,849.00,38.59,Toshiba N300 22TB,https://terabytewise.com/price-per-tb-history
+2026-11-09,new-cmr,24,new,cmr,1059.99,44.17,Seagate IronWolf Pro ST24000NT002,https://terabytewise.com/price-per-tb-history
+2026-11-09,new-cmr,28,new,cmr,1229.99,43.93,Seagate IronWolf Pro ST28000NT000,https://terabytewise.com/price-per-tb-history
+2026-11-09,new-cmr,32,new,cmr,1399.99,43.75,Seagate IronWolf Pro ST32000NT000,https://terabytewise.com/price-per-tb-history

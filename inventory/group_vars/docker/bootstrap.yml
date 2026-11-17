@@ -1,0 +1,43 @@
+---
+# Base system for the Docker VM (role: debian_common).
+# The operator account is created by docker_vm, not by debian_common, because
+# the playbook connects as that account.
+
+bootstrap_apt_upgrade: safe
+
+bootstrap_timezone: Europe/Moscow
+bootstrap_locale: en_US.UTF-8
+
+bootstrap_packages:
+  - sudo
+  - curl
+  - wget
+  - git
+  - ca-certificates
+  - vim
+  - htop
+  - jq
+  - rsync
+  - unzip
+  - gnupg
+  - python3-apt
+  - python3-debian
+  - nfs-common
+  - qemu-guest-agent
+  - util-linux
+  - e2fsprogs
+  - diffutils
+
+bootstrap_unattended_upgrades: true
+# Keep migration/restoration reboots explicit; security updates remain enabled.
+bootstrap_unattended_reboot: false
+bootstrap_unattended_reboot_time: "04:00"
+
+# Root stays reachable by key for recovery; the operator account is managed
+# below in docker_vm.yml.
+bootstrap_root_ssh_keys:
+  - starling.pub
+  - little-raven.pub
+
+bootstrap_admin_user: ""
+bootstrap_admin_user_ssh_keys: []

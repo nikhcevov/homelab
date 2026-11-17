@@ -1,0 +1,15 @@
+---
+# Kernel, ZFS and journald tuning for the Proxmox host.
+
+# Leave a little swap headroom for the hypervisor; ZFS does the caching.
+pve_swappiness: 10
+
+# Bound ARC so the 18 GiB Docker VM and 4 GiB PBS leave host/QEMU headroom.
+# Applied after initramfs refresh and a reboot.
+pve_arc_max_bytes: 4294967296
+
+pve_journal_max_use: 1G
+
+# Mandatory manual prerequisites before management cutover.
+pve_host_ipmi_verified: false
+pve_host_management_filter: true

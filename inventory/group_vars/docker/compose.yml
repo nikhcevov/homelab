@@ -1,0 +1,116 @@
+---
+# Compose stacks on the Docker VM. Paths are the mount points inside the VM;
+# the host side (ZFS datasets exported over NFS) is described in
+# docs/proxmox-migration.md.
+
+compose_root: /opt/compose
+compose_data_restored: false
+
+# Files are restored with the Unraid ownership; keeping 99:100 avoids a
+# recursive chown across appdata and the media library.
+compose_puid: 99
+compose_pgid: 100
+compose_tz: Europe/Moscow
+
+compose_appdata: /mnt/appdata
+compose_data: /mnt/data
+compose_media: /mnt/data/media
+compose_torrents: /mnt/data/torrents
+compose_photos: /mnt/photos
+compose_files: /mnt/files
+
+compose_directories:
+  - path: "{{ compose_appdata }}/observability/grafana/data"
+    owner: "472"
+    group: "472"
+    mode: "0750"
+  - path: "{{ compose_appdata }}/observability/prometheus/data"
+    owner: "65534"
+    group: "65534"
+    mode: "0750"
+  - path: "{{ compose_appdata }}/observability/loki/data"
+    owner: "10001"
+    group: "10001"
+    mode: "0750"
+
+compose_stacks:
+  - caddy-cloudflare
+  - dns-server
+  - immich
+  - homelable
+  - media
+  - minecraft
+  - obsidian
+  - observability
+  - order-manager
+  - paperless
+  - vaultwarden
+
+# Code-owned compose extension files live beside the deployed definitions.
+compose_extra_files:
+  - stack: homelable
+    src: nginx.conf.template
+    dest: "{{ compose_root }}/homelable/nginx.conf.template"
+  - stack: immich
+    src: hwaccel.transcoding.yml
+    dest: "{{ compose_root }}/immich/hwaccel.transcoding.yml"
+  - stack: immich
+    src: hwaccel.ml.yml
+    dest: "{{ compose_root }}/immich/hwaccel.ml.yml"
+  - stack: observability
+    src: dashboards/cadvisor-exporter.json
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/dashboards/cadvisor-exporter.json"
+  - stack: observability
+    src: dashboards/disk-health.json
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/dashboards/disk-health.json"
+  - stack: observability
+    src: dashboards/homelab-overview.json
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/dashboards/homelab-overview.json"
+  - stack: observability
+    src: dashboards/logs-errors.json
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/dashboards/logs-errors.json"
+  - stack: observability
+    src: dashboards/node-exporter-full.json
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/dashboards/node-exporter-full.json"
+  - stack: observability
+    src: dashboards/proxmox-via-prometheus.json
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/dashboards/proxmox-via-prometheus.json"
+
+compose_config_templates:
+  - stack: caddy-cloudflare
+    src: ../compose/caddy-cloudflare/Caddyfile.j2
+    dest: "{{ compose_appdata }}/caddy/Caddyfile"
+  - stack: caddy-cloudflare
+    src: ../compose/caddy-cloudflare/home.caddy.j2
+    dest: "{{ compose_appdata }}/caddy/config/home.caddy"
+  - stack: caddy-cloudflare
+    src: ../compose/caddy-cloudflare/public.caddy.j2
+    dest: "{{ compose_appdata }}/caddy/config/public.caddy"
+  - stack: observability
+    src: ../compose/observability/prometheus.yml.j2
+    dest: "{{ compose_appdata }}/observability/prometheus/prometheus.yml"
+    mode: "0644"
+  - stack: observability
+    src: ../compose/observability/loki-config.yml.j2
+    dest: "{{ compose_appdata }}/observability/loki/loki-config.yml"
+    mode: "0644"
+  - stack: observability
+    src: ../compose/observability/grafana-datasources.yml.j2
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/datasources/datasources.yml"
+    mode: "0644"
+  - stack: observability
+    src: ../compose/observability/grafana-dashboards.yml.j2
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/dashboards/provider.yml"
+    mode: "0644"
+  - stack: observability
+    src: ../compose/observability/alerting/contact-points.yml.j2
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/alerting/contact-points.yml"
+    mode: "0644"
+  - stack: observability
+    src: ../compose/observability/alerting/policies.yml
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/alerting/policies.yml"
+    mode: "0644"
+  - stack: observability
+    src: ../compose/observability/alerting/rules.yml
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/alerting/rules.yml"
+    mode: "0644"

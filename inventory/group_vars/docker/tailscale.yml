@@ -1,0 +1,8 @@
+---
+# Tailscale mesh VPN for the Docker VM (playbook: playbooks/docker.yml).
+# The VM is the service endpoint on the LAN and the tailnet.
+
+tailscale_hostname: docker-1
+tailscale_auth_key: "{{ vault_tailscale_auth_key | default('') }}"
+tailscale_advertise_routes: ""
+tailscale_accept_routes: true

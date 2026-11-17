@@ -1,0 +1,59 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Compose files are the only update surface. Host packages, Ansible
+  // collections and GitHub Actions stay manually pinned.
+  "enabledManagers": ["docker-compose"],
+  "extends": ["config:recommended", "docker:pinDigests"],
+  "timezone": "Europe/Moscow",
+  "schedule": ["before 6am"],
+
+  // The dashboard is the update list; one issue instead of a PR per image.
+  "dependencyDashboard": {
+    "title": "Container updates",
+    "header": "Review the update PR, merge it, then deploy the affected stack with the command in `docs/docker-stacks.md#image-updates`."
+  },
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "prBodyNotes": [
+    "After merging, deploy the affected stack with the command in `docs/docker-stacks.md#image-updates`."
+  ],
+
+  "packageRules": [
+    {
+      // A database- or application-major transition needs its own migration
+      // and backup check; it is never automated here.
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      // Besides Compose images, the repository has pinned Python, Ansible
+      // collection and GitHub Action versions. They stay manual.
+      "matchManagers": ["ansible-galaxy", "github-actions", "pip_requirements"],
+      "enabled": false
+    },
+    {
+      // LinuxServer build tags carry a build suffix that is part of the
+      // published version, not a compatibility variant.
+      "matchDatasources": ["docker"],
+      "matchPackageNames": [
+        "lscr.io/linuxserver/*",
+        "ghcr.io/linuxserver/*"
+      ],
+      "versioning": "loose"
+    },
+    { "matchFileNames": ["compose/caddy-cloudflare/compose.yaml"], "groupName": "caddy-cloudflare stack" },
+    { "matchFileNames": ["compose/dns-server/compose.yaml"], "groupName": "dns-server stack" },
+    { "matchFileNames": ["compose/homelable/compose.yaml"], "groupName": "homelable stack" },
+    { "matchFileNames": ["compose/immich/compose.yaml"], "groupName": "immich stack" },
+    { "matchFileNames": ["compose/media/compose.yaml"], "groupName": "media stack" },
+    { "matchFileNames": ["compose/minecraft/compose.yaml"], "groupName": "minecraft stack" },
+    { "matchFileNames": ["compose/obsidian/compose.yaml"], "groupName": "obsidian stack" },
+    { "matchFileNames": ["compose/observability/compose.yaml"], "groupName": "observability stack" },
+    { "matchFileNames": ["compose/order-manager/compose.yaml"], "groupName": "order-manager stack" },
+    { "matchFileNames": ["compose/paperless/compose.yaml"], "groupName": "paperless stack" },
+    { "matchFileNames": ["compose/sure/compose.yaml"], "groupName": "sure stack" },
+    { "matchFileNames": ["compose/vaultwarden/compose.yaml"], "groupName": "vaultwarden stack" }
+  ]
+}

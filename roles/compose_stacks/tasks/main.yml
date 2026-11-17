@@ -1,0 +1,4 @@
+---
+- name: Deploy only after explicit data restoration authorization
+  ansible.builtin.include_tasks: deploy.yml
+  when: compose_data_restored | bool

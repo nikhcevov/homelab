@@ -1,0 +1,4 @@
+---
+- name: Configure physical UPS only after explicit cutover approval
+  ansible.builtin.include_tasks: configure.yml
+  when: pve_ups_configure | bool

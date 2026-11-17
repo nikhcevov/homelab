@@ -1,0 +1,12 @@
+---
+# Gatus runs as a native systemd service. The binary is an Ansible artifact:
+# build the pinned release elsewhere and pass its local path and SHA-256.
+gatus_version: "v5.38.0"
+gatus_binary_src: ""
+gatus_binary_sha256: ""
+gatus_port: 8080
+gatus_domain: "{{ monitoring_domain }}"
+gatus_dir: /etc/gatus
+gatus_data_dir: /var/lib/gatus
+gatus_user: gatus
+gatus_group: gatus

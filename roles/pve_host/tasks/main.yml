@@ -1,0 +1,161 @@
+---
+# Proxmox-specific host configuration. The PVE installation itself is a manual
+# day-0 step; this role starts once pveversion answers.
+
+- name: Assert Proxmox VE is installed
+  ansible.builtin.command: pveversion
+  register: _pveversion
+  changed_when: false
+  failed_when: _pveversion.rc != 0
+
+# A fresh PVE install ships the enterprise repository enabled. Without a
+# subscription apt fails with 401 and every later apt task fails obscurely.
+- name: Check that apt sources are usable
+  ansible.builtin.command: apt-get update
+  register: _apt_update
+  changed_when: false
+  failed_when: false
+
+- name: Explain a broken apt source before anything else runs
+  ansible.builtin.fail:
+    msg: >-
+      apt-get update failed. Without a subscription, disable the PVE enterprise
+      and unused Ceph enterprise sources, then configure the signed PVE
+      no-subscription repository. Keep Debian/security sources enabled.
+      Fix the repositories in place; do not reinstall Proxmox.
+      Command output: {{ _apt_update.stderr | default('') | trim }}
+  when: _apt_update.rc != 0
+
+- name: Configure sysctl tuning
+  ansible.builtin.template:
+    src: 90-homelab.conf.j2
+    dest: /etc/sysctl.d/90-homelab.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Apply sysctl
+
+- name: Cap the ZFS ARC
+  ansible.builtin.template:
+    src: zfs.conf.j2
+    dest: /etc/modprobe.d/zfs.conf
+    owner: root
+    group: root
+    mode: "0644"
+  register: _zfs_conf
+
+# The module option only takes effect after the initramfs carries it. Rebooting
+# is left to the operator; the value applies at the next boot.
+- name: Refresh initramfs for the ZFS module option
+  ansible.builtin.command: update-initramfs -u -k all
+  when: _zfs_conf.changed
+  changed_when: true
+
+- name: Create persistent journald configuration and log directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /etc/systemd/journald.conf.d
+    - /var/log/journal
+
+- name: Configure journald retention
+  ansible.builtin.template:
+    src: journald.conf.j2
+    dest: /etc/systemd/journald.conf.d/90-homelab.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart journald
+
+- name: Create network snippets directory
+  ansible.builtin.file:
+    path: /etc/network/interfaces.d
+    state: directory
+    mode: "0755"
+
+- name: Include persistent network snippets
+  ansible.builtin.lineinfile:
+    path: /etc/network/interfaces
+    line: source /etc/network/interfaces.d/*
+    state: present
+
+- name: Configure isolated host storage bridge
+  ansible.builtin.copy:
+    dest: /etc/network/interfaces.d/homelab-private
+    content: |
+      auto vmbr1
+      iface vmbr1 inet static
+          address 10.77.0.1/29
+          bridge-ports none
+          bridge-stp off
+          bridge-fd 0
+    mode: "0644"
+  register: _private_bridge
+
+- name: Activate private bridge without reloading LAN networking
+  ansible.builtin.command: ifup vmbr1
+  when: _private_bridge.changed
+  changed_when: true
+
+- name: Read authenticated tailnet host addresses and DNS identity
+  ansible.builtin.command: tailscale status --json
+  register: _host_tailnet
+  changed_when: false
+  when: pve_host_management_filter | bool
+
+- name: Require tested IPMI and live tailnet access before management restriction
+  ansible.builtin.assert:
+    that:
+      - pve_host_ipmi_verified | bool
+      - >-
+        ansible_host in ((_host_tailnet.stdout | from_json).Self.TailscaleIPs +
+        [(_host_tailnet.stdout | from_json).Self.DNSName | regex_replace('\\.$', ''),
+        (_host_tailnet.stdout | from_json).Self.DNSName.split('.')[0]])
+    fail_msg: Test independent IPMI console and connect Ansible over Tailscale before enabling management filtering.
+  when: pve_host_management_filter | bool
+
+- name: Install explicit dual-family host management filter
+  ansible.builtin.copy:
+    dest: /usr/local/sbin/homelab-management-filter
+    mode: "0700"
+    content: |
+      #!/bin/sh
+      set -eu
+      for tool in iptables ip6tables; do
+        $tool -N HOMELAB-MGMT 2>/dev/null || true
+        $tool -F HOMELAB-MGMT
+        $tool -A HOMELAB-MGMT -i lo -j RETURN
+        $tool -A HOMELAB-MGMT -i tailscale0 -j RETURN
+        $tool -A HOMELAB-MGMT -j DROP
+        $tool -C INPUT -p tcp -m multiport --dports 22,8006 -j HOMELAB-MGMT 2>/dev/null ||
+          $tool -I INPUT 1 -p tcp -m multiport --dports 22,8006 -j HOMELAB-MGMT
+      done
+  when: pve_host_management_filter | bool
+
+- name: Persist host-only management policy
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-management-filter.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Tailnet-only host SSH and PVE management (IPv4 and IPv6)
+      After=network-pre.target
+      Before=ssh.service pveproxy.service
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/homelab-management-filter
+      RemainAfterExit=yes
+      [Install]
+      WantedBy=multi-user.target
+  register: _management_unit
+  when: pve_host_management_filter | bool
+
+- name: Apply explicit management policy
+  ansible.builtin.systemd:
+    name: homelab-management-filter
+    daemon_reload: true
+    enabled: true
+    state: restarted
+  when: pve_host_management_filter | bool

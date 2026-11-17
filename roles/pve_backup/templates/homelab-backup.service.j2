@@ -1,0 +1,15 @@
+[Unit]
+Description=Quiesce, snapshot and back up homelab data
+Wants=network-online.target
+After=network-online.target pve-guests.service
+# Runtime guards, rather than mount dependencies, report missing disks via ntfy.
+OnFailure=homelab-backup-failure@%n.service
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/usr/local/sbin/homelab-backup backup
+ExecStopPost=/usr/local/sbin/homelab-backup resume
+TimeoutStartSec=infinity
+TimeoutStopSec=600
+KillMode=control-group

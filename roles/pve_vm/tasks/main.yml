@@ -1,0 +1,56 @@
+---
+- name: Require registered ZFS image storage
+  ansible.builtin.command: "pvesm status --storage {{ pve_vm_storage }}"
+  register: _vm_storage
+  changed_when: false
+  failed_when: "_vm_storage.rc != 0 or 'active' not in _vm_storage.stdout"
+
+- name: Inspect registered storage backing
+  ansible.builtin.command: "pvesh get /storage/{{ pve_vm_storage }} --output-format json"
+  register: _vm_storage_config
+  changed_when: false
+
+- name: Reject wrong storage mapping
+  ansible.builtin.assert:
+    that:
+      - (_vm_storage_config.stdout | from_json).type == 'zfspool'
+      - (_vm_storage_config.stdout | from_json).pool == 'rpool/data'
+      - "'images' in (_vm_storage_config.stdout | from_json).content.split(',')"
+
+- name: Create VM provisioning directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /var/lib/vz/snippets
+    - /var/lib/vz/template/iso
+
+- name: Require a pinned Debian image checksum
+  ansible.builtin.assert:
+    that:
+      - pve_vm_image_sha512 is match('^[0-9a-f]{128}$')
+
+- name: Download verified Debian cloud image
+  ansible.builtin.get_url:
+    url: "{{ pve_vm_image_url }}"
+    dest: "/var/lib/vz/template/iso/{{ pve_vm_image_file }}"
+    checksum: "sha512:{{ pve_vm_image_sha512 }}"
+    mode: "0644"
+
+- name: Write controller-owned cloud-init public keys
+  ansible.builtin.copy:
+    dest: "/var/lib/vz/snippets/{{ pve_vm_name }}-keys.pub"
+    content: "{% for key in pve_vm_ssh_keys %}{{ lookup('ansible.builtin.file', playbook_dir ~ '/../files/ssh/' ~ key) | trim }}\n{% endfor %}"
+    mode: "0600"
+
+- name: Install guarded VM reconciler
+  ansible.builtin.template:
+    src: provision.py.j2
+    dest: /usr/local/sbin/homelab-provision-vm
+    mode: "0700"
+
+- name: Resume managed VM provisioning
+  ansible.builtin.command: /usr/local/sbin/homelab-provision-vm
+  register: _vm_provision
+  changed_when: "'CHANGED' in _vm_provision.stdout_lines"

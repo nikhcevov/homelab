@@ -1,0 +1,10 @@
+[Unit]
+Description=Report backup unit failure for %i
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/usr/local/sbin/homelab-backup failure %i
+TimeoutStartSec=10min

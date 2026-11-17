@@ -1,0 +1,10 @@
+[Unit]
+Description=Schedule homelab-backup-check
+
+[Timer]
+OnCalendar={{ pve_backup_check_calendar }} {{ bootstrap_timezone }}
+Persistent=true
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target

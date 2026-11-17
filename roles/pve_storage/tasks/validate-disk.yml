@@ -1,0 +1,29 @@
+---
+- name: Require stable explicitly approved blank disk identity
+  ansible.builtin.assert:
+    that:
+      - pool_disk.1 is match('^/dev/disk/by-id/[A-Za-z0-9_.:+-]+$')
+      - pool_disk.1 in pve_storage_approved_blank_disks
+      - pve_storage_pools | map(attribute='disks') | flatten | select('equalto', pool_disk.1) | list | length == 1
+
+- name: Inspect disk and descendants without modification
+  ansible.builtin.command:
+    argv: [lsblk, --json, --paths, --output, 'NAME,TYPE,FSTYPE,MOUNTPOINTS', '{{ pool_disk.1 }}']
+  register: _pool_disk_info
+  changed_when: false
+
+- name: Require a whole unpartitioned unmounted signature-free disk
+  ansible.builtin.assert:
+    that:
+      - (_pool_disk_info.stdout | from_json).blockdevices | length == 1
+      - (_pool_disk_info.stdout | from_json).blockdevices[0].type == 'disk'
+      - not ((_pool_disk_info.stdout | from_json).blockdevices[0].children | default([]))
+      - not ((_pool_disk_info.stdout | from_json).blockdevices[0].fstype | default(''))
+      - not ((_pool_disk_info.stdout | from_json).blockdevices[0].mountpoints | default([]) | select | list)
+
+- name: Probe all on-disk signatures without erasing
+  ansible.builtin.command:
+    argv: [wipefs, --no-act, --noheadings, --output, TYPE, '{{ pool_disk.1 }}']
+  register: _pool_signatures
+  changed_when: false
+  failed_when: _pool_signatures.rc != 0 or _pool_signatures.stdout | trim != ''

@@ -1,0 +1,123 @@
+---
+# Gatus endpoint inventory. Caddy fronts Gatus on 127.0.0.1:8080.
+gatus_port: 8080
+
+gatus_endpoints:
+  - name: Admin panel
+    group: Edge
+    url: "{{ vault_gatus_admin_url }}"
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 5000"
+      - "[CERTIFICATE_EXPIRATION] > 720h"
+  - name: Bitwarden Vault
+    group: Edge
+    url: "https://vault.han-diatonic.uk/alive"
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 5000"
+      - "[CERTIFICATE_EXPIRATION] > 720h"
+  - name: Blog
+    group: Edge
+    url: "https://nikhcevov.me"
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 5000"
+      - "[CERTIFICATE_EXPIRATION] > 720h"
+  - name: Homeassistant KRM
+    group: KRM
+    url: "https://ha-krm.han-diatonic.uk/"
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 5000"
+      - "[CERTIFICATE_EXPIRATION] > 720h"
+  - name: Immich
+    group: KRM
+    url: "https://photos.han-diatonic.uk/api/server/ping"
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 5000"
+      - "[CERTIFICATE_EXPIRATION] > 720h"
+  - name: MC Map
+    group: KRM
+    url: "https://mc-map.han-diatonic.uk"
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 5000"
+      - "[CERTIFICATE_EXPIRATION] > 720h"
+  - name: Notes obsidian database
+    group: KRM
+    url: "https://notes.han-diatonic.uk/_up"
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 5000"
+      - "[CERTIFICATE_EXPIRATION] > 720h"
+  - name: Reality vpn port
+    group: VPN NL
+    url: "tcp://panel.han-diatonic.uk:8443"
+    conditions:
+      - "[CONNECTED] == true"
+  - name: Subscription service
+    group: VPN NL
+    url: "{{ vault_gatus_subscription_url }}"
+    conditions:
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 5000"
+      - "[CERTIFICATE_EXPIRATION] > 720h"
+  - name: router-alm SSH
+    group: Router ALM
+    enabled: false
+    url: "tcp://192.168.101.1:22"
+    conditions:
+      - "[CONNECTED] == true"
+  - name: router-alm Tailnet alive
+    group: Router ALM
+    enabled: false
+    url: "icmp://100.102.172.25"
+    conditions:
+      - "[CONNECTED] == true"
+  - name: router-alm dnsmasq
+    group: Router ALM
+    enabled: false
+    url: "192.168.101.1"
+    dns:
+      query_name: openwrt.org
+      query_type: A
+    conditions:
+      - "[DNS_RCODE] == NOERROR"
+  - name: router-krm SSH
+    group: Router KRM
+    url: "tcp://192.168.100.1:22"
+    conditions:
+      - "[CONNECTED] == true"
+  - name: router-krm Tailnet alive
+    group: Router KRM
+    url: "icmp://100.84.111.78"
+    conditions:
+      - "[CONNECTED] == true"
+  - name: router-krm dnsmasq
+    group: Router KRM
+    url: "192.168.100.1"
+    dns:
+      query_name: openwrt.org
+      query_type: A
+    conditions:
+      - "[DNS_RCODE] == NOERROR"
+  - name: router-srt SSH
+    group: Router SRT
+    url: "tcp://192.168.103.1:22"
+    conditions:
+      - "[CONNECTED] == true"
+  - name: router-srt Tailnet alive
+    group: Router SRT
+    url: "icmp://100.77.53.118"
+    conditions:
+      - "[CONNECTED] == true"
+  - name: router-srt dnsmasq
+    group: Router SRT
+    url: "192.168.103.1"
+    dns:
+      query_name: openwrt.org
+      query_type: A
+    conditions:
+      - "[DNS_RCODE] == NOERROR"

@@ -1,0 +1,10 @@
+[Unit]
+Description=Alert when local backups or configured secondary copies are overdue
+Wants=network-online.target
+After=network-online.target
+OnFailure=homelab-backup-failure@%n.service
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/usr/local/sbin/homelab-backup freshness

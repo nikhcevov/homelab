@@ -1,0 +1,96 @@
+---
+- name: Require monitor credentials for explicit UPS configuration
+  ansible.builtin.assert:
+    that:
+      - pve_ups_password | length > 0
+    fail_msg: Set the vaulted NUT monitor password before configuring UPS monitoring.
+  no_log: true
+
+- name: Install NUT
+  ansible.builtin.apt:
+    name: [nut-server, nut-client]
+    state: present
+
+- name: Reload packaged NUT USB permissions
+  ansible.builtin.command:
+    argv: [udevadm, control, --reload-rules]
+  changed_when: false
+  when: pve_ups_driver == 'usbhid-ups'
+
+- name: Apply NUT permissions to the already attached UPS
+  ansible.builtin.command:
+    argv:
+      - udevadm
+      - trigger
+      - --action=change
+      - --subsystem-match=usb
+      - "--attr-match=idVendor={{ pve_ups_usb_vendor_id }}"
+      - "--attr-match=idProduct={{ pve_ups_usb_product_id }}"
+  changed_when: false
+  when: pve_ups_driver == 'usbhid-ups'
+
+- name: Wait for UPS device permissions
+  ansible.builtin.command:
+    argv: [udevadm, settle, --timeout=30]
+  changed_when: false
+  when: pve_ups_driver == 'usbhid-ups'
+
+- name: Configure standalone operation
+  ansible.builtin.copy:
+    dest: /etc/nut/nut.conf
+    content: "MODE=standalone\n"
+    mode: "0644"
+  notify: Restart NUT server
+
+- name: Configure NUT components
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/nut/{{ item }}"
+    owner: root
+    group: nut
+    mode: "0640"
+  loop: [ups.conf, upsd.conf, upsd.users, upsmon.conf, upssched.conf]
+  no_log: true
+  notify:
+    - Restart NUT driver
+    - Restart NUT server
+    - Restart NUT monitor
+
+- name: Install maximum battery-runtime shutdown action
+  ansible.builtin.copy:
+    dest: /usr/local/sbin/homelab-ups-timer
+    owner: root
+    group: nut
+    mode: "0750"
+    content: |
+      #!/bin/sh
+      set -eu
+      case "$1" in
+        onbattery-expired) /usr/sbin/upsmon -c fsd ;;
+        *) exit 1 ;;
+      esac
+
+- name: Create NUT scheduler runtime directory
+  ansible.builtin.copy:
+    dest: /etc/tmpfiles.d/homelab-nut.conf
+    content: "d /run/nut/upssched 0770 nut nut -\n"
+    mode: "0644"
+
+- name: Ensure scheduler runtime directory exists now
+  ansible.builtin.file:
+    path: /run/nut/upssched
+    state: directory
+    owner: nut
+    group: nut
+    mode: "0770"
+
+- name: Enable shutdown chain
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - pve-guests
+    - "nut-driver@{{ pve_ups_name }}"
+    - nut-server
+    - nut-monitor

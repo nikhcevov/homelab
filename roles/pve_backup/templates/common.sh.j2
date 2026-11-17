@@ -1,0 +1,65 @@
+#!/bin/bash
+set -euo pipefail
+umask 077
+STATE=/var/lib/homelab-backup
+VAULT={{ pve_backup_vault_mount | quote }}
+OFFSITE={{ pve_backup_offsite_mount | quote }}
+VAULT_UUID={{ pve_backup_vault_uuid | quote }}
+OFFSITE_UUID={{ pve_backup_offsite_uuid | quote }}
+STAGING={{ pve_backup_staging | quote }}
+STAGING_DATASET={{ pve_backup_staging_dataset | quote }}
+COLLECTOR={{ pve_backup_collector | quote }}
+GUEST={{ pve_backup_guest_host | quote }}
+SSH=(ssh -i /etc/homelab-backup/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/etc/homelab-backup/known_hosts)
+RSYNC_SSH="ssh -i /etc/homelab-backup/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/etc/homelab-backup/known_hosts"
+export RESTIC_REPOSITORY="$VAULT/restic"
+export RESTIC_PASSWORD_FILE=/etc/homelab-backup/restic-password
+export RESTIC_COMPRESSION=auto
+NTFY_URL={{ ntfy_url | quote }}
+NTFY_ALERTS={{ ntfy_topic_alerts | quote }}
+NTFY_INFO={{ ntfy_topic_info | quote }}
+log() { printf '%s\n' "$*" >&2; logger -t homelab-backup -- "$*"; }
+die() { FAILURE_REASON=$*; log "ERROR: $*"; exit 1; }
+notify() {
+    local key=$1 status=$2 message=$3 previous='' topic priority
+    [[ ! -f "$STATE/$key.state" ]] || previous=$(cat "$STATE/$key.state")
+    [[ "$previous" != "$status" ]] || return 0
+    if [[ "$status" = fail ]]; then topic=$NTFY_ALERTS; priority=high; else topic=$NTFY_INFO; priority=default; fi
+    if [[ -n "$previous" || "$status" = fail ]]; then
+        # Leave the old status on notification failure, so the next attempt retries.
+        curl --fail --silent --show-error --max-time 15 --retry 2 \
+            -H "Title: [PVE] Backup $key $status" -H "Priority: $priority" \
+            --data-binary "$message" "${NTFY_URL%/}/$topic" >/dev/null || { log 'ntfy delivery failed'; return 1; }
+    fi
+    printf '%s\n' "$status" >"$STATE/$key.state.tmp"
+    mv -- "$STATE/$key.state.tmp" "$STATE/$key.state"
+}
+require_xfs() {
+    local path=$1 uuid=$2
+    [[ -n "$uuid" ]] || die "No expected disk UUID configured for $path"
+    mountpoint -q "$path" || die "Unmounted backup root: $path"
+    [[ "$(findmnt -n -o FSTYPE --mountpoint "$path")" = xfs ]] || die "Not XFS: $path"
+    [[ "$(findmnt -n -o UUID --mountpoint "$path")" = "$uuid" ]] || die "Wrong disk at $path"
+    [[ ",$(findmnt -n -o OPTIONS --mountpoint "$path")," != *,ro,* ]] || die "Read-only disk: $path"
+}
+require_dataset() {
+    local path=$1 dataset=$2
+    mountpoint -q "$path" || die "Unmounted source: $path"
+    [[ "$(findmnt -n -o FSTYPE --mountpoint "$path")" = zfs ]] || die "Not ZFS: $path"
+    [[ "$(findmnt -n -o SOURCE --mountpoint "$path")" = "$dataset" ]] || die "Wrong dataset at $path"
+    [[ "$(zfs get -H -o value mounted "$dataset")" = yes ]] || die "Dataset not mounted: $dataset"
+}
+require_local() {
+    require_xfs "$VAULT" "$VAULT_UUID"
+    [[ -s "$RESTIC_PASSWORD_FILE" && -s "$RESTIC_REPOSITORY/config" ]] || die 'Existing local repository/password missing; never automatically initialized'
+    restic cat config >/dev/null
+}
+require_offsite() {
+    require_xfs "$OFFSITE" "$OFFSITE_UUID"
+    [[ "$VAULT_UUID" != "$OFFSITE_UUID" ]] || die 'Offsite and vault must be distinct disks'
+}
+resume_guest() {
+    # This command is safe when no manifest exists; SSH errors are NOT success.
+    "${SSH[@]}" "root@$GUEST" /usr/local/sbin/homelab-appdata-backup resume || return $?
+    rm -f -- "$STATE/guest-needs-resume"
+}

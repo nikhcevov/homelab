@@ -1,0 +1,13 @@
+---
+# Values come from inventory/group_vars/pve/ups.yml; the password is vaulted.
+pve_ups_name: cyberpower
+pve_ups_driver: usbhid-ups
+pve_ups_desc: "USB UPS"
+# Reapply packaged udev permissions only to the configured USB UPS.
+pve_ups_usb_vendor_id: "0764"
+pve_ups_usb_product_id: "0501"
+pve_ups_user: monuser
+pve_ups_password: ""
+pve_ups_onbattery_timeout_seconds: 600
+
+pve_ups_configure: false

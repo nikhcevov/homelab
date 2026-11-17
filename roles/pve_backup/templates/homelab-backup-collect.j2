@@ -1,0 +1,48 @@
+#!/bin/bash
+source /usr/local/lib/homelab-backup/common.sh
+finish() {
+    local rc=$?
+    trap - EXIT
+    if [[ "$rc" != 0 ]]; then notify collector fail 'One or more remote backup sources failed; see journalctl -u homelab-backup-collect' || true; fi
+    exit "$rc"
+}
+trap finish EXIT
+if [[ "${HOMELAB_BACKUP_COORDINATOR:-}" != 1 ]]; then
+    exec 9>/run/lock/homelab-backup.lock
+    flock -w 3600 9
+fi
+exec 8>/run/lock/homelab-backup-collector.lock
+flock -w 3600 8
+if [[ -f "$STATE/guest-needs-resume" ]]; then resume_guest; fi
+require_dataset /tank/files tank/files
+mkdir -p "$COLLECTOR"
+chmod 700 "$COLLECTOR"
+failed=0
+{% for source in pve_backup_rsync_sources %}
+mkdir -p "$COLLECTOR/{{ source.name }}"
+if rsync -a --delete-delay --delay-updates --timeout=300 --rsync-path={{ source.rsync_path | quote }} \
+    -e "$RSYNC_SSH" {{ (source.user ~ '@' ~ source.host ~ ':' ~ source.path) | quote }} "$COLLECTOR/{{ source.name }}/"; then
+    log 'Collected {{ source.name }}'
+    notify source-{{ source.name }} ok 'Remote backup source {{ source.name }} recovered' || failed=1
+else
+    failed=1
+    notify source-{{ source.name }} fail 'Remote backup source {{ source.name }} failed' || true
+fi
+{% endfor %}
+{% for router in pve_backup_routers %}
+mkdir -p "$COLLECTOR/{{ router.name }}"
+file="$COLLECTOR/{{ router.name }}/sysupgrade-$(date -u +%F).tar.gz"
+if "${SSH[@]}" root@{{ router.host }} \
+    'set -e; backup=$(mktemp /tmp/homelab-backup.XXXXXX); trap '\''rm -f "$backup"'\'' EXIT; sysupgrade -b "$backup" >/dev/null; cat "$backup"' >"$file.tmp" \
+    && test -s "$file.tmp" && gzip -t "$file.tmp"; then
+    mv -- "$file.tmp" "$file"
+    find "$COLLECTOR/{{ router.name }}" -maxdepth 1 -type f -name 'sysupgrade-*.tar.gz' -mtime +{{ pve_backup_router_retention_days }} -delete
+    notify source-{{ router.name }} ok 'Router {{ router.name }} backup recovered' || failed=1
+else
+    failed=1
+    rm -f -- "$file.tmp"
+    notify source-{{ router.name }} fail 'Router {{ router.name }} sysupgrade backup failed' || true
+fi
+{% endfor %}
+[[ "$failed" = 0 ]]
+notify collector ok 'All remote collector sources succeeded'

@@ -1,0 +1,15 @@
+---
+- name: Restart NUT driver
+  ansible.builtin.systemd:
+    name: "nut-driver@{{ pve_ups_name }}"
+    state: restarted
+
+- name: Restart NUT server
+  ansible.builtin.systemd:
+    name: nut-server
+    state: restarted
+
+- name: Restart NUT monitor
+  ansible.builtin.systemd:
+    name: nut-monitor
+    state: restarted

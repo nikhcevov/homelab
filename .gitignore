@@ -2,3 +2,5 @@
 vars/proxy.yml
 .vault_pass
 .venv/
+__pycache__/
+*.pyc

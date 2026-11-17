@@ -1,0 +1,45 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: ntfy-alerts
+    receivers:
+      - uid: dg4kec1y6iz28f
+        type: webhook
+        settings:
+          httpMethod: POST
+          url: "{{ ntfy_url }}/{{ ntfy_topic_alerts }}?template=grafana&markdown=yes"
+          {% raw %}title: |-
+            Homelab · {{ .CommonLabels.component }} · {{ .CommonLabels.alertname }}
+          message: |-
+            **{{ .CommonAnnotations.summary }}**
+
+            - **Status:** {{ .Status }}
+            - **Severity:** {{ .CommonLabels.severity }}
+            - **Component:** {{ .CommonLabels.component }}
+            {{ if .CommonAnnotations.description }}- **Details:** {{ .CommonAnnotations.description }}
+            {{ end }}{{ if .CommonAnnotations.runbook_url }}- **Runbook:** {{ .CommonAnnotations.runbook_url }}
+            {{ end }}{% endraw %}
+
+        disableResolveMessage: false
+  - orgId: 1
+    name: ntfy-critical
+    receivers:
+      - uid: cg4ki0fbxj5kwc
+        type: webhook
+        settings:
+          httpMethod: POST
+          url: "{{ ntfy_url }}/{{ ntfy_topic_critical }}?template=grafana&markdown=yes"
+          {% raw %}title: |-
+            Homelab · {{ .CommonLabels.component }} · {{ .CommonLabels.alertname }}
+          message: |-
+            **{{ .CommonAnnotations.summary }}**
+
+            - **Status:** {{ .Status }}
+            - **Severity:** {{ .CommonLabels.severity }}
+            - **Component:** {{ .CommonLabels.component }}
+            {{ if .CommonAnnotations.description }}- **Details:** {{ .CommonAnnotations.description }}
+            {{ end }}{{ if .CommonAnnotations.runbook_url }}- **Runbook:** {{ .CommonAnnotations.runbook_url }}
+            {{ end }}{% endraw %}
+
+        disableResolveMessage: false

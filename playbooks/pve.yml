@@ -1,0 +1,19 @@
+---
+# Proxmox VE host: base system, kernel/ZFS tuning, tailnet, ZFS pools and NFS
+# exports, UPS monitoring. The PVE installation itself is a manual day-0 step;
+# see docs/pve-host.md.
+- name: Configure the Proxmox host
+  hosts: pve
+  become: true
+  roles:
+    - { role: pve_host, tags: [bootstrap] }
+    - { role: debian_common, tags: [bootstrap] }
+    - { role: ssh, tags: [bootstrap] }
+    - { role: tailscale, tags: [bootstrap] }
+    - { role: pve_storage, tags: [storage] }
+    - { role: pve_ups, tags: [ups] }
+    - { role: pve_gpu, tags: [gpu] }
+    - { role: pve_vm, tags: [vm], when: pve_vm_enabled | bool }
+    - { role: pve_pbs, tags: [pbs] }
+    - { role: pve_backup, tags: [backup] }
+    - { role: observability_agents, tags: [observability] }

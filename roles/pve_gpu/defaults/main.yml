@@ -1,0 +1,8 @@
+---
+pve_gpu_devices: []
+pve_gpu_ids: []
+pve_gpu_primary_device: ""
+pve_gpu_kernel_params: "intel_iommu=on iommu=pt"
+
+pve_gpu_configure: false
+pve_gpu_allowed_bridge_devices: []

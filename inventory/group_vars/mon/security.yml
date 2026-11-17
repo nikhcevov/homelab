@@ -8,7 +8,7 @@ ufw_logging: low
 
 ufw_open_service_ports: false
 
-# SSH is opened automatically from sshd_port. Kuma itself listens on
+# SSH is opened automatically from sshd_port. Gatus itself listens on
 # localhost behind Caddy — no extra ports needed.
 ufw_rules:
   - { port: 80, proto: tcp, comment: HTTP }

@@ -1,0 +1,34 @@
+---
+# Operator verified IPMI remote KVM during the Proxmox installation.
+# Controller SSH and web access were proven over the new tailnet identity.
+pve_host_ipmi_verified: true
+pve_host_management_filter: true
+
+# Operator approved erasing only these old source disks on 2026-11-13.
+# Preserve SSD 25331E800584 and both10 TB disks; creation remains opt-in.
+pve_storage_pools:
+  - name: tank
+    type: mirror
+    ashift: 12
+    disks:
+      - /dev/disk/by-id/ata-WDC_WD80EFZZ-68BTXN0_WD-CA2HLH6L
+      - /dev/disk/by-id/ata-ST8000VN004-2M2101_WSD1B75J
+  - name: media
+    type: stripe
+    ashift: 12
+    disks:
+      - /dev/disk/by-id/ata-HGST_HUS726040ALA610_K7J5HTSB
+
+pve_storage_approved_blank_disks:
+  - /dev/disk/by-id/ata-WDC_WD80EFZZ-68BTXN0_WD-CA2HLH6L
+  - /dev/disk/by-id/ata-ST8000VN004-2M2101_WSD1B75J
+  - /dev/disk/by-id/ata-HGST_HUS726040ALA610_K7J5HTSB
+
+# Enable real low-battery/on-battery shutdown after the migration power outage.
+pve_ups_configure: true
+
+# GTX1650 functions and ASPEED boot-console isolation verified before cutover.
+pve_gpu_configure: true
+
+# VM100 provisioning approved; guest baseline and application startup are separate.
+pve_vm_enabled: true

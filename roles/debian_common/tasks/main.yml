@@ -14,6 +14,23 @@
     name: "{{ bootstrap_packages }}"
     state: present
 
+- name: Reconcile explicitly enabled systemd time synchronization
+  when: bootstrap_timesyncd_enabled | default(false) | bool
+  tags: [time_sync]
+  block:
+    - name: Install the configured time synchronization daemon
+      ansible.builtin.apt:
+        name: systemd-timesyncd
+        state: present
+        update_cache: true
+        install_recommends: false
+
+    - name: Enable persistent time synchronization
+      ansible.builtin.systemd_service:
+        name: systemd-timesyncd
+        enabled: true
+        state: started
+
 - name: Set timezone
   community.general.timezone:
     name: "{{ bootstrap_timezone }}"
@@ -51,13 +68,35 @@
     mode: "0644"
   when: bootstrap_unattended_upgrades | bool
 
-- name: Authorize root SSH keys
-  ansible.posix.authorized_key:
-    user: root
-    key: "{{ lookup('ansible.builtin.file', role_path + '/../../files/ssh/' + item) }}"
-  loop: "{{ bootstrap_root_ssh_keys }}"
+# Proxmox's pmxcfs rejects chown; preserve linked-store ownership and update content only.
+- name: Authorize root SSH keys without replacing managed stores
   when: bootstrap_root_ssh_keys | length > 0
   tags: [ssh_keys]
+  block:
+    - name: Ensure the private root SSH directory exists
+      ansible.builtin.file:
+        path: /root/.ssh
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Resolve the existing root SSH key store
+      ansible.builtin.stat:
+        path: /root/.ssh/authorized_keys
+        follow: false
+        get_checksum: false
+        get_mime: false
+        get_attributes: false
+      register: _root_ssh_key_store
+
+    - name: Add controller keys without changing native-store ownership
+      ansible.builtin.lineinfile:
+        path: "{{ _root_ssh_key_store.stat.lnk_source | default('/root/.ssh/authorized_keys') }}"
+        line: "{{ lookup('ansible.builtin.file', role_path + '/../../files/ssh/' + item) }}"
+        create: true
+        mode: "0600"
+      loop: "{{ bootstrap_root_ssh_keys }}"
 
 - name: Create admin user
   ansible.builtin.user:

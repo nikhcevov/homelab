@@ -1,0 +1,97 @@
+#!/bin/bash
+# The manifest is durable BEFORE the first stop. Only a complete resume removes it.
+set -euo pipefail
+umask 077
+STATE=/var/lib/homelab-appdata-backup
+MANIFEST="$STATE/running.json"
+APPDATA={{ docker_backup_appdata | quote }}
+exec 9>/run/lock/homelab-appdata-backup.lock
+flock -w 300 9
+log() { printf '%s\n' "$*" >&2; logger -t homelab-appdata-backup -- "$*"; }
+resume() {
+    [[ -f "$MANIFEST" ]] || return 0
+    local id failed=0
+    jq -e '(.databases | type == "array") and (.applications | type == "array") and
+        all(.databases[], .applications[]; type == "string" and test("^[0-9a-f]{64}$"))' "$MANIFEST" >/dev/null || return 1
+    # Databases first, then all other originally running containers. Never start
+    # containers that the operator had stopped before this transaction.
+    while IFS= read -r id; do
+        docker start "$id" >/dev/null || failed=1
+    done < <(jq -r '.databases[], .applications[]' "$MANIFEST")
+    [[ "$failed" = 0 ]] || { log 'Resume failed; retaining manifest for retry'; return 1; }
+    while IFS= read -r id; do
+        [[ "$(docker inspect -f '{{ '{{' }}.State.Running{{ '}}' }}' "$id")" = true ]] || return 1
+    done < <(jq -r '.databases[], .applications[]' "$MANIFEST")
+    rm -- "$MANIFEST" || return $?
+    sync -f "$STATE" || return $?
+    log 'Original running containers resumed'
+}
+case "${1:-}" in
+resume) resume; exit ;;
+prepare) ;;
+*) echo 'usage: homelab-appdata-backup {prepare,resume}' >&2; exit 64 ;;
+esac
+mountpoint -q "$APPDATA"
+[[ "$(findmnt -n -o FSTYPE --target "$APPDATA")" = ext4 ]]
+[[ "$(findmnt -n -o LABEL --target "$APPDATA")" = {{ docker_backup_appdata_label | quote }} ]]
+[[ -f "$APPDATA/.homelab-restored" ]]
+[[ ! -e "$MANIFEST" ]] || { log 'Unfinished transaction: resume before preparing again'; exit 1; }
+# Keep the exact running IDs, not compose's desired list. Inspect all running
+# containers and match configured PostgreSQL compose labels.
+mapfile -t running < <(docker ps -q --no-trunc)
+[[ -n "${running[*]}" ]] || { log 'No running containers; refusing an empty application backup'; exit 1; }
+docker inspect "${running[@]}" >"$STATE/inspect.json.tmp"
+jq --argjson selectors '{{ docker_backup_postgres_services | to_json }}' '
+  def postgres: . as $c | any($selectors[];
+    .project == $c.Config.Labels["com.docker.compose.project"] and
+    .service == $c.Config.Labels["com.docker.compose.service"]);
+  {databases: [.[] | select(postgres) | .Id],
+   applications: [.[] | select(postgres | not) | .Id]}
+' "$STATE/inspect.json.tmp" >"$MANIFEST.tmp"
+# Do not accidentally stop an unconfigured PostgreSQL before dumping it.
+jq -e --slurpfile manifest "$MANIFEST.tmp" '
+  all(.[]; if (.Config.Image | test("(^|/)postgres(:|@|/)|pgvecto|vectorchord")) or any(.Config.Env[]?; startswith("PGDATA="))
+  then .Id as $id | ($manifest[0].databases | index($id)) != null else true end)
+' "$STATE/inspect.json.tmp" >/dev/null
+mv -- "$MANIFEST.tmp" "$MANIFEST"
+sync -f "$STATE"
+rm -- "$STATE/inspect.json.tmp"
+rollback() {
+    local rc=$?
+    trap - EXIT HUP INT TERM
+    if [[ "$rc" != 0 ]]; then resume || log 'Automatic resume failed; durable manifest retained'; fi
+    exit "$rc"
+}
+trap rollback EXIT
+trap 'exit 130' INT
+trap 'exit 143' HUP TERM
+while IFS= read -r id; do
+    docker stop --time {{ docker_backup_stop_timeout }} "$id" >/dev/null
+done < <(jq -r '.applications[]' "$MANIFEST")
+# Include rendered compose secrets and guest recovery configuration inside the
+# encrypted application backup without exposing unrestricted SSH reads.
+mkdir -p "$APPDATA/.homelab-recovery"
+chmod 700 "$APPDATA/.homelab-recovery"
+tar --acls --xattrs --numeric-owner -czf "$APPDATA/.homelab-recovery/guest-config.tar.gz.tmp" \
+    -C / opt/compose etc/docker etc/fstab etc/systemd/system etc/ssh
+mv -- "$APPDATA/.homelab-recovery/guest-config.tar.gz.tmp" "$APPDATA/.homelab-recovery/guest-config.tar.gz"
+DUMPS="$APPDATA/.homelab-postgres-dumps"
+mkdir -p "$DUMPS"
+chmod 700 "$DUMPS"
+stamp=$(date -u +%Y%m%dT%H%M%SZ)
+while IFS= read -r id; do
+    name=$(docker inspect -f '{{ '{{' }}.Name{{ '}}' }}' "$id")
+    name=${name#/}
+    destination="$DUMPS/$name-$stamp.sql.gz"
+    docker exec "$id" sh -ec 'exec pg_dumpall --clean --if-exists -U "${POSTGRES_USER:-postgres}"' | gzip -c >"$destination.tmp"
+    [[ -s "$destination.tmp" ]]
+    mv -- "$destination.tmp" "$destination"
+done < <(jq -r '.databases[]' "$MANIFEST")
+while IFS= read -r id; do
+    docker stop --time {{ docker_backup_stop_timeout }} "$id" >/dev/null
+done < <(jq -r '.databases[]' "$MANIFEST")
+# Dump retention only runs after every dump succeeded; a failed run never
+# removes the last usable dump. This directory is helper-owned.
+find "$DUMPS" -maxdepth 1 -type f -name '*.sql.gz' -mtime +{{ docker_backup_dump_retention_days }} -delete
+sync -f "$APPDATA"
+log 'Prepared; writers remain stopped until explicit resume'

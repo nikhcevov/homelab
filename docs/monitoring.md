@@ -6,12 +6,16 @@ Sources: [playbooks/mon.yml](../playbooks/mon.yml), [Monitoring checks](../roles
 
 Run commands from the repository root.
 
+Metrics and logs are documented separately in [Observability](observability.md).
+All ntfy messages use the shared [notification style](notifications.md): one
+title format, one Markdown body, and one severity/tag mapping.
+
 Two complementary layers:
 
-| Layer              | Where               | Covers                                                    |
-| ------------------ | ------------------- | --------------------------------------------------------- |
-| Uptime Kuma        | mon-1 (external)    | ports, HTTPS, certificates, ping — black-box, all hosts   |
-| cron + ntfy checks | each VPS (internal) | systemd units, containers, disk, updates, reboot, backups |
+| Layer              | Where                | Covers                                                    |
+| ------------------ | -------------------- | --------------------------------------------------------- |
+| Gatus              | mon-1 (external)     | declarative HTTP/TCP/ICMP/DNS checks, status page         |
+| cron + ntfy checks | each VPS (internal)  | systemd units, containers, disk, updates, reboot, backups |
 
 ## Internal checks
 
@@ -28,17 +32,53 @@ The role owns the deployable checks and schedule under `roles/monitoring/files/`
 | reboot required   | daily    | `/var/run/reboot-required` exists | alert    |
 | backup freshness  | daily    | no archive / newest > 25 h old    | alert    |
 
-Empty lists disable a check. Notification channels are severity-first: `*-critical`, `*-alerts`, `*-info`. Kuma pushes to the same topics (configured once in the Kuma UI).
+Empty lists disable a check. Notification channels are severity-first: `*-critical`, `*-alerts`, `*-info`. Gatus sends external failures to the same critical topic.
 
 ## Monitoring VPS
 
-Central external watcher (`mon` group): **native Uptime Kuma + Caddy** (Kuma pinned by `kuma_version`, Node.js + systemd, `127.0.0.1:3001` behind Caddy; UFW exposes only SSH/80/443). Answers "is the service reachable from the internet" while the per-host cron checks answer "is the host healthy inside".
+Central external watcher (`mon` group): **native Gatus + Caddy** on
+`127.0.0.1:8080`; UFW exposes only SSH/80/443. It answers "is the service
+reachable from the internet" while the per-host cron checks answer "is the host
+healthy inside". The status page is the existing monitoring domain behind
+Caddy.
 
-Deploy: [day-0](getting-started.md#first-run-new-vps) → DNS A record for the Kuma domain (`vault_kuma_domain`) → `ansible-playbook playbooks/mon.yml` → open the UI, create the admin account, add monitors and the ntfy channel.
+Kuma is removed. There is no Kuma service, database, or backup path on the
+monitoring host; Gatus is the only external watcher.
 
-`playbooks/mon.yml` targets only the `mon` group and reconciles Tailscale after security, before deploying Kuma; settings come from [monitoring Tailscale variables](../inventory/group_vars/mon/tailscale.yml). An edge deployment does not configure this host.
+The declarative endpoint list lives in
+[`inventory/group_vars/mon/gatus.yml`](../inventory/group_vars/mon/gatus.yml).
+HTTPS checks require certificate expiry to be more than 30 days away. The
+binary is a pinned local artifact, not a Docker image. Build it elsewhere:
 
-- Monitors and settings live in Kuma's SQLite DB (`/opt/uptime-kuma/data`) — managed via the UI, not Git. `kuma_backup` snapshots it nightly to `/opt/kuma-backup/archives` (same pattern as `vpn_backup`). See [Unraid backup collection](backups-unraid.md).
-- Restore: stop kuma, extract archive into `/`, `chown kuma:kuma .../kuma.db`, start kuma. Caddyfile and certificates are in the same archive.
-- The host watches itself via the same cron checks; there are no cron cross-checks between hosts — external watching is Kuma's job alone.
-- mon-1 accepts subnet routes (`tailscale_accept_routes: true`), so Kuma can poll router LAN services (see [OpenWrt router](openwrt.md)).
+```bash
+docker run --rm -v /tmp/gatus-build:/out -e CGO_ENABLED=0 -e GOBIN=/out \
+  golang:1.26 go install github.com/TwiN/gatus/v5@v5.38.0
+sha256sum /tmp/gatus-build/gatus
+ansible-playbook playbooks/mon.yml --limit mon-1 --tags gatus \
+  -e gatus_binary_src=/tmp/gatus-build/gatus \
+  -e gatus_binary_sha256=<sha256>
+```
+
+Gatus reads `/etc/gatus/config.yaml` via `GATUS_CONFIG_PATH`, writes SQLite to
+`/var/lib/gatus/data.db`, and sends failures through the critical ntfy topic.
+The custom alert body uses the shared [notification style](notifications.md).
+The service restarts on config or binary changes; do not treat the UI as a
+source of truth.
+
+Deploy: [day-0](getting-started.md#first-run-new-vps) → DNS A record for the
+monitoring domain (`vault_monitoring_domain`) → `ansible-playbook playbooks/mon.yml`.
+The endpoint list, thresholds, and alert envelope are all in Git.
+
+`playbooks/mon.yml` targets only the `mon` group and reconciles Tailscale after
+security, before deploying Gatus; settings come from [monitoring Tailscale
+variables](../inventory/group_vars/mon/tailscale.yml). An edge deployment does
+not configure this host.
+
+- Monitors and settings live in `inventory/group_vars/mon/gatus.yml` and the
+  role templates — there is no UI-managed state.
+- The host watches itself via the same cron checks; there are no cron
+  cross-checks between hosts — external watching is Gatus's job alone. A
+  separate dead-man's switch for `mon-1` is an accepted risk and deliberately
+  out of scope.
+- mon-1 accepts subnet routes (`tailscale_accept_routes: true`), so Gatus can
+  poll router LAN services (see [OpenWrt router](openwrt.md)).

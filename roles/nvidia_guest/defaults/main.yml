@@ -1,0 +1,8 @@
+---
+# Source runs 595.104.02. Keep its branch with the signed Debian 13 vendor
+# package; application images remain pinned independently.
+nvidia_guest_driver_package: nvidia-open
+nvidia_guest_driver_version: 595.112.07-1
+nvidia_guest_driver_active_version: 595.112.07
+nvidia_guest_driver_repository: https://developer.download.nvidia.com/compute/cuda/repos/debian13/x86_64/
+nvidia_guest_toolkit_keyring: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg

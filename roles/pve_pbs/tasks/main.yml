@@ -1,0 +1,71 @@
+---
+- name: Provision the explicitly enabled PBS appliance
+  when: pve_pbs_enabled | bool
+  block:
+    - name: Validate the fixed private PBS topology
+      ansible.builtin.assert:
+        that:
+          - pve_pbs_id | int == 101
+          - pve_pbs_address == '10.77.0.3'
+          - pve_pbs_host_address == '10.77.0.1'
+          - pve_pbs_dataset == 'tank/pbs'
+          - pve_pbs_host_path == '/tank/pbs'
+          - pve_pbs_memory | int >= 4096
+        fail_msg: PBS requires the reviewed CT101/private storage topology.
+
+    - name: Create private recovery configuration directory
+      ansible.builtin.file:
+        path: /root/.config/homelab
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+
+    - name: Install the PBS mount guard
+      ansible.builtin.template:
+        src: pbs-mount-guard.sh.j2
+        dest: /usr/local/sbin/homelab-pbs-mount-guard
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Create the PBS container service override directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/pve-container@101.service.d
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Require the real mounted PBS dataset on every container start
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/pve-container@101.service.d/datastore.conf
+        content: |
+          [Unit]
+          After=zfs-mount.service
+          Requires=zfs-mount.service
+          [Service]
+          ExecStartPre=/usr/local/sbin/homelab-pbs-mount-guard
+        owner: root
+        group: root
+        mode: '0644'
+      register: _pbs_guard
+
+    - name: Reload the container startup guard
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+      when: _pbs_guard.changed
+
+    - name: Install PBS provisioning helper
+      ansible.builtin.template:
+        src: provision.py.j2
+        dest: /usr/local/sbin/homelab-provision-pbs
+        owner: root
+        group: root
+        mode: '0700'
+
+    - name: Provision and reconcile PBS without exposing credentials
+      ansible.builtin.command: /usr/local/sbin/homelab-provision-pbs
+      register: _pbs_provision
+      changed_when: "'CHANGED' in _pbs_provision.stdout"
+      no_log: true

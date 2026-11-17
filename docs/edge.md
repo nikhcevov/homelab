@@ -19,6 +19,7 @@ group's OS hostname is managed by this task.
 ```bash
 ansible-playbook playbooks/edge.yml                    # setup or update, all stages
 ansible-playbook playbooks/edge.yml --tags bootstrap   # OS hostname + base system + SSH
+ansible-playbook playbooks/edge.yml --tags time_sync   # opted-in time daemon only
 ansible-playbook playbooks/edge.yml --tags security    # firewall + fail2ban
 ansible-playbook playbooks/edge.yml --tags network     # Tailscale
 ansible-playbook playbooks/edge.yml --tags proxy       # nginx only
@@ -26,12 +27,35 @@ ansible-playbook playbooks/edge.yml --tags services    # monitoring
 ```
 
 Tags are optional focused reconciliation, not separate setup modes. Select several
-with `--tags network,services`; order remains fixed. For routing changes, run the
-full default command so both firewall listeners and proxy configuration update.
+with `--tags network,services`; order remains fixed. For destination/SNI-only
+routing changes, use `--tags proxy` only after verifying the listener/protocol
+set is unchanged and the existing firewall covers it. For listener changes,
+use `--tags security,proxy` to reconcile both firewall and nginx.
+The full default run also reconciles bootstrap, including distribution upgrades;
+do not include an unrelated OS upgrade in a routing-only cutover.
 Bootstrap, network, and services runs do not load the routing file. Security loads
 it only when `ufw_open_service_ports` is enabled; proxy loads it when selected.
 Both controller loads accept `-e proxy_vars_file=/absolute/path/to/routing.yml`
 (default `vars/proxy.yml`), and extra variables retain precedence over that file.
+
+Edge bootstrap opts into persistent `systemd-timesyncd`; other groups keep their
+existing time-daemon choice. The focused `time_sync` tag installs/enables only
+that daemon, without the distribution upgrade or SSH/network reconciliation.
+Verify with `systemctl is-active systemd-timesyncd`,
+`systemctl is-enabled systemd-timesyncd` and
+`timedatectl show --property=NTP --property=NTPSynchronized`.
+Both time properties must be `yes`; compare actual UTC against a trusted host.
+
+On2026-11-14, after committed checkpoint `1350b31`, a destination-only proxy run
+retargeted application HTTPS/Minecraft/voice traffic from the physical PVE host
+to `docker-1`. Only the generated stream file and nginx reload changed.
+Real public HTTPS/certificate checks, rendered Immich/Vaultwarden sign-in pages,
+Minecraft status and UDP24454 delivery passed. Public PVE/PBS ports remained
+unreachable; Home Assistant, public DNS, router and Tailscale policy were unchanged.
+Evidence: `/root/migration-ingress-20261114T164316Z` on PVE and edge,
+including `public-cutover.COMPLETE.json`; the original edge configuration archive
+is retained for rollback. The previous physical-host upstream is not a working
+application fallback after migration.
 
 The inventory group is `edge_nodes`; scoped runs use `--limit edge_nodes`.
 Its one host is `edge`, reached at `edge.{{ tailnet_domain }}` after the console
@@ -73,7 +97,7 @@ The operator owns these external steps, in order:
    the OS hostname to `edge`; network reconciles Tailscale's hostname without
    re-authentication; services render the derived `[EDGE]` alert prefix.
    Verify OS hostname, MagicDNS, proxy listeners, and monitoring afterwards.
-6. Review external consumers yourself: Kuma monitors, SSH config, provider
+6. Review external consumers yourself: Gatus checks, SSH config, provider
    labels, and any other references to the old name are not reconciled here.
    Their current state is unknown to this repository.
 
@@ -112,6 +136,12 @@ References: [Tailscale tags](https://tailscale.com/docs/features/tags) and
 ### `vars/proxy.yml` — the only file you edit for routing
 
 Adding a service = adding a block here + `ansible-playbook playbooks/edge.yml`. The nginx config and (via `ufw_open_service_ports: true`) the firewall rule are regenerated automatically.
+
+For the [Unraid-to-PVE cutover](proxmox-migration.md#phase-7--ingress-monitoring-and-decommission),
+retarget the private home HTTPS/Minecraft/voice upstreams to `docker-1` only
+after restored services pass their gates and the VM has its trusted backend tag.
+Leaving them on `great-hornbill` sends application traffic to the physical PVE
+host. Do not deploy that routing change before the new endpoint is ready.
 
 Schema (full annotated examples in [`vars/proxy.example.yml`](../vars/proxy.example.yml)):
 

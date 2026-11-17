@@ -15,6 +15,8 @@ Run commands from the repository root. These day-0 instructions cover VPS hosts;
 │   ├── mon.yml                  monitoring VPS setup/update
 │   ├── openwrt.yml              router setup/update; --tags upgrade for explicit upgrades
 │   ├── unraid.yml               deploy backup scripts to Unraid
+│   ├── pve.yml                  Proxmox host: base, ZFS, NFS, UPS
+│   ├── docker.yml               Docker VM: Docker Engine and compose stacks
 │   ├── workstation.yml          Arch/CachyOS desktops
 │   └── proxy-render.yml         local nginx render (no VPS needed)
 ├── inventory/
@@ -37,7 +39,7 @@ the repository. Group settings remain shared defaults; host variables override t
 All entrypoints use the existing root `roles/` through `roles_path` in `ansible.cfg`.
 The private routing map stays at `vars/proxy.yml`, resolved explicitly from the plays.
 
-There are six deployment playbooks, one per host type, plus the local-only
+There are eight deployment playbooks, one per host type, plus the local-only
 `proxy-render.yml` utility. Use the same deployment command for initial setup and
 configuration updates. Edge stage tags are `bootstrap`, `security`, `network`,
 `proxy`, and `services`; routing changes need the full default run so firewall
@@ -92,5 +94,5 @@ The vault password lives in `.vault_pass` (gitignored, referenced by `ansible.cf
 | ------------------------------------ | ------------------------------------ | ------------------------------------------------------- |
 | `vault_ntfy_topic_*`                 | `inventory/group_vars/all/vault.yml` | ntfy topic name = password                              |
 | `vault_tailscale_auth_key`           | `inventory/group_vars/all/vault.yml` | optional unattended tailnet join (empty = manual day-0) |
-| `vault_kuma_domain`                  | `inventory/group_vars/mon/vault.yml` | real Kuma domain                                        |
+| `vault_monitoring_domain`            | `inventory/group_vars/mon/vault.yml` | real monitoring/status domain                           |
 | `vault_*_domain`, `vault_xui_*_path` | `inventory/host_vars/vpn-<cc>.yml`   | VPN domains + secret 3x-ui URL paths                    |

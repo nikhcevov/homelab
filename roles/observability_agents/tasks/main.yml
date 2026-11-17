@@ -1,0 +1,241 @@
+---
+- name: Require a Debian-family host
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'Debian'
+    fail_msg: Observability agents target Debian-family hosts only.
+
+- name: Install agent prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - unzip
+      - smartmontools
+    state: present
+    update_cache: true
+
+- name: Create the node exporter service account
+  ansible.builtin.user:
+    name: node_exporter
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+    state: present
+
+- name: Download the pinned node exporter archive
+  ansible.builtin.get_url:
+    url: "https://github.com/prometheus/node_exporter/releases/download/v{{ observability_node_exporter_version }}/node_exporter-{{ observability_node_exporter_version }}.linux-amd64.tar.gz"
+    dest: "/tmp/node_exporter-{{ observability_node_exporter_version }}.linux-amd64.tar.gz"
+    checksum: "sha256:{{ observability_node_exporter_sha256 }}"
+    mode: "0644"
+  register: _observability_node_archive
+
+- name: Extract node exporter
+  ansible.builtin.unarchive:
+    src: "{{ _observability_node_archive.dest }}"
+    dest: /tmp
+    remote_src: true
+    creates: "/tmp/node_exporter-{{ observability_node_exporter_version }}.linux-amd64/node_exporter"
+
+- name: Install the node exporter binary
+  ansible.builtin.copy:
+    src: "/tmp/node_exporter-{{ observability_node_exporter_version }}.linux-amd64/node_exporter"
+    dest: /usr/local/bin/node_exporter
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart node_exporter
+
+- name: Render the node exporter unit
+  ansible.builtin.template:
+    src: node_exporter.service.j2
+    dest: /etc/systemd/system/node_exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart node_exporter
+
+- name: Enable and start node exporter
+  ansible.builtin.systemd:
+    name: node_exporter
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: observability_node_exporter_enabled | bool
+
+- name: Download the pinned smartctl exporter archive
+  ansible.builtin.get_url:
+    url: "https://github.com/prometheus-community/smartctl_exporter/releases/download/v{{ observability_smartctl_exporter_version }}/smartctl_exporter-{{ observability_smartctl_exporter_version }}.linux-amd64.tar.gz"
+    dest: "/tmp/smartctl_exporter-{{ observability_smartctl_exporter_version }}.linux-amd64.tar.gz"
+    checksum: "sha256:{{ observability_smartctl_exporter_sha256 }}"
+    mode: "0644"
+  register: _observability_smartctl_archive
+  when: observability_smartctl_enabled | bool
+
+- name: Extract smartctl exporter
+  ansible.builtin.unarchive:
+    src: "{{ _observability_smartctl_archive.dest }}"
+    dest: /tmp
+    remote_src: true
+    creates: "/tmp/smartctl_exporter-{{ observability_smartctl_exporter_version }}.linux-amd64/smartctl_exporter"
+  when: observability_smartctl_enabled | bool
+
+- name: Install the smartctl exporter binary
+  ansible.builtin.copy:
+    src: "/tmp/smartctl_exporter-{{ observability_smartctl_exporter_version }}.linux-amd64/smartctl_exporter"
+    dest: /usr/local/bin/smartctl_exporter
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  when: observability_smartctl_enabled | bool
+  notify: Restart smartctl_exporter
+
+- name: Render the smartctl exporter unit
+  ansible.builtin.template:
+    src: smartctl_exporter.service.j2
+    dest: /etc/systemd/system/smartctl_exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  when: observability_smartctl_enabled | bool
+  notify: Restart smartctl_exporter
+
+- name: Enable and start smartctl exporter
+  ansible.builtin.systemd:
+    name: smartctl_exporter
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: observability_smartctl_enabled | bool
+
+- name: Download the pinned NUT exporter binary
+  ansible.builtin.get_url:
+    url: "https://github.com/DRuggeri/nut_exporter/releases/download/v{{ observability_nut_exporter_version }}/nut_exporter-v{{ observability_nut_exporter_version }}-linux-amd64"
+    dest: "/tmp/nut_exporter-v{{ observability_nut_exporter_version }}-linux-amd64"
+    checksum: "sha256:{{ observability_nut_exporter_sha256 }}"
+    mode: "0755"
+  when: observability_nut_exporter_enabled | bool
+
+- name: Install the NUT exporter binary
+  ansible.builtin.copy:
+    src: "/tmp/nut_exporter-v{{ observability_nut_exporter_version }}-linux-amd64"
+    dest: /usr/local/bin/nut_exporter
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  when: observability_nut_exporter_enabled | bool
+  notify: Restart nut_exporter
+
+- name: Render the NUT exporter environment
+  ansible.builtin.copy:
+    dest: /etc/nut-exporter.env
+    content: |
+      NUT_EXPORTER_PASSWORD={{ pve_ups_password }}
+    owner: root
+    group: root
+    mode: "0600"
+  when: observability_nut_exporter_enabled | bool
+  no_log: true
+  notify: Restart nut_exporter
+
+- name: Render the NUT exporter unit
+  ansible.builtin.template:
+    src: nut_exporter.service.j2
+    dest: /etc/systemd/system/nut_exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  when: observability_nut_exporter_enabled | bool
+  notify: Restart nut_exporter
+
+- name: Enable and start the NUT exporter
+  ansible.builtin.systemd:
+    name: nut_exporter
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: observability_nut_exporter_enabled | bool
+
+- name: Create the Alloy configuration directory
+  ansible.builtin.file:
+    path: /etc/alloy
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: observability_alloy_enabled | bool
+
+- name: Create the Alloy state directory
+  ansible.builtin.file:
+    path: /var/lib/alloy
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  when: observability_alloy_enabled | bool
+
+- name: Download the pinned Alloy archive
+  ansible.builtin.get_url:
+    url: "https://github.com/grafana/alloy/releases/download/v{{ observability_alloy_version }}/alloy-linux-amd64.zip"
+    dest: "/tmp/alloy-{{ observability_alloy_version }}-linux-amd64.zip"
+    checksum: "sha256:{{ observability_alloy_sha256 }}"
+    mode: "0644"
+  register: _observability_alloy_archive
+  when: observability_alloy_enabled | bool
+
+- name: Extract Alloy
+  ansible.builtin.unarchive:
+    src: "{{ _observability_alloy_archive.dest }}"
+    dest: /tmp
+    remote_src: true
+    creates: /tmp/alloy-linux-amd64
+  when: observability_alloy_enabled | bool
+
+- name: Install the Alloy binary
+  ansible.builtin.copy:
+    src: /tmp/alloy-linux-amd64
+    dest: /usr/local/bin/alloy
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  when: observability_alloy_enabled | bool
+  notify: Restart alloy
+
+- name: Render the Alloy configuration
+  ansible.builtin.template:
+    src: "{{ observability_alloy_config_template }}"
+    dest: /etc/alloy/config.alloy
+    owner: root
+    group: root
+    mode: "0644"
+  when: observability_alloy_enabled | bool
+  notify: Restart alloy
+
+- name: Render the Alloy unit
+  ansible.builtin.template:
+    src: alloy.service.j2
+    dest: /etc/systemd/system/alloy.service
+    owner: root
+    group: root
+    mode: "0644"
+  when: observability_alloy_enabled | bool
+  notify: Restart alloy
+
+- name: Enable and start Alloy
+  ansible.builtin.systemd:
+    name: alloy
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: observability_alloy_enabled | bool
+
+- name: Validate the Alloy configuration
+  ansible.builtin.command:
+    argv: [alloy, fmt, /etc/alloy/config.alloy]
+  changed_when: false
+  when: observability_alloy_enabled | bool

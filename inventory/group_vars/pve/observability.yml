@@ -1,0 +1,7 @@
+---
+observability_node_exporter_listen: "10.77.0.1:9100"
+observability_smartctl_enabled: true
+observability_smartctl_listen: "10.77.0.1:9633"
+observability_nut_exporter_enabled: true
+observability_nut_exporter_listen: "10.77.0.1:9199"
+observability_alloy_config_template: alloy-pve.alloy.j2

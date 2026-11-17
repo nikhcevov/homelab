@@ -1,0 +1,17 @@
+---
+# GPU passthrough for the Docker VM (role: pve_gpu).
+# The GTX 1650 (TU117) and its HDMI audio function share IOMMU group 1 with the
+# root port 00:01.0. ASPEED stays with the host for the console.
+
+pve_gpu_devices:
+  - "0000:01:00.0"
+  - "0000:01:00.1"
+pve_gpu_ids:
+  - "10de:1f82"
+  - "10de:10fa"
+pve_gpu_primary_device: "0000:01:00.0"
+pve_gpu_kernel_params: "intel_iommu=on iommu=pt"
+
+# Only this PCI bridge may share the GPU group; never assign it to the VM.
+pve_gpu_allowed_bridge_devices:
+  - "0000:00:01.0"

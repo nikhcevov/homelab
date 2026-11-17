@@ -1,0 +1,113 @@
+---
+# Docker Engine from the official apt repository. Debian's docker.io package
+# does not ship the compose plugin on every release, so the vendor repo is the
+# boring, predictable choice.
+
+- name: Install apt prerequisites
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    update_cache: true
+
+- name: Ensure the apt keyring directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the Docker repository key
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/debian/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Add the Docker apt repository
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: [deb]
+    uris: https://download.docker.com/linux/debian
+    suites: ["{{ ansible_facts['distribution_release'] }}"]
+    components: [stable]
+    architectures: ["amd64"]
+    signed_by: /etc/apt/keyrings/docker.asc
+    state: present
+
+- name: Discover whether systemd-resolved owns the DNS stub
+  ansible.builtin.service_facts:
+
+- name: Free the DNS listening port without losing the guest resolver
+  when: "'systemd-resolved.service' in ansible_facts.services"
+  block:
+    - name: Create resolved configuration drop-in directory
+      ansible.builtin.file:
+        path: /etc/systemd/resolved.conf.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Disable the conflicting resolved stub listener
+      ansible.builtin.copy:
+        dest: /etc/systemd/resolved.conf.d/10-docker-dns.conf
+        content: |
+          [Resolve]
+          DNSStubListener=no
+        owner: root
+        group: root
+        mode: "0644"
+      register: _docker_resolved
+
+    - name: Keep the guest using resolved upstream nameservers directly
+      ansible.builtin.file:
+        src: /run/systemd/resolve/resolv.conf
+        dest: /etc/resolv.conf
+        state: link
+        force: true
+
+    - name: Apply resolved listener configuration
+      ansible.builtin.systemd:
+        name: systemd-resolved
+        state: restarted
+      when: _docker_resolved.changed
+
+- name: Read the appdata restore marker
+  ansible.builtin.stat:
+    path: "{{ docker_vm_appdata_path }}/.homelab-restored"
+  register: _docker_restore_marker
+
+- name: Read persistent explicit workload authorization
+  ansible.builtin.stat:
+    path: /etc/docker/homelab-compose-authorized
+  register: _docker_compose_authorized
+
+- name: Install Docker Engine and the compose plugin
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+    policy_rc_d: 101
+
+- name: Enable Docker without starting workloads before restore
+  ansible.builtin.systemd:
+    name: docker
+    state: "{{ 'started' if (_docker_restore_marker.stat.isreg | default(false) and _docker_compose_authorized.stat.isreg | default(false)) else 'stopped' }}"
+    enabled: true
+    daemon_reload: true
+
+- name: Allow the operator to run docker without sudo
+  ansible.builtin.user:
+    name: "{{ docker_user }}"
+    groups: docker
+    append: true
