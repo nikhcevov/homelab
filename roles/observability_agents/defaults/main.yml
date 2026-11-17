@@ -6,12 +6,20 @@ observability_smartctl_exporter_version: "0.15.0"
 observability_smartctl_exporter_sha256: "32ff269f2ca5708e2aa8209c715192efcc32f87bd575cae50a76d391a484976e"
 observability_alloy_version: "1.22.0"
 observability_alloy_sha256: "62d177feb18c9b6ffd636c8273aa82a6afc75a507d096ff951749df23c3176f9"
+observability_nut_exporter_version: "3.3.0"
+observability_nut_exporter_sha256: "8183da720ff547b7be56cc60505a3e0b731ccbf23aa18b3e297159b261500d8a"
 
 observability_node_exporter_enabled: true
 observability_smartctl_enabled: false
+observability_nut_exporter_enabled: false
 observability_alloy_enabled: true
 
 observability_node_exporter_listen: "0.0.0.0:9100"
 observability_smartctl_listen: "0.0.0.0:9633"
+observability_nut_exporter_listen: "127.0.0.1:9199"
+observability_nut_server: "127.0.0.1"
+observability_nut_serverport: 3493
+observability_nut_username: "monuser"
+observability_nut_vars: "battery.charge,battery.runtime,ups.load,ups.status,input.voltage"
 observability_alloy_loki_url: "http://10.77.0.2:3100/loki/api/v1/push"
 observability_alloy_config_template: "alloy-docker.alloy.j2"

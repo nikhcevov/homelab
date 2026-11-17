@@ -1,0 +1,16 @@
+[Unit]
+Description=Prometheus NUT exporter
+Documentation=https://github.com/DRuggeri/nut_exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/nut-exporter.env
+ExecStart=/usr/local/bin/nut_exporter --nut.server={{ observability_nut_server }} --nut.serverport={{ observability_nut_serverport }} --nut.username={{ observability_nut_username }} --nut.vars_enable={{ observability_nut_vars }} --web.listen-address={{ observability_nut_exporter_listen }}
+MemoryMax=64M
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

@@ -30,6 +30,13 @@ scrape_configs:
       - target_label: instance
         replacement: docker-1
 
+  - job_name: nut
+    metrics_path: /ups_metrics
+    params:
+      ups: ["cyberpower"]
+    static_configs:
+      - targets: ["10.77.0.1:9199"]
+
   - job_name: pve
     metrics_path: /pve
     params:

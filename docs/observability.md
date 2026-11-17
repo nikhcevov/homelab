@@ -14,6 +14,7 @@ availability watcher; it is not replaced by Grafana.
 | Grafana / Prometheus / Loki | `docker-1` | dashboards, metrics history, log search |
 | node_exporter | PVE and `docker-1` | host CPU, memory, filesystems, network |
 | smartctl_exporter | PVE only | disk SMART health and temperature |
+| nut_exporter | PVE only | UPS status, battery charge and runtime |
 | cAdvisor | `docker-1` | per-container Docker metrics |
 | pve-exporter | `docker-1` | Proxmox API: nodes, guests, storage, backups |
 | Grafana Alloy | PVE and `docker-1` | journald and Docker log shipping |
@@ -31,6 +32,7 @@ availability watcher; it is not replaced by Grafana.
 | pve-exporter | Compose network | not published |
 | node_exporter PVE | `10.77.0.1:9100` | private `vmbr1` only |
 | smartctl_exporter PVE | `10.77.0.1:9633` | private `vmbr1` only |
+| nut_exporter PVE | `10.77.0.1:9199` | private `vmbr1` only |
 | node_exporter Docker | `10.77.0.2:9100` | private `vmbr1` only |
 | Alloy | host-local | pushes to Loki only |
 
@@ -66,6 +68,7 @@ one year needs external storage.
 | cAdvisor | `384m` |
 | node_exporter | `128M` systemd |
 | smartctl_exporter | `128M` systemd |
+| nut_exporter | `64M` systemd |
 | Alloy | `256M` systemd |
 
 These are hard caps, not reservations. Re-measure with `docker stats`,
@@ -101,6 +104,17 @@ After a standby interval, verify that polling does not increase
 `Start_Stop_Count` or wake the 10 TB disks. Do not lower the interval without
 repeating that observation.
 
+## UPS
+
+`nut_exporter` runs only on the PVE host, reads the local NUT server at
+`127.0.0.1:3493`, and exposes `network_ups_tools_*` metrics on
+`10.77.0.1:9199`. The NUT password is rendered into `/etc/nut-exporter.env`
+with mode `0600`; it is not in the unit file.
+
+Current alert conditions are `OB=1` (on battery), `LB=1` (low battery), and
+`OVER=1` (overload). Battery charge and runtime are scraped for dashboards and
+manual inspection.
+
 ## Deploy
 
 Agents:
@@ -128,11 +142,12 @@ curl -fsS http://127.0.0.1:9090/-/ready
 curl -fsS http://10.77.0.2:3100/ready
 curl -fsS http://10.77.0.1:9100/metrics | grep node_uname_info
 curl -fsS http://10.77.0.1:9633/metrics | grep smartctl_version
+curl -fsS 'http://10.77.0.1:9199/ups_metrics?ups=cyberpower' | grep network_ups_tools_ups_status
 ```
 
 Open `http://grafana.home.arpa` through Caddy/Tailscale. Check Prometheus
 targets: `prometheus`, `node-pve`, `node-docker`, `smartctl-pve`, `cadvisor`,
-and `pve` must be `UP`.
+`pve`, and `nut` must be `UP`.
 
 ## Dashboards and alerts
 
@@ -151,22 +166,29 @@ health come from `smartctl_device_temperature` and `smartctl_device_smart_status
 Export production dashboards as JSON after editing them in the UI; do not leave
 the only copy in Grafana's database.
 
-Grafana Alerting uses the `ntfy-alerts` webhook contact point, which posts to
-the vaulted ntfy alerts topic with `?template=grafana`. The default notification
-policy routes all rules to it with a 30s group wait and 4h repeat interval.
+Grafana Alerting has two webhook contact points, both using
+`?template=grafana`: `ntfy-alerts` for the normal alerts topic and
+`ntfy-critical` for the critical topic. The default policy routes warning rules
+to `ntfy-alerts`; a child route sends `severity=critical` to `ntfy-critical`
+with a 10s group wait and 2h repeat interval. The normal repeat interval is 4h.
 
 Configured rules:
 
 | Rule | For | Severity |
 | --- | ---: | --- |
-| Scrape target down | 5m | critical |
+| Scrape target down (includes `nut`) | 5m | critical |
 | Filesystem above 85% | 15m | warning |
 | Disk temperature above 50C | 10m | warning |
 | SMART health failed | 5m | critical |
+| SMART pending or reallocated sectors | 5m | critical |
+| SMART CRC errors increasing | 10m | warning |
 | PVE storage above 85% | 15m | warning |
 | ZFS pool not online | 5m | critical |
+| UPS on battery | 1m | critical |
+| UPS low battery | 1m | critical |
+| UPS overloaded | 5m | warning |
 
-The test webhook returned HTTP 200. External Kuma monitoring is intentionally
+Both webhook tests returned HTTP 200. External Kuma monitoring is intentionally
 deferred for a later redesign.
 
 ## Rollback

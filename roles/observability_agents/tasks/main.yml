@@ -111,6 +111,55 @@
     daemon_reload: true
   when: observability_smartctl_enabled | bool
 
+- name: Download the pinned NUT exporter binary
+  ansible.builtin.get_url:
+    url: "https://github.com/DRuggeri/nut_exporter/releases/download/v{{ observability_nut_exporter_version }}/nut_exporter-v{{ observability_nut_exporter_version }}-linux-amd64"
+    dest: "/tmp/nut_exporter-v{{ observability_nut_exporter_version }}-linux-amd64"
+    checksum: "sha256:{{ observability_nut_exporter_sha256 }}"
+    mode: "0755"
+  when: observability_nut_exporter_enabled | bool
+
+- name: Install the NUT exporter binary
+  ansible.builtin.copy:
+    src: "/tmp/nut_exporter-v{{ observability_nut_exporter_version }}-linux-amd64"
+    dest: /usr/local/bin/nut_exporter
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  when: observability_nut_exporter_enabled | bool
+  notify: Restart nut_exporter
+
+- name: Render the NUT exporter environment
+  ansible.builtin.copy:
+    dest: /etc/nut-exporter.env
+    content: |
+      NUT_EXPORTER_PASSWORD={{ pve_ups_password }}
+    owner: root
+    group: root
+    mode: "0600"
+  when: observability_nut_exporter_enabled | bool
+  no_log: true
+  notify: Restart nut_exporter
+
+- name: Render the NUT exporter unit
+  ansible.builtin.template:
+    src: nut_exporter.service.j2
+    dest: /etc/systemd/system/nut_exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  when: observability_nut_exporter_enabled | bool
+  notify: Restart nut_exporter
+
+- name: Enable and start the NUT exporter
+  ansible.builtin.systemd:
+    name: nut_exporter
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: observability_nut_exporter_enabled | bool
+
 - name: Create the Alloy configuration directory
   ansible.builtin.file:
     path: /etc/alloy
