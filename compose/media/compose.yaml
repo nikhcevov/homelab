@@ -7,6 +7,7 @@ x-env: &default-env
 
 x-common: &common
   restart: unless-stopped
+  mem_limit: 512m
   environment:
     <<: *default-env
   logging:
@@ -22,6 +23,7 @@ services:
     <<: *common
     image: lscr.io/linuxserver/qbittorrent@sha256:caab2ebce30799ab342c374ea268fef4ec063a8ec3733a4e5d4a8e856ee32ce8
     container_name: qbittorrent
+    mem_limit: 1536m
     ports:
       - "127.0.0.1:8080:8080"
       - "6881:6881"
@@ -97,6 +99,7 @@ services:
     <<: *common
     image: lscr.io/linuxserver/jellyfin@sha256:51252e7a416e703cdc3cd91e8a54673a2430cc80409be8a38abe511411577b95
     container_name: jellyfin
+    mem_limit: 1536m
     runtime: nvidia
     ports:
       - "8096:8096" # LAN discovery clients require a reachable HTTP endpoint
@@ -115,6 +118,7 @@ services:
     <<: *common
     image: ghcr.io/seerr-team/seerr@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1
     container_name: seerr
+    mem_limit: 768m
     user: "${PUID}:${PGID}"
     init: true
     ports:
@@ -122,7 +126,7 @@ services:
     environment:
       <<: *default-env
       PORT: 5055
-      LOG_LEVEL: debug
+      LOG_LEVEL: info
       CA_TS_FALLBACK_DIR: /app/config
     volumes:
       - ${APPDATA}/seerr:/app/config
@@ -144,6 +148,7 @@ services:
     <<: *common
     image: ghcr.io/prophetse7en/clonarr@sha256:9400d298b37a61b89f77ff3e46be4feb51fec68f294e00ba6c15beca00970d29
     container_name: clonarr
+    mem_limit: 128m
     ports:
       - "127.0.0.1:6060:6060"
     volumes:
@@ -160,6 +165,7 @@ services:
     <<: *common
     image: ghcr.io/flaresolverr/flaresolverr@sha256:c80ae007ce2ccdcd217a12426e4f039ef763ff90738c808d38810c3e59323767
     container_name: flaresolverr
+    mem_limit: 3g
     ports:
       - "127.0.0.1:8191:8191"
 
@@ -168,6 +174,12 @@ services:
     image: ghcr.io/stuffanthings/qbit_manage@sha256:ea04167f627e506b3691304f4c639a52c05584cc9aea4af7ec87d4ed1299e7f5
     container_name: qbit_manage
     restart: unless-stopped
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "1"
     # The pinned scheduler can sleep 30s before honoring its SIGTERM flag.
     stop_grace_period: 60s
     environment:

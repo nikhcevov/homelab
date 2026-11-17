@@ -1,0 +1,13 @@
+loki.write "default" {
+  endpoint {
+    url = "{{ observability_alloy_loki_url }}"
+  }
+}
+
+loki.source.journal "pve" {
+  forward_to = [loki.write.default.receiver]
+  labels = {
+    host   = "great-hornbill",
+    source = "journal",
+  }
+}

@@ -68,14 +68,9 @@ http://paperless.home.arpa {
     reverse_proxy 127.0.0.1:8000
 }
 
-http://frigate-krm.home.arpa {
+http://grafana.home.arpa {
     import home
-    # Authentication is on 8971; trust its self-signed TLS only on this loopback hop.
-    reverse_proxy https://127.0.0.1:8971 {
-        transport http {
-            tls_insecure_skip_verify
-        }
-    }
+    reverse_proxy 127.0.0.1:3000
 }
 
 http://dns.home.arpa {

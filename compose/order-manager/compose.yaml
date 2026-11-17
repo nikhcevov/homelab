@@ -1,9 +1,17 @@
 name: order-manager
 
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "1"
+
 services:
   app:
     image: ghcr.io/nikhcevov/order-manager-for-wife@sha256:577dc9d8b1b90422f80754693ea98d6e6c7516baa83887c9202fe351362c944f
     restart: unless-stopped
+    mem_limit: 256m
+    logging: *logging
     init: true
     stop_grace_period: 30s
     depends_on:
@@ -25,6 +33,8 @@ services:
   db:
     image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
     restart: unless-stopped
+    mem_limit: 256m
+    logging: *logging
     env_file:
       - .env
     volumes:

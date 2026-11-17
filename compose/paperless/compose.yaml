@@ -1,8 +1,21 @@
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "1"
+
 services:
   broker:
     container_name: paperless-broker
     image: redis:8@sha256:2838d5524559494f6f1cd66e97e76b200d64a633a8614200620755ed395daf32
     restart: unless-stopped
+    mem_limit: 128m
+    logging: *logging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     volumes:
       - /mnt/appdata/paperless/redisdata:/data
 
@@ -10,6 +23,8 @@ services:
     container_name: paperless-db
     image: postgres:18@sha256:4aabea78cf39b90e834caf3af7d602a18565f6fe2508705c8d01aa63245c2e20
     restart: unless-stopped
+    mem_limit: 256m
+    logging: *logging
     volumes:
       - /mnt/appdata/paperless/pgdata:/var/lib/postgresql
     environment:
@@ -27,11 +42,13 @@ services:
     container_name: paperless-webserver
     image: ghcr.io/paperless-ngx/paperless-ngx@sha256:6c86cad803970ea782683a8e80e7403444c5bf3cf70de63b4d3c8e87500db92f
     restart: unless-stopped
+    mem_limit: 3g
+    logging: *logging
     depends_on:
       db:
         condition: service_healthy
       broker:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "127.0.0.1:8000:8000"
     volumes:

@@ -24,5 +24,7 @@
     - tailscale
     - docker_debian
     - nvidia_guest
+    - role: observability_agents
+      tags: [observability]
     - role: compose_stacks
       tags: [compose]

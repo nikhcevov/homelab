@@ -1,0 +1,112 @@
+# Grafana, Prometheus, Loki and local exporters for the Docker VM.
+# Only Grafana is published, and only on loopback for Caddy.
+name: observability
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "1"
+
+services:
+  grafana:
+    image: grafana/grafana:13.3.1@sha256:1c88285f1dd391a62232c010e6c224846e6a73bdc583b3365be2eba614b7919e
+    container_name: observability-grafana
+    restart: unless-stopped
+    mem_limit: 512m
+    logging: *logging
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SERVER_ROOT_URL: "http://grafana.home.arpa"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - /mnt/appdata/observability/grafana/data:/var/lib/grafana
+      - /mnt/appdata/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - observability
+
+  prometheus:
+    image: prom/prometheus:v3.16.0@sha256:89c1a644817e9ad70fa2af76c84898e327c1de7063735f962e8313b1e28672c3
+    container_name: observability-prometheus
+    restart: unless-stopped
+    mem_limit: 1g
+    logging: *logging
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=8GB
+      - --web.listen-address=0.0.0.0:9090
+    environment:
+      GOMEMLIMIT: 800MiB
+    volumes:
+      - /mnt/appdata/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - /mnt/appdata/observability/prometheus/data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - observability
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:9090/-/ready | grep -q Ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  loki:
+    image: grafana/loki:3.7.10@sha256:6d789ab9a603ee4429d0fdc4d11512bf2423e8a8c5fc898a9e5aa2d8471ce459
+    container_name: observability-loki
+    restart: unless-stopped
+    mem_limit: 512m
+    logging: *logging
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    environment:
+      GOMEMLIMIT: 400MiB
+    volumes:
+      - /mnt/appdata/observability/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - /mnt/appdata/observability/loki/data:/loki
+    ports:
+      - "10.77.0.2:3100:3100"
+    networks:
+      - observability
+
+  pve-exporter:
+    image: prompve/prometheus-pve-exporter:3.12.0@sha256:3541b1f79fdf73200f73ce4863658ae7094a417e6827bd6ea90425c89d61ac12
+    container_name: observability-pve-exporter
+    restart: unless-stopped
+    mem_limit: 128m
+    logging: *logging
+    environment:
+      PVE_USER: ${PVE_USER}
+      PVE_TOKEN_NAME: ${PVE_TOKEN_NAME}
+      PVE_TOKEN_VALUE: ${PVE_TOKEN_VALUE}
+      PVE_VERIFY_SSL: ${PVE_VERIFY_SSL}
+    networks:
+      - observability
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.55.1@sha256:9cc0da1192a4d0cd3597d16cdc3c625b8cc5636cee201f3d122c8331e1a01069
+    container_name: observability-cadvisor
+    restart: unless-stopped
+    mem_limit: 384m
+    logging: *logging
+    privileged: true
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=30s
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - observability
+
+networks:
+  observability:
+    driver: bridge

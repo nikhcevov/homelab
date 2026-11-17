@@ -1,0 +1,15 @@
+[Unit]
+Description=Grafana Alloy
+Documentation=https://grafana.com/docs/alloy/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/alloy run --storage.path=/var/lib/alloy /etc/alloy/config.alloy
+MemoryMax=256M
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

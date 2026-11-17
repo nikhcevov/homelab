@@ -1,0 +1,17 @@
+[Unit]
+Description=Prometheus node exporter
+Documentation=https://github.com/prometheus/node_exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=node_exporter
+Group=node_exporter
+ExecStart=/usr/local/bin/node_exporter --web.listen-address={{ observability_node_exporter_listen }}
+MemoryMax=128M
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

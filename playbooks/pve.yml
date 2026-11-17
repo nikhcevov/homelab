@@ -16,3 +16,4 @@
     - { role: pve_vm, tags: [vm], when: pve_vm_enabled | bool }
     - { role: pve_pbs, tags: [pbs] }
     - { role: pve_backup, tags: [backup] }
+    - { role: observability_agents, tags: [observability] }

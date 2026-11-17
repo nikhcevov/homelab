@@ -1,0 +1,15 @@
+[Unit]
+Description=Prometheus smartctl exporter
+Documentation=https://github.com/prometheus-community/smartctl_exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/smartctl_exporter --web.listen-address={{ observability_smartctl_listen }} --smartctl.powermode-check=standby --smartctl.interval=300s
+MemoryMax=128M
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

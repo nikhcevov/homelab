@@ -1,0 +1,20 @@
+loki.write "default" {
+  endpoint {
+    url = "{{ observability_alloy_loki_url }}"
+  }
+}
+
+local.file_match "docker_logs" {
+  path_targets = [
+    {
+      __path__ = "/var/lib/docker/containers/*/*-json.log",
+      host     = "docker-1",
+      source   = "docker",
+    },
+  ]
+}
+
+loki.source.file "docker_logs" {
+  targets    = local.file_match.docker_logs.targets
+  forward_to = [loki.write.default.receiver]
+}

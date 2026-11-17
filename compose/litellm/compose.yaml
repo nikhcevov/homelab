@@ -1,9 +1,18 @@
 # LiteLLM gateway plus the Postgres database that stores models, virtual keys,
 # and spend logs. Image is pinned; config and tokens come from appdata.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "1"
+
 services:
   litellm:
     image: docker.litellm.ai/berriai/litellm@sha256:32cfd7a427f6470033b4dcc9e75dfbea2aa32dbc298b0b511a40e962ce818362
     restart: unless-stopped
+    mem_limit: 1g
+    logging: *logging
     ports:
       - "127.0.0.1:4000:4000"
     env_file:
@@ -23,6 +32,8 @@ services:
   db:
     image: postgres:18@sha256:4aabea78cf39b90e834caf3af7d602a18565f6fe2508705c8d01aa63245c2e20
     restart: unless-stopped
+    mem_limit: 256m
+    logging: *logging
     environment:
       POSTGRES_USER: litellm
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}

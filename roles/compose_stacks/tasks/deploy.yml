@@ -25,6 +25,15 @@
     mode: "0750"
   loop: "{{ compose_stacks }}"
 
+- name: Ensure owned service data directories exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop: "{{ compose_directories | default([]) }}"
+
 - name: Copy compose files
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../compose/{{ item }}/compose.yaml"
@@ -63,7 +72,7 @@
     dest: "{{ item.dest }}"
     owner: root
     group: root
-    mode: "0600"
+    mode: "{{ item.mode | default('0600') }}"
   loop: "{{ compose_config_templates | selectattr('stack', 'in', compose_stacks) | list }}"
   no_log: true
   register: _compose_rendered_configs

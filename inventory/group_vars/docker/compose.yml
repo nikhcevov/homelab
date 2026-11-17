@@ -19,16 +19,30 @@ compose_torrents: /mnt/data/torrents
 compose_photos: /mnt/photos
 compose_files: /mnt/files
 
+compose_directories:
+  - path: "{{ compose_appdata }}/observability/grafana/data"
+    owner: "472"
+    group: "472"
+    mode: "0750"
+  - path: "{{ compose_appdata }}/observability/prometheus/data"
+    owner: "65534"
+    group: "65534"
+    mode: "0750"
+  - path: "{{ compose_appdata }}/observability/loki/data"
+    owner: "10001"
+    group: "10001"
+    mode: "0750"
+
 compose_stacks:
   - caddy-cloudflare
   - dns-server
   - immich
-  - frigate-krm
   - homelable
   - litellm
   - media
   - minecraft
   - obsidian
+  - observability
   - order-manager
   - paperless
   - vaultwarden
@@ -59,3 +73,15 @@ compose_config_templates:
   - stack: litellm
     src: ../compose/litellm/config.yaml.j2
     dest: "{{ compose_appdata }}/litellm/config.yaml"
+  - stack: observability
+    src: ../compose/observability/prometheus.yml.j2
+    dest: "{{ compose_appdata }}/observability/prometheus/prometheus.yml"
+    mode: "0644"
+  - stack: observability
+    src: ../compose/observability/loki-config.yml.j2
+    dest: "{{ compose_appdata }}/observability/loki/loki-config.yml"
+    mode: "0644"
+  - stack: observability
+    src: ../compose/observability/grafana-datasources.yml.j2
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/datasources/datasources.yml"
+    mode: "0644"

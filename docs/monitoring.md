@@ -6,6 +6,9 @@ Sources: [playbooks/mon.yml](../playbooks/mon.yml), [Monitoring checks](../roles
 
 Run commands from the repository root.
 
+Metrics and logs are documented separately in [Observability](observability.md).
+This guide covers the availability and alerting layers.
+
 Two complementary layers:
 
 | Layer              | Where               | Covers                                                    |

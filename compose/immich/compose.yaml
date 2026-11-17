@@ -3,6 +3,12 @@
 # this one; the role deploys them alongside compose.yaml before starting.
 name: immich
 
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "1"
+
 services:
   immich-server:
     container_name: immich_server
@@ -23,6 +29,8 @@ services:
       database:
         condition: service_healthy
     restart: always
+    mem_limit: 2g
+    logging: *logging
     healthcheck:
       disable: false
 
@@ -37,6 +45,8 @@ services:
     env_file:
       - .env
     restart: always
+    mem_limit: 2g
+    logging: *logging
     healthcheck:
       disable: false
 
@@ -46,6 +56,8 @@ services:
     healthcheck:
       test: redis-cli ping || exit 1
     restart: always
+    mem_limit: 128m
+    logging: *logging
 
   database:
     container_name: immich_postgres
@@ -59,6 +71,13 @@ services:
       - ${DB_DATA_LOCATION}:/var/lib/postgresql/data
     shm_size: 128mb
     restart: always
+    mem_limit: 512m
+    logging: *logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
   model-cache:

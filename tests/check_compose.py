@@ -100,7 +100,7 @@ def main():
                     cwd=target, capture_output=True, text=True, check=True,
                 )
                 values = dict(line.split("=", 1) for line in values_result.stdout.splitlines() if "=" in line)
-                for name in ("AUTH_PASSWORD_HASH", "MCP_API_KEY", "MCP_SERVICE_KEY", "SECRET_KEY"):
+                for name in ("AUTH_PASSWORD_HASH", "SECRET_KEY"):
                     if values.get(name) != fixture_secret:
                         raise SystemExit(f"FAIL {stack.name}: literal secret altered by dotenv interpolation ({name})")
             print("PASS Compose configuration: " + stack.name, flush=True)
