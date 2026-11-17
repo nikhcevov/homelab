@@ -30,10 +30,15 @@ class GrafanaProvisioningTest(unittest.TestCase):
                 for rule in group["rules"]
             )
         )
-        self.assertEqual(policies["policies"][0]["receiver"], "ntfy-alerts")
-        self.assertEqual(
-            policies["policies"][0]["routes"][0]["receiver"], "ntfy-critical"
+        self.assertTrue(
+            all(
+                rule["notification_settings"]["receiver"]
+                == ("ntfy-critical" if rule["labels"]["severity"] == "critical" else "ntfy-alerts")
+                for rule in group["rules"]
+            )
         )
+        self.assertEqual(policies["policies"][0]["receiver"], "ntfy-alerts")
+        self.assertNotIn("routes", policies["policies"][0])
 
     def test_contact_points_do_not_commit_plaintext_topics(self) -> None:
         template = (ALERTING / "contact-points.yml.j2").read_text()
@@ -41,3 +46,4 @@ class GrafanaProvisioningTest(unittest.TestCase):
         self.assertIn("{{ ntfy_topic_alerts }}", template)
         self.assertIn("{{ ntfy_topic_critical }}", template)
         self.assertNotIn("ntfy.sh/han-", template)
+        self.assertNotIn("🚨", template)

@@ -61,6 +61,14 @@ groups:
       component: Monitor
       severity: critical
     isPaused: false
+    notification_settings:
+      receiver: ntfy-critical
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 10s
+      group_interval: 5m
+      repeat_interval: 2h
   - uid: bg4kec26d6zuod
     title: Filesystem above 85%
     condition: B
@@ -117,6 +125,14 @@ groups:
       component: Disk
       severity: warning
     isPaused: false
+    notification_settings:
+      receiver: ntfy-alerts
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
   - uid: cg4kec292l1c0f
     title: Disk temperature above 50C
     condition: B
@@ -173,6 +189,14 @@ groups:
       component: Disk
       severity: warning
     isPaused: false
+    notification_settings:
+      receiver: ntfy-alerts
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
   - uid: dg4kec2bph6gwb
     title: SMART health failed
     condition: B
@@ -229,6 +253,14 @@ groups:
       component: Disk
       severity: critical
     isPaused: false
+    notification_settings:
+      receiver: ntfy-critical
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 10s
+      group_interval: 5m
+      repeat_interval: 2h
   - uid: bg4kec2emcwzkf
     title: PVE storage above 85%
     condition: B
@@ -285,6 +317,14 @@ groups:
       component: PVE
       severity: warning
     isPaused: false
+    notification_settings:
+      receiver: ntfy-alerts
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
   - uid: eg4kec2he8utcc
     title: ZFS pool not online
     condition: B
@@ -341,6 +381,14 @@ groups:
       component: PVE
       severity: critical
     isPaused: false
+    notification_settings:
+      receiver: ntfy-critical
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 10s
+      group_interval: 5m
+      repeat_interval: 2h
   - uid: ag4ki159j2y2oc
     title: SMART pending or reallocated sectors
     condition: B
@@ -397,6 +445,14 @@ groups:
       component: Disk
       severity: critical
     isPaused: false
+    notification_settings:
+      receiver: ntfy-critical
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 10s
+      group_interval: 5m
+      repeat_interval: 2h
   - uid: ag4ki15cfyolcf
     title: SMART CRC errors increasing
     condition: B
@@ -453,6 +509,14 @@ groups:
       component: Disk
       severity: warning
     isPaused: false
+    notification_settings:
+      receiver: ntfy-alerts
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
   - uid: fg4ki5ya236yod
     title: UPS on battery
     condition: B
@@ -509,6 +573,14 @@ groups:
       component: UPS
       severity: critical
     isPaused: false
+    notification_settings:
+      receiver: ntfy-critical
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 10s
+      group_interval: 5m
+      repeat_interval: 2h
   - uid: bg4ki5yctz4sgc
     title: UPS low battery
     condition: B
@@ -565,6 +637,14 @@ groups:
       component: UPS
       severity: critical
     isPaused: false
+    notification_settings:
+      receiver: ntfy-critical
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 10s
+      group_interval: 5m
+      repeat_interval: 2h
   - uid: ag4ki5yf1vvuof
     title: UPS overloaded
     condition: B
@@ -621,6 +701,14 @@ groups:
       component: UPS
       severity: warning
     isPaused: false
+    notification_settings:
+      receiver: ntfy-alerts
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
   - uid: inode-usage-90
     title: Inode usage above 90%
     condition: B
@@ -677,6 +765,14 @@ groups:
       component: Disk
       severity: warning
     isPaused: false
+    notification_settings:
+      receiver: ntfy-alerts
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
   - uid: docker-unhealthy
     title: Docker container unhealthy
     condition: B
@@ -733,6 +829,14 @@ groups:
       component: Docker
       severity: warning
     isPaused: false
+    notification_settings:
+      receiver: ntfy-alerts
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
   - uid: docker-restart-loop
     title: Docker container restart loop
     condition: B
@@ -789,6 +893,14 @@ groups:
       component: Docker
       severity: warning
     isPaused: false
+    notification_settings:
+      receiver: ntfy-alerts
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
   - uid: ntp-unsynced
     title: NTP not synchronized
     condition: B
@@ -845,6 +957,14 @@ groups:
       component: Monitor
       severity: warning
     isPaused: false
+    notification_settings:
+      receiver: ntfy-alerts
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
   - uid: ntp-offset-high
     title: NTP offset above 250ms
     condition: B
@@ -901,6 +1021,14 @@ groups:
       component: Monitor
       severity: warning
     isPaused: false
+    notification_settings:
+      receiver: ntfy-alerts
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
   - uid: ups-charge-low
     title: UPS battery charge below 50%
     condition: B
@@ -957,6 +1085,14 @@ groups:
       component: UPS
       severity: warning
     isPaused: false
+    notification_settings:
+      receiver: ntfy-alerts
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
   - uid: docker-oom-kill
     title: Docker container OOM kill
     condition: B
@@ -1013,3 +1149,11 @@ groups:
       component: Docker
       severity: critical
     isPaused: false
+    notification_settings:
+      receiver: ntfy-critical
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 10s
+      group_interval: 5m
+      repeat_interval: 2h

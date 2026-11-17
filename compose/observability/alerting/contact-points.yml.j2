@@ -10,7 +10,7 @@ contactPoints:
           httpMethod: POST
           url: "{{ ntfy_url }}/{{ ntfy_topic_alerts }}?template=grafana&markdown=yes"
           {% raw %}title: |-
-            {{ if eq .Status "firing" }}🚨{{ else }}✅{{ end }} Homelab · {{ .CommonLabels.component }} · {{ .CommonLabels.alertname }}
+            Homelab · {{ .CommonLabels.component }} · {{ .CommonLabels.alertname }}
           message: |-
             **{{ .CommonAnnotations.summary }}**
 
@@ -31,7 +31,7 @@ contactPoints:
           httpMethod: POST
           url: "{{ ntfy_url }}/{{ ntfy_topic_critical }}?template=grafana&markdown=yes"
           {% raw %}title: |-
-            {{ if eq .Status "firing" }}🚨{{ else }}✅{{ end }} Homelab · {{ .CommonLabels.component }} · {{ .CommonLabels.alertname }}
+            Homelab · {{ .CommonLabels.component }} · {{ .CommonLabels.alertname }}
           message: |-
             **{{ .CommonAnnotations.summary }}**
 
