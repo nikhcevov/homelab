@@ -152,22 +152,28 @@ targets: `prometheus`, `node-pve`, `node-docker`, `smartctl-pve`, `cadvisor`,
 ## Dashboards and alerts
 
 Datasources are provisioned from
-`compose/observability/grafana-datasources.yml.j2`. The daily overview is
-Homelab Overview (`/d/homelab-overview/homelab-overview`). Supporting
-dashboards are Node Exporter Full (`/d/rYdddlPWk/node-exporter-full`), cAdvisor
+`compose/observability/grafana-datasources.yml.j2`. Dashboards are provisioned
+from `compose/observability/dashboards/*.json` through
+`compose/observability/grafana-dashboards.yml.j2`; UI edits are not the source
+of truth and will be overwritten.
+
+The daily overview is Homelab Overview
+(`/d/homelab-overview/homelab-overview`). Supporting dashboards are Node
+Exporter Full (`/d/rYdddlPWk/node-exporter-full`), cAdvisor
 (`/d/pMEd7m0Mz/cadvisor-exporter`), PVE
 (`/d/pve-via-prometheus/proxmox-via-prometheus`), Disk Health
 (`/d/disk-health/disk-health`), and Logs & Errors
 (`/d/logs-errors/logs-and-errors`). Docker logs carry `container`,
 `compose_project`, and `service` labels; the observability containers are
-excluded to prevent a log-feedback loop. The cAdvisor scrape relabels the Compose service
-label to `name` and the instance to `docker-1`. Disk temperatures and SMART
-health come from `smartctl_device_temperature` and `smartctl_device_smart_status`.
-Disk Health also exposes raw SMART counters: reallocated, pending, offline
-uncorrectable, CRC errors, power-on hours, power cycles, start/stop and load
-cycles.
-Export production dashboards as JSON after editing them in the UI; do not leave
-the only copy in Grafana's database.
+excluded to prevent a log-feedback loop. The cAdvisor scrape relabels the
+Compose service label to `name` and the instance to `docker-1`. Disk
+temperatures and SMART health come from `smartctl_device_temperature` and
+`smartctl_device_smart_status`. Disk Health also exposes raw SMART counters:
+reallocated, pending, offline uncorrectable, CRC errors, power-on hours, power
+cycles, start/stop and load cycles.
+
+Alert rules, contact points, and notification policies still live in Grafana's
+database; moving them to the same provisioning path is the next task.
 
 Grafana Alerting has two webhook contact points, both using
 `?template=grafana`: `ntfy-alerts` for the normal alerts topic and

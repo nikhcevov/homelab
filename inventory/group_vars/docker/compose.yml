@@ -57,6 +57,24 @@ compose_extra_files:
   - stack: immich
     src: hwaccel.ml.yml
     dest: "{{ compose_root }}/immich/hwaccel.ml.yml"
+  - stack: observability
+    src: dashboards/cadvisor-exporter.json
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/dashboards/cadvisor-exporter.json"
+  - stack: observability
+    src: dashboards/disk-health.json
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/dashboards/disk-health.json"
+  - stack: observability
+    src: dashboards/homelab-overview.json
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/dashboards/homelab-overview.json"
+  - stack: observability
+    src: dashboards/logs-errors.json
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/dashboards/logs-errors.json"
+  - stack: observability
+    src: dashboards/node-exporter-full.json
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/dashboards/node-exporter-full.json"
+  - stack: observability
+    src: dashboards/proxmox-via-prometheus.json
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/dashboards/proxmox-via-prometheus.json"
 
 compose_config_templates:
   - stack: caddy-cloudflare
@@ -79,4 +97,8 @@ compose_config_templates:
   - stack: observability
     src: ../compose/observability/grafana-datasources.yml.j2
     dest: "{{ compose_appdata }}/observability/grafana/provisioning/datasources/datasources.yml"
+    mode: "0644"
+  - stack: observability
+    src: ../compose/observability/grafana-dashboards.yml.j2
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/dashboards/provider.yml"
     mode: "0644"
