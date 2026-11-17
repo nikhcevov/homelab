@@ -69,6 +69,10 @@ Every message carries two tags:
 
 Do not use `package` for every backup or update message. It hides the component.
 
+Gatus uses one fixed tag set (`external,monitor`) because its custom alert
+payload cannot vary tags between firing and resolved. Its title emoji carries
+the state instead.
+
 ## Components
 
 | Component | Scope |
