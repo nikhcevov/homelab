@@ -172,8 +172,10 @@ temperatures and SMART health come from `smartctl_device_temperature` and
 reallocated, pending, offline uncorrectable, CRC errors, power-on hours, power
 cycles, start/stop and load cycles.
 
-Alert rules, contact points, and notification policies still live in Grafana's
-database; moving them to the same provisioning path is the next task.
+Alert rules, contact points, and notification policies are provisioned from
+`compose/observability/alerting/` through the same file provider. The contact
+point URLs are rendered from vaulted ntfy topics; the rule data and routing are
+static YAML. UI edits to these resources are not the source of truth.
 
 Grafana Alerting has two webhook contact points, both using
 `?template=grafana`: `ntfy-alerts` for the normal alerts topic and

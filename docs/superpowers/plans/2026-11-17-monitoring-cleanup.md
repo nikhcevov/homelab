@@ -31,7 +31,9 @@
 - [x] Task 4 (dashboards): six dashboards exported to
   `compose/observability/dashboards/` and provisioned from Git; live Grafana
   reports `provisioned: true`.
-- [ ] Task 4 (alert rules/contact points/policies) still live in Grafana DB.
+- [x] Task 4 (alerting): contact points, notification policy, and 11 alert
+  rules are file-provisioned from `compose/observability/alerting/`; live
+  Grafana reports `provenance: file` and all rules are healthy.
 - [ ] Tasks 5-7 pending.
 
 ## Review Focus

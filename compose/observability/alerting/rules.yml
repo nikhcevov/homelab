@@ -1,0 +1,601 @@
+apiVersion: 1
+groups:
+- orgId: 1
+  name: homelab
+  folder: Homelab Alerts
+  interval: 60s
+  rules:
+  - uid: fg4kec23nsydcc
+    title: Scrape target down
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: up{job=~"prometheus|node-pve|node-docker|smartctl-pve|cadvisor|pve|nut"} == 0
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 5m
+    annotations:
+      summary: A scrape target has been down for 5 minutes
+    labels:
+      component: Monitor
+      severity: critical
+    isPaused: false
+  - uid: bg4kec26d6zuod
+    title: Filesystem above 85%
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: 100 * (1 - node_filesystem_avail_bytes{instance=~"10.77.0.1:9100|10.77.0.2:9100",mountpoint=~"/mnt/appdata|/mnt/photos|/mnt/files|/mnt/data|/"} / node_filesystem_size_bytes{instance=~"10.77.0.1:9100|10.77.0.2:9100",mountpoint=~"/mnt/appdata|/mnt/photos|/mnt/files|/mnt/data|/"})
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 85
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 15m
+    annotations:
+      summary: A monitored filesystem is above 85%
+    labels:
+      component: Disk
+      severity: warning
+    isPaused: false
+  - uid: cg4kec292l1c0f
+    title: Disk temperature above 50C
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: max by (device) (smartctl_device_temperature{temperature_type="current"})
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 50
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 10m
+    annotations:
+      summary: A disk temperature is above 50C
+    labels:
+      component: Disk
+      severity: warning
+    isPaused: false
+  - uid: dg4kec2bph6gwb
+    title: SMART health failed
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: smartctl_device_smart_status == 0
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 5m
+    annotations:
+      summary: A disk reports failed SMART health
+    labels:
+      component: Disk
+      severity: critical
+    isPaused: false
+  - uid: bg4kec2emcwzkf
+    title: PVE storage above 85%
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: 100 * pve_disk_usage_bytes{id=~"storage/.+"} / on(id,instance) pve_disk_size_bytes{id=~"storage/.+"}
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 85
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 15m
+    annotations:
+      summary: A Proxmox storage is above 85%
+    labels:
+      component: PVE
+      severity: warning
+    isPaused: false
+  - uid: eg4kec2he8utcc
+    title: ZFS pool not online
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: node_zfs_zpool_state{state="online"} == 0
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 5m
+    annotations:
+      summary: A ZFS pool is not online
+    labels:
+      component: PVE
+      severity: critical
+    isPaused: false
+  - uid: ag4ki159j2y2oc
+    title: SMART pending or reallocated sectors
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: max by (device, attribute_name) (smartctl_device_attribute{attribute_name=~"Current_Pending_Sector|Reallocated_Sector_Ct|Offline_Uncorrectable", attribute_value_type="raw"})
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 5m
+    annotations:
+      summary: A disk reports pending, reallocated, or offline-uncorrectable sectors
+    labels:
+      component: Disk
+      severity: critical
+    isPaused: false
+  - uid: ag4ki15cfyolcf
+    title: SMART CRC errors increasing
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: increase(smartctl_device_attribute{attribute_name="UDMA_CRC_Error_Count", attribute_value_type="raw"}[1h])
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 10m
+    annotations:
+      summary: A disk CRC error counter increased in the last hour
+    labels:
+      component: Disk
+      severity: warning
+    isPaused: false
+  - uid: fg4ki5ya236yod
+    title: UPS on battery
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: network_ups_tools_ups_status{flag="OB"} == 1
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 1m
+    annotations:
+      summary: The UPS is running on battery power
+    labels:
+      component: UPS
+      severity: critical
+    isPaused: false
+  - uid: bg4ki5yctz4sgc
+    title: UPS low battery
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: network_ups_tools_ups_status{flag="LB"} == 1
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 1m
+    annotations:
+      summary: The UPS battery is low
+    labels:
+      component: UPS
+      severity: critical
+    isPaused: false
+  - uid: ag4ki5yf1vvuof
+    title: UPS overloaded
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: network_ups_tools_ups_status{flag="OVER"} == 1
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 5m
+    annotations:
+      summary: The UPS reports an overload condition
+    labels:
+      component: UPS
+      severity: warning
+    isPaused: false

@@ -102,3 +102,15 @@ compose_config_templates:
     src: ../compose/observability/grafana-dashboards.yml.j2
     dest: "{{ compose_appdata }}/observability/grafana/provisioning/dashboards/provider.yml"
     mode: "0644"
+  - stack: observability
+    src: ../compose/observability/alerting/contact-points.yml.j2
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/alerting/contact-points.yml"
+    mode: "0644"
+  - stack: observability
+    src: ../compose/observability/alerting/policies.yml
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/alerting/policies.yml"
+    mode: "0644"
+  - stack: observability
+    src: ../compose/observability/alerting/rules.yml
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/alerting/rules.yml"
+    mode: "0644"
