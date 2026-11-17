@@ -8,7 +8,7 @@ x-logging: &logging
 
 services:
   app:
-    image: ghcr.io/nikhcevov/order-manager-for-wife@sha256:577dc9d8b1b90422f80754693ea98d6e6c7516baa83887c9202fe351362c944f
+    image: ghcr.io/nikhcevov/order-manager-for-wife:0.4.0@sha256:577dc9d8b1b90422f80754693ea98d6e6c7516baa83887c9202fe351362c944f
     restart: unless-stopped
     mem_limit: 256m
     logging: *logging

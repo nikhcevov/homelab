@@ -12,7 +12,7 @@ x-logging: &logging
 services:
   immich-server:
     container_name: immich_server
-    image: ghcr.io/immich-app/immich-server@sha256:b434cb9287eea1471c9974845914d4dd328c9c2d652e446ed4930f99944f0ceb
+    image: ghcr.io/immich-app/immich-server:v3.1.0@sha256:b434cb9287eea1471c9974845914d4dd328c9c2d652e446ed4930f99944f0ceb
     extends:
       file: ./hwaccel.transcoding.yml
       service: nvenc
@@ -36,7 +36,7 @@ services:
 
   immich-machine-learning:
     container_name: immich_machine_learning
-    image: ghcr.io/immich-app/immich-machine-learning@sha256:82d3f6a093455964508052e0b3bc55a91075b48b65be35e78b40774a72c1ebb3
+    image: ghcr.io/immich-app/immich-machine-learning:v3.1.0-cuda@sha256:82d3f6a093455964508052e0b3bc55a91075b48b65be35e78b40774a72c1ebb3
     extends:
       file: ./hwaccel.ml.yml
       service: cuda

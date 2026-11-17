@@ -24,7 +24,7 @@ services:
       COUCHDB_PASSWORD: ${COUCHDB_PASSWORD}
 
   livesync-publisher:
-    image: ghcr.io/nikhcevov/livesync-publisher@sha256:be24ada586a1e6cb0bba933598538ae5bb7595c53acc5da635cc04c4048cc616
+    image: ghcr.io/nikhcevov/livesync-publisher:0.3.0@sha256:be24ada586a1e6cb0bba933598538ae5bb7595c53acc5da635cc04c4048cc616
     container_name: livesync-publisher
     restart: unless-stopped
     mem_limit: 384m

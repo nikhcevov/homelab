@@ -160,6 +160,52 @@ returned FORMERR for the pinned helper's Maven EDNS queries. Four uncached
 same-image probes succeeded with the override and unchanged installer hash;
 no global resolver/router change or expiring cache workaround is used.
 
+## Image updates
+
+Every `image:` is pinned as `repository:tag@sha256:digest`. The digest is
+authoritative; the tag makes the running release readable and lets update
+tooling compare versions. Keep both. A tag alone would make the running image
+depend on a mutable registry pointer, and a digest alone hides the release and
+prevents version-aware updates.
+
+Detection is delegated to [Renovate](https://docs.renovatebot.com/) through
+[`renovate.json5`](../renovate.json5). Install the
+[Mend Renovate app](https://github.com/apps/renovate) on the GitHub repository
+once. It maintains one **Container updates** issue (the
+Dependency Dashboard) and opens grouped PRs per stack. Major updates are
+disabled; database and application majors need their own backup and migration
+check. Renovate changes only `compose/**/compose.yaml` and never deploys.
+PRs are scheduled daily before 06:00 Europe/Moscow.
+
+Review and merge the PR, then apply only the affected stack:
+
+```bash
+ansible-playbook playbooks/docker.yml --limit docker-1 --tags compose \
+  -e compose_data_restored=true \
+  -e '{"compose_stacks":["media"]}'
+```
+
+The role copies the changed Compose file; `docker compose up -d` pulls the new
+digest and recreates only changed services. Do not use `docker compose pull` on
+the host as an update mechanism: the digest pin wins over a moving tag, so a
+pull without a source change does nothing.
+
+Manual bump when Renovate is unavailable:
+
+```bash
+docker buildx imagetools inspect ghcr.io/seerr-team/seerr:v3.5.2
+```
+
+Copy the printed `Digest:` into the tag+digest reference, run the Compose gate,
+merge, and deploy the stack as above. `docker manifest inspect` shows manifests
+but does not print the registry digest in the form the pin needs.
+
+The tag must describe the digest. Some vendors rebuild the same release and move
+the tag; Renovate then opens a digest-only PR for that release. Review it like
+any other image change. Roll back by reverting the pin and redeploying the same
+stack. An older image may not read a database already upgraded by a newer one;
+restore the pre-update backup in that case. See [Recover](#recover).
+
 ## Networking
 
 - VM private storage is `.2`, host `.1` on host-only `vmbr1`. LAN DHCP changes
