@@ -14,8 +14,7 @@ Two complementary layers:
 
 | Layer              | Where                | Covers                                                    |
 | ------------------ | -------------------- | --------------------------------------------------------- |
-| Uptime Kuma        | mon-1 (external)     | ports, HTTPS, certificates, ping — black-box, all hosts   |
-| Gatus              | mon-1 (side-by-side) | declarative HTTP/TCP/ICMP/DNS checks, status page         |
+| Gatus              | mon-1 (external)     | declarative HTTP/TCP/ICMP/DNS checks, status page         |
 | cron + ntfy checks | each VPS (internal)  | systemd units, containers, disk, updates, reboot, backups |
 
 ## Internal checks
@@ -43,9 +42,8 @@ reachable from the internet" while the per-host cron checks answer "is the host
 healthy inside". The status page is the existing monitoring domain behind
 Caddy.
 
-Kuma is stopped and disabled on `127.0.0.1:3001`; its SQLite database and
-`/opt/kuma-backup` archives remain the rollback path until validation is
-complete. Gatus does not use that database.
+Kuma is removed. There is no Kuma service, database, or backup path on the
+monitoring host; Gatus is the only external watcher.
 
 The declarative endpoint list lives in
 [`inventory/group_vars/mon/gatus.yml`](../inventory/group_vars/mon/gatus.yml);
@@ -67,7 +65,7 @@ The service restarts on config or binary changes; do not treat the UI as a
 source of truth.
 
 Deploy: [day-0](getting-started.md#first-run-new-vps) → DNS A record for the
-monitoring domain (`vault_kuma_domain`) → `ansible-playbook playbooks/mon.yml`.
+monitoring domain (`vault_monitoring_domain`) → `ansible-playbook playbooks/mon.yml`.
 The endpoint list, thresholds, and alert envelope are all in Git.
 
 `playbooks/mon.yml` targets only the `mon` group and reconciles Tailscale after
@@ -77,11 +75,9 @@ not configure this host.
 
 - Monitors and settings live in `inventory/group_vars/mon/gatus.yml` and the
   role templates — there is no UI-managed state.
-- The rollback is `systemctl enable --now kuma` plus pointing Caddy back to
-  `127.0.0.1:3001`. The legacy `kuma_backup` snapshots the stopped Kuma DB and
-  Caddy files nightly to `/opt/kuma-backup/archives`.
 - The host watches itself via the same cron checks; there are no cron
-  cross-checks between hosts — external watching is Gatus's job alone. Gatus
-  itself still needs a separate dead-man's switch; that gap is not closed yet.
+  cross-checks between hosts — external watching is Gatus's job alone. A
+  separate dead-man's switch for `mon-1` is an accepted risk and deliberately
+  out of scope.
 - mon-1 accepts subnet routes (`tailscale_accept_routes: true`), so Gatus can
   poll router LAN services (see [OpenWrt router](openwrt.md)).

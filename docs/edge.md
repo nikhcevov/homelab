@@ -97,7 +97,7 @@ The operator owns these external steps, in order:
    the OS hostname to `edge`; network reconciles Tailscale's hostname without
    re-authentication; services render the derived `[EDGE]` alert prefix.
    Verify OS hostname, MagicDNS, proxy listeners, and monitoring afterwards.
-6. Review external consumers yourself: Kuma monitors, SSH config, provider
+6. Review external consumers yourself: Gatus checks, SSH config, provider
    labels, and any other references to the old name are not reconciled here.
    Their current state is unknown to this repository.
 

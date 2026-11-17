@@ -4,7 +4,7 @@
 
 Sources: [observability Compose stack](../compose/observability/), [agent role](../roles/observability_agents/), [Docker stack inventory](../inventory/group_vars/docker/compose.yml), and the [implementation plan](superpowers/plans/2026-11-16-observability-stack.md).
 
-This guide covers the local metrics and log stack. Uptime Kuma remains the external
+This guide covers the local metrics and log stack. Gatus is the external
 availability watcher; it is not replaced by Grafana.
 
 ## Layers
@@ -195,8 +195,8 @@ Configured rules:
 | UPS low battery | 1m | critical |
 | UPS overloaded | 5m | warning |
 
-Both webhook tests returned HTTP 200. External Kuma monitoring is intentionally
-deferred for a later redesign.
+Both webhook tests returned HTTP 200. External availability checks are owned by
+[Gatus](monitoring.md), not Grafana.
 
 ## Rollback
 
@@ -222,7 +222,7 @@ Do not delete data until the retention and backup decision is recorded.
 - Loki indexes labels, not every word; queries scan chunks.
 - cAdvisor is privileged because it reads Docker/cgroup data; keep it pinned and
   loopback-only.
-- The stack shares the PVE failure domain with `docker-1`; external Kuma remains
+- The stack shares the PVE failure domain with `docker-1`; external Gatus remains
   the only off-host alert path.
 - The current 4C/8T host is the next bottleneck after memory; adding more
   guests does not add CPU.

@@ -1,8 +1,6 @@
 ---
-# Gatus endpoint inventory. Caddy fronts Gatus on 127.0.0.1:8080;
-# Kuma remains installed only as a rollback during validation.
+# Gatus endpoint inventory. Caddy fronts Gatus on 127.0.0.1:8080.
 gatus_port: 8080
-gatus_push_token: "{{ vault_gatus_push_token }}"
 
 gatus_endpoints:
   - name: Admin panel
@@ -115,18 +113,3 @@ gatus_endpoints:
       query_type: A
     conditions:
       - "[DNS_RCODE] == NOERROR"
-
-# Push targets are enabled only when their senders are migrated from Kuma.
-gatus_external_endpoints:
-  - name: unraid-backup-pull
-    group: Backup
-    heartbeat: 25h
-    enabled: false
-  - name: unraid-restic-vault-backup
-    group: Backup
-    heartbeat: 192h
-    enabled: false
-  - name: unraid-restic-vault-check
-    group: Backup
-    heartbeat: 432h
-    enabled: false

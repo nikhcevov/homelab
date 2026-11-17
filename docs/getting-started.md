@@ -94,5 +94,5 @@ The vault password lives in `.vault_pass` (gitignored, referenced by `ansible.cf
 | ------------------------------------ | ------------------------------------ | ------------------------------------------------------- |
 | `vault_ntfy_topic_*`                 | `inventory/group_vars/all/vault.yml` | ntfy topic name = password                              |
 | `vault_tailscale_auth_key`           | `inventory/group_vars/all/vault.yml` | optional unattended tailnet join (empty = manual day-0) |
-| `vault_kuma_domain`                  | `inventory/group_vars/mon/vault.yml` | real Kuma domain                                        |
+| `vault_monitoring_domain`            | `inventory/group_vars/mon/vault.yml` | real monitoring/status domain                           |
 | `vault_*_domain`, `vault_xui_*_path` | `inventory/host_vars/vpn-<cc>.yml`   | VPN domains + secret 3x-ui URL paths                    |

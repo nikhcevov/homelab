@@ -48,15 +48,3 @@ endpoints:
     alerts:
       - type: custom
 {% endfor %}
-
-external-endpoints:
-{% for endpoint in gatus_external_endpoints %}
-  - name: {{ endpoint.name | to_json }}
-    group: {{ endpoint.group | default('Backup') | to_json }}
-    token: {{ gatus_push_token | to_json }}
-    enabled: {{ endpoint.enabled | default(false) | bool | to_json }}
-    heartbeat:
-      interval: {{ endpoint.heartbeat | default('25h') | to_json }}
-    alerts:
-      - type: custom
-{% endfor %}

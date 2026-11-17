@@ -5,7 +5,7 @@ gatus_version: "v5.38.0"
 gatus_binary_src: ""
 gatus_binary_sha256: ""
 gatus_port: 8080
-gatus_domain: "{{ kuma_domain }}"
+gatus_domain: "{{ monitoring_domain }}"
 gatus_dir: /etc/gatus
 gatus_data_dir: /var/lib/gatus
 gatus_user: gatus
