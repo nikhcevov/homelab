@@ -5,6 +5,7 @@
 Sources: [compose definitions](../compose/), [guest baseline](../roles/docker_vm/),
 [deployment role](../roles/compose_stacks/), [GPU role](../roles/nvidia_guest/),
 [Docker variables](../inventory/group_vars/docker/compose.yml),
+[manual deploy workflow](../.github/workflows/deploy-docker.yml),
 [migration runbook](proxmox-migration.md), [backups](backups-proxmox.md).
 
 Guest baseline and authorized production deployment are applied.
@@ -216,6 +217,46 @@ The role copies the changed Compose file; `docker compose up -d` pulls the new
 digest and recreates only changed services. Do not use `docker compose pull` on
 the host as an update mechanism: the digest pin wins over a moving tag, so a
 pull without a source change does nothing.
+
+### Manual GitHub Actions deploy
+
+[`deploy-docker.yml`](../.github/workflows/deploy-docker.yml) runs the same
+Compose reconciliation from a GitHub-hosted runner. It is manual only
+(`workflow_dispatch`), never triggered by a push or a Renovate PR.
+
+Inputs:
+
+- `stacks`: comma-separated stack names from `compose_stacks`; unknown names are
+  rejected.
+- `confirm_restore_gate`: must be checked; the workflow always passes
+  `compose_data_restored=true`.
+
+Required secrets in the GitHub Environment `production`:
+
+| Secret | Purpose |
+| --- | --- |
+| `ANSIBLE_VAULT_PASSWORD` | `.vault_pass` for the encrypted inventory |
+| `SSH_PRIVATE_KEY` | dedicated key for `boss@docker-1`; do not reuse a personal key |
+| `SSH_KNOWN_HOSTS` | pinned host key for `docker-1` |
+| `TS_OAUTH_CLIENT_ID` | Tailscale OAuth client tagged `tag:ci` |
+| `TS_OAUTH_CLIENT_SECRET` | corresponding OAuth secret |
+
+Create the `production` environment with a required reviewer. The runner joins
+the tailnet as `tag:ci`; the Tailscale policy must allow `tag:ci` to
+`docker-1:22` and MagicDNS. See [Tailscale policy](tailscale.md). Add the public
+half of `SSH_PRIVATE_KEY` to `boss`'s `authorized_keys`, preferably through the
+existing `ssh` role. Generate `SSH_KNOWN_HOSTS` for the inventory's
+`ansible_host` value (the MagicDNS name) with `ssh-keyscan -H` from a trusted
+controller and store the output.
+
+The workflow runs the offline Ansible/Compose gates, deploys only
+`playbooks/docker.yml --tags compose`, prints `docker ps`, and removes the
+temporary credentials. It does not run destructive tags. The local command
+above remains the fallback when GitHub or Tailscale is unavailable.
+
+The repository is public, so the workflow uses a GitHub-hosted runner, not a
+self-hosted runner; secrets are masked in logs. Do not add a self-hosted runner
+for fork PRs.
 
 Manual bump when Renovate is unavailable:
 
