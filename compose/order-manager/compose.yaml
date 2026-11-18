@@ -33,7 +33,7 @@ services:
   db:
     # Shared stock PostgreSQL pin. An 18.6 data directory must be
     # reinitialized or restored before this image can start.
-    image: postgres:18.4@sha256:4aabea78cf39b90e834caf3af7d602a18565f6fe2508705c8d01aa63245c2e20
+    image: postgres:18.7@sha256:2ea8630df176ad090ec92136dee850397c5af8781e4bcf2e4162593691c61bbc
     restart: unless-stopped
     mem_limit: 256m
     logging: *logging
