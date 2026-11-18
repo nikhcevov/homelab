@@ -38,8 +38,20 @@
 
   "packageRules": [
     {
-      // A database- or application-major transition needs its own migration
-      // and backup check; it is never automated here.
+      // Major application updates are visible in the Dependency Dashboard,
+      // but no PR is created until the checkbox is approved.
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      // Database majors need pg_upgrade/dump-restore and extension checks.
+      // Keep them out of the dashboard rather than pending approval.
+      "matchDatasources": ["docker"],
+      "matchPackageNames": [
+        "/^(?:docker\\.io\\/)?(?:library\\/)?(?:postgres|redis|couchdb)$/",
+        "/^(?:docker\\.io\\/)?valkey\\/valkey$/",
+        "/^ghcr\\.io\\/immich-app\\/postgres$/"
+      ],
       "matchUpdateTypes": ["major"],
       "enabled": false
     },
