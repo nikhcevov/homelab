@@ -21,7 +21,7 @@ x-common: &common
 services:
   qbittorrent:
     <<: *common
-    image: ghcr.io/linuxserver/qbittorrent:5.2.3_v2.0.15-ls478@sha256:caab2ebce30799ab342c374ea268fef4ec063a8ec3733a4e5d4a8e856ee32ce8
+    image: ghcr.io/linuxserver/qbittorrent:5.3.0_v2.1.2-ls487@sha256:3d4c4545d51a690a0df15a2ff99038823a88a9822df8e794526447b9afbd7384
     container_name: qbittorrent
     mem_limit: 1536m
     ports:
@@ -38,7 +38,7 @@ services:
 
   prowlarr:
     <<: *common
-    image: ghcr.io/linuxserver/prowlarr:2.6.5.5623-ls162@sha256:f2b26429893d4c4cb71941b7ee50b1bdecd9d5f9f9e02d5410615e9f4f7c8d95
+    image: ghcr.io/linuxserver/prowlarr:2.7.0.5723-ls168@sha256:6660787a99b2e58203539583663c973b48979fc00ff2cb78dc0ea17429e1f6ef
     container_name: prowlarr
     ports:
       - "127.0.0.1:9696:9696"
@@ -47,7 +47,7 @@ services:
 
   sonarr:
     <<: *common
-    image: ghcr.io/linuxserver/sonarr:4.0.20.3014-ls326@sha256:f247545d23ba8b233d6604575347e48a623fe6ad75dda02348bf81917f3b5c06
+    image: ghcr.io/linuxserver/sonarr:4.0.20.3014-ls329@sha256:44b06045a98bc1f237b9ffefc4b28dab64cb29305e4a2a94875ae93b5224e4cc
     container_name: sonarr
     ports:
       - "127.0.0.1:8989:8989"
@@ -57,7 +57,7 @@ services:
 
   sonarr-anime:
     <<: *common
-    image: ghcr.io/linuxserver/sonarr:4.0.20.3014-ls326@sha256:f247545d23ba8b233d6604575347e48a623fe6ad75dda02348bf81917f3b5c06
+    image: ghcr.io/linuxserver/sonarr:4.0.20.3014-ls329@sha256:44b06045a98bc1f237b9ffefc4b28dab64cb29305e4a2a94875ae93b5224e4cc
     container_name: sonarr-anime
     ports:
       - "127.0.0.1:8990:8989"
@@ -67,7 +67,7 @@ services:
 
   radarr:
     <<: *common
-    image: ghcr.io/linuxserver/radarr:6.4.4.10685-ls318@sha256:adb6c09d6b729ea5e642c99cea35af72702ef476bf4763f153299ac5db9f0b4f
+    image: ghcr.io/linuxserver/radarr:6.4.4.10685-ls327@sha256:7a20f20de63706eee2ff6e4ac1f989a70c961f456aa47ccb6c78f2bb7657d9ae
     container_name: radarr
     ports:
       - "127.0.0.1:7878:7878"
@@ -77,7 +77,7 @@ services:
 
   radarr-anime:
     <<: *common
-    image: ghcr.io/linuxserver/radarr:6.4.4.10685-ls318@sha256:adb6c09d6b729ea5e642c99cea35af72702ef476bf4763f153299ac5db9f0b4f
+    image: ghcr.io/linuxserver/radarr:6.4.4.10685-ls327@sha256:7a20f20de63706eee2ff6e4ac1f989a70c961f456aa47ccb6c78f2bb7657d9ae
     container_name: radarr-anime
     ports:
       - "127.0.0.1:7879:7878"
@@ -87,7 +87,7 @@ services:
 
   bazarr:
     <<: *common
-    image: ghcr.io/linuxserver/bazarr:v1.6.2-ls366@sha256:8b30e81c4aec2991f469e78fae8afaa89ecc9b21a80e3897f50427216b55470c
+    image: ghcr.io/linuxserver/bazarr:v1.6.2-ls373@sha256:e0c5d45965242830c5eeddaafe9ae2b5e8ca3f6c01ecda9ee9364f550921dc50
     container_name: bazarr
     ports:
       - "127.0.0.1:6767:6767"
@@ -97,7 +97,7 @@ services:
 
   jellyfin:
     <<: *common
-    image: ghcr.io/linuxserver/jellyfin:12.1ubu2604-ls50@sha256:51252e7a416e703cdc3cd91e8a54673a2430cc80409be8a38abe511411577b95
+    image: ghcr.io/linuxserver/jellyfin:12.4ubu2604-ls60@sha256:b10044530553b2506f06279bf0b5223f9534f434f87a277da4b8fa8ac386cb58
     container_name: jellyfin
     mem_limit: 1536m
     runtime: nvidia
@@ -116,7 +116,7 @@ services:
 
   seerr:
     <<: *common
-    image: ghcr.io/seerr-team/seerr:v3.4.1@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1
+    image: ghcr.io/seerr-team/seerr:v3.5.2@sha256:aadee014b40e28cf9aa4928bc9d1183a6eb08f8c44d543cddc9efdcb16549be2
     container_name: seerr
     mem_limit: 768m
     user: "${PUID}:${PGID}"
@@ -134,7 +134,7 @@ services:
 
   whisparr:
     <<: *common
-    image: ghcr.io/hotio/whisparr:v3-3.6.2-release.1727@sha256:0f2af8b840e937f1e7f06aa535179692428f8c4b3f2dc139591f1640e9b4c6fb
+    image: ghcr.io/hotio/whisparr:v3-3.6.2-release.1727@sha256:7c00fde3986622847592d6707ba2b1cefaab5ebc0f105cc40b69912ff7ac62f3
     container_name: whisparr
     cap_add:
       - NET_ADMIN
@@ -146,7 +146,7 @@ services:
 
   clonarr:
     <<: *common
-    image: ghcr.io/prophetse7en/clonarr:v3.4.0@sha256:9400d298b37a61b89f77ff3e46be4feb51fec68f294e00ba6c15beca00970d29
+    image: ghcr.io/prophetse7en/clonarr:v3.5.0@sha256:8c3169e0d610ff5318adddbc9307ab9db8665176fc4cb559ef46c73431f1d3fa
     container_name: clonarr
     mem_limit: 128m
     ports:
@@ -171,7 +171,7 @@ services:
 
   # Removes torrents whose files lost library hardlinks (deleted through Seerr).
   qbit_manage:
-    image: ghcr.io/stuffanthings/qbit_manage:v4.13.0@sha256:ea04167f627e506b3691304f4c639a52c05584cc9aea4af7ec87d4ed1299e7f5
+    image: ghcr.io/stuffanthings/qbit_manage:v4.15.0@sha256:f8db47d6533bac7c7f71d367545c5059d7228bcca188db1e059dbf4a693d8362
     container_name: qbit_manage
     restart: unless-stopped
     mem_limit: 256m
