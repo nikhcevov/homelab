@@ -119,7 +119,7 @@ changing this hardware decision.
 ## Stack and configuration ownership
 
 The authoritative deployment list remains
-[`compose_stacks`](../inventory/group_vars/docker/compose.yml): eleven stacks.
+[`compose_stacks`](../inventory/group_vars/docker/compose.yml).
 Frigate, LiteLLM, Scrutiny, and the Homelable MCP container are removed from
 this Docker VM. Their stacks, Caddy routes, secrets, containers, and retained
 data are gone. Do not revive the stopped StirlingPDF container or legacy HAOS
@@ -130,7 +130,7 @@ images are pinned to audited digests, including Paperless2.20.15 and Immich3.1.0
 PostgreSQL14/18 majors and their data-directory layouts are preserved. An OS/
 driver transition does not authorize an application/database-major upgrade.
 Update those independently after migration and restore proof. Stock PostgreSQL
-is pinned at 18.4 for Paperless and order-manager; Immich keeps its vendor
+is pinned at 18.4 for Paperless, order-manager and Sure; Immich keeps its vendor
 14-vectorchord image. A data directory created by a newer minor must be
 dumped/restored or reinitialized before changing the pin.
 
@@ -155,6 +155,29 @@ without a backend, preserved all six proxy URI paths and followed a changed
 backend IP without restart in an isolated same-image proof. Production UI and
 proxied OpenAPI returned200; the real sign-in form rendered without browser errors.
 
+Sure is a four-container Rails stack: `web`, a Sidekiq `worker`, PostgreSQL18.4
+and Redis8.8.0. Images are digest-pinned. It publishes only loopback port3010
+because Grafana owns3000; Caddy serves `https://sure.home.arpa` with its internal
+CA, so clients must trust
+`/mnt/appdata/caddy/data/caddy/pki/authorities/local/root.crt` before the UI is
+usable without warnings. PostgreSQL18 mounts `/mnt/appdata/sure/postgres` at
+`/var/lib/postgresql`; its data lives under the versioned `18/docker`
+subdirectory, so a 16.x data directory is not compatible.
+
+Memory is deliberately constrained: `RAILS_MAX_THREADS=2` (Puma two threads;
+Sidekiq one default plus one AI lane), jemalloc `narenas:2` with one-second
+dirty/muzzy decay, PostgreSQL `shared_buffers=64MB`/`max_connections=20`, and
+Redis `maxmemory=64mb`. Production RSS measured about web380–470 MiB, worker350 MiB,
+PostgreSQL60 MiB and Redis21 MiB; the 640m web cap leaves headroom for request
+spikes. Caps are web640m, worker768m (the worker needs headroom for a first
+large import), PostgreSQL256m and Redis128m. Sure has no app-level backup
+service here: PBS VM images cover `/mnt/appdata/sure`, including PostgreSQL, and
+QGA freeze/thaw requires WAL replay. `SECRET_KEY_BASE` and the three Active
+Record encryption keys are vaulted and must never change after data exists;
+rotating them makes encrypted provider tokens unreadable. First boot uses
+`sure_onboarding_state: open`; create the super-admin, then set it to `closed`
+and redeploy.
+
 Minecraft retains MC26.1.2, Fabric loader0.20.1 and launcher1.1.2. Start Caddy
 before Minecraft: `PACKWIZ_HOST` maps the canonical HTTPS pack hostname to the
 Docker host gateway, preserving SNI/certificate validation without early edge
@@ -175,10 +198,11 @@ Detection is delegated to [Renovate](https://docs.renovatebot.com/) through
 [`renovate.json5`](../renovate.json5). Install the
 [Mend Renovate app](https://github.com/apps/renovate) on the GitHub repository
 once. It maintains one **Container updates** issue (the
-Dependency Dashboard) and opens grouped PRs per stack. Major updates are
-disabled; database and application majors need their own backup and migration
-check. Renovate changes only `compose/**/compose.yaml` and never deploys.
-PRs are scheduled daily before 06:00 Europe/Moscow.
+Dependency Dashboard) and opens grouped PRs per stack. Major application
+updates appear in the dashboard but require manual approval; database majors
+stay disabled because they need pg_upgrade or dump/restore. Renovate changes
+only `compose/**/compose.yaml` and never deploys. PRs are scheduled daily
+before 06:00 Europe/Moscow.
 
 Review and merge the PR, then apply only the affected stack:
 
@@ -288,6 +312,12 @@ JSON quoting/dollar escaping and URI percent-encoding are applied separately.
 The Compose gate exercises dollar/braces/quote/backslash roundtripping with
 synthetic values and never decrypts production vaults.
 
+Sure requires `vault_sure_secret_key_base`, `vault_sure_postgres_password`, and
+the three `vault_sure_active_record_encryption_*` keys. The secret key and
+encryption keys are immutable once data exists; changing any of them makes
+encrypted bank/provider tokens unreadable. The first super-admin is created in
+the UI while onboarding is open.
+
 Paperless receives explicit PostgreSQL engine/application password and polling
 for its NFS consume directory. The audit confirmed 86 documents in its actual
 PostgreSQL database; a new empty SQLite installation is not a migration success.
@@ -309,6 +339,9 @@ python tests/check_compose.py
 ssh docker-1 'findmnt /mnt/appdata /mnt/photos /mnt/files /mnt/data'
 ssh docker-1 'nvidia-smi'
 ssh docker-1 'docker ps --format "table {{.Names}}\t{{.Status}}"'
+ssh docker-1 'docker exec sure-web curl -fsS http://127.0.0.1:3000/up'
+ssh docker-1 'docker stats --no-stream --filter name=sure- --format "table {{.Name}}\t{{.MemUsage}}"'
+curl --cacert /path/to/caddy-root.crt -fsS https://sure.home.arpa/up
 ```
 
 Exercise restored state and real client paths: Paperless documents, Immich

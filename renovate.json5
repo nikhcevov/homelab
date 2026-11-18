@@ -71,7 +71,8 @@
       "allowedVersions": "/^v?[0-9]+\\.[0-9]+.*-ls[0-9]+$/"
     },
     {
-      // A 0.x minor release can be breaking; treat it like a major update.
+      // A 0.x minor release can be breaking; show it for approval instead of
+      // creating a PR automatically.
       "matchDatasources": ["docker"],
       "matchPackageNames": [
         "gcr.io/cadvisor/cadvisor",
@@ -80,7 +81,7 @@
         "ghcr.io/we-promise/sure"
       ],
       "matchUpdateTypes": ["minor"],
-      "enabled": false
+      "dependencyDashboardApproval": true
     },
     { "matchFileNames": ["compose/caddy-cloudflare/compose.yaml"], "groupName": "caddy-cloudflare stack" },
     { "matchFileNames": ["compose/dns-server/compose.yaml"], "groupName": "dns-server stack" },
