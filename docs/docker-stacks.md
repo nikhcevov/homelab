@@ -129,7 +129,10 @@ Each stack has a static `compose.yaml` and vaulted `.env.j2`. Source application
 images are pinned to audited digests, including Paperless2.20.15 and Immich3.1.0;
 PostgreSQL14/18 majors and their data-directory layouts are preserved. An OS/
 driver transition does not authorize an application/database-major upgrade.
-Update those independently after migration and restore proof.
+Update those independently after migration and restore proof. Stock PostgreSQL
+is pinned at 18.4 for Paperless and order-manager; Immich keeps its vendor
+14-vectorchord image. A data directory created by a newer minor must be
+dumped/restored or reinitialized before changing the pin.
 
 Code-owned Immich extension YAML is deployed beside its Compose file, not into
 appdata. Sanitized Caddyfile/home/public routing templates are versioned;

@@ -54,7 +54,21 @@
       // published version, not a compatibility variant.
       "matchDatasources": ["docker"],
       "matchPackageNames": ["ghcr.io/linuxserver/*"],
-      "versioning": "loose"
+      "versioning": "loose",
+      // Only stable LinuxServer build tags; RE2 has no negative lookahead.
+      "allowedVersions": "/^v?[0-9]+\\.[0-9]+.*-ls[0-9]+$/"
+    },
+    {
+      // A 0.x minor release can be breaking; treat it like a major update.
+      "matchDatasources": ["docker"],
+      "matchPackageNames": [
+        "gcr.io/cadvisor/cadvisor",
+        "ghcr.io/nikhcevov/order-manager-for-wife",
+        "ghcr.io/nikhcevov/livesync-publisher",
+        "ghcr.io/we-promise/sure"
+      ],
+      "matchUpdateTypes": ["minor"],
+      "enabled": false
     },
     { "matchFileNames": ["compose/caddy-cloudflare/compose.yaml"], "groupName": "caddy-cloudflare stack" },
     { "matchFileNames": ["compose/dns-server/compose.yaml"], "groupName": "dns-server stack" },
