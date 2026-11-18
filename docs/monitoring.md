@@ -17,6 +17,12 @@ Two complementary layers:
 | Gatus              | mon-1 (external)     | declarative HTTP/TCP/ICMP/DNS checks, status page         |
 | cron + ntfy checks | each VPS (internal)  | systemd units, containers, disk, updates, reboot, backups |
 
+Gatus intentionally has no per-application checks for the Docker VM. The app
+routes are `home.arpa` only and `mon-1` does not resolve that zone; adding them
+would either show false failures or send one alert per container when `docker-1`
+is down. The public Immich endpoint is the single Docker-VM availability signal;
+Grafana owns per-container health, restart and OOM alerts.
+
 ## Internal checks
 
 Internal checks (same `monitoring` role on `edge_nodes`, `vpn`, `mon`; per-group config in `inventory/group_vars/<group>/monitoring.yml`) push to ntfy **only on state transitions**:

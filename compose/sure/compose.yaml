@@ -1,0 +1,124 @@
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "1"
+
+# Memory tuning:
+# - RAILS_MAX_THREADS=2 keeps Puma at 2 threads and Sidekiq at one default
+#   worker plus its one AI-lane thread. The worker refuses less than 2.
+# - jemalloc returns dirty/muzzy pages promptly and uses two arenas.
+# - PostgreSQL gets a small shared buffer/connection budget; Redis is capped.
+# The app's Ruby baseline remains the dominant cost; caps prevent growth.
+x-sure-env: &sure_env
+  SELF_HOSTED: "true"
+  DB_HOST: db
+  DB_PORT: "5432"
+  REDIS_URL: redis://redis:6379/1
+  RAILS_ASSUME_SSL: "true"
+  RAILS_FORCE_SSL: "false"
+  APP_DOMAIN: sure.home.arpa
+  ONBOARDING_STATE: ${ONBOARDING_STATE:-open}
+  RAILS_MAX_THREADS: "2"
+  WEB_CONCURRENCY: "1"
+  MALLOC_CONF: "narenas:2,dirty_decay_ms:1000,muzzy_decay_ms:1000"
+
+services:
+  web:
+    container_name: sure-web
+    image: ghcr.io/we-promise/sure:0.7.6-hotfix.1@sha256:002cde609f3af4b69ba2564c2482f3996e1fe29092dd169962b9b6ed943fcb10
+    restart: unless-stopped
+    mem_limit: 640m
+    env_file:
+      - .env
+    environment:
+      <<: *sure_env
+    ports:
+      - "127.0.0.1:3010:3000"
+    volumes:
+      - /mnt/appdata/sure/storage:/rails/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/up || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging: *logging
+
+  worker:
+    container_name: sure-worker
+    image: ghcr.io/we-promise/sure:0.7.6-hotfix.1@sha256:002cde609f3af4b69ba2564c2482f3996e1fe29092dd169962b9b6ed943fcb10
+    restart: unless-stopped
+    mem_limit: 768m
+    command: bundle exec sidekiq
+    env_file:
+      - .env
+    environment:
+      <<: *sure_env
+    volumes:
+      - /mnt/appdata/sure/storage:/rails/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging: *logging
+
+  db:
+    container_name: sure-db
+    # Shared stock PostgreSQL pin. Remove the unused 16.x data directory
+    # before the first 18.4 start.
+    image: postgres:18.4@sha256:4aabea78cf39b90e834caf3af7d602a18565f6fe2508705c8d01aa63245c2e20
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sure_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-sure_production}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - max_connections=20
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - effective_cache_size=256MB
+      - -c
+      - wal_buffers=4MB
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - random_page_cost=1.1
+    volumes:
+      - /mnt/appdata/sure/postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    logging: *logging
+
+  redis:
+    container_name: sure-redis
+    image: redis:8.8.0@sha256:2838d5524559494f6f1cd66e97e76b200d64a633a8614200620755ed395daf32
+    restart: unless-stopped
+    mem_limit: 128m
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - /mnt/appdata/sure/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging: *logging
