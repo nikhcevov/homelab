@@ -12,7 +12,7 @@ x-logging: &logging
 services:
   immich-server:
     container_name: immich_server
-    image: ghcr.io/immich-app/immich-server:v3.1.0@sha256:b434cb9287eea1471c9974845914d4dd328c9c2d652e446ed4930f99944f0ceb
+    image: ghcr.io/immich-app/immich-server:v3.4.2@sha256:fc880c1bf665b4aab1e74c15e56ab871225989cd546536e6b77e771869af06bd
     extends:
       file: ./hwaccel.transcoding.yml
       service: nvenc
@@ -36,7 +36,7 @@ services:
 
   immich-machine-learning:
     container_name: immich_machine_learning
-    image: ghcr.io/immich-app/immich-machine-learning:v3.1.0-cuda@sha256:82d3f6a093455964508052e0b3bc55a91075b48b65be35e78b40774a72c1ebb3
+    image: ghcr.io/immich-app/immich-machine-learning:v3.4.2-cuda@sha256:0a8aeaeb6771da78c4f54bc00b429b113267db50aa121aa6e30f78ef86a31e33
     extends:
       file: ./hwaccel.ml.yml
       service: cuda
@@ -52,7 +52,7 @@ services:
 
   redis:
     container_name: immich_redis
-    image: docker.io/valkey/valkey:9.1.0@sha256:4963247afc4cd33c7d3b2d2816b9f7f8eeebab148d29056c2ca4d7cbc966f2d9
+    image: docker.io/valkey/valkey:9.1.4@sha256:3ab0eca823ebbf0fe352476ebac330ac9e5f14b592b9a954eab296d341e81b0e
     healthcheck:
       test: redis-cli ping || exit 1
     restart: always
