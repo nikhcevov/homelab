@@ -84,6 +84,8 @@ jobs:
     with:
       stacks: ${{ needs.parse.outputs.stacks }}
       confirm_restore_gate: true
+    environment: production
+    secrets: inherit
     permissions:
       contents: read
 
