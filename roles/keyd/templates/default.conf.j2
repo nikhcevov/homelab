@@ -1,13 +1,13 @@
 # Managed by Ansible (roles/keyd) — local edits will be overwritten.
 #
-# Built-in laptop keyboard only: [ids] lists explicit device ids, so keyd
-# grabs exactly those and ignores every other keyboard (no virtual device,
-# no remap). The default id is the i8042 "AT Translated Set 2 keyboard";
-# `k:` restricts the match to keyboard devices.
+# Built-in laptop keyboard and Keychron K1: [ids] lists explicit device ids,
+# so keyd grabs exactly those and ignores every other keyboard (no virtual
+# device, no remap). The default ids are the i8042 "AT Translated Set 2
+# keyboard" and the K1's 05ac:024f; `k:` restricts each match to keyboard
+# devices, so the K1's consumer-control interface stays out.
 #
 # Caps Lock = Ctrl (the control layer, so stacking matches a real Ctrl).
-# Right Alt = Hyper (Super+Alt+Ctrl+Shift); AltGr is unavailable on the
-# internal keyboard.
+# Right Alt = Hyper (Super+Alt+Ctrl+Shift); AltGr is unavailable on both.
 
 [ids]
 {% for id in keyd_ids %}

@@ -1,8 +1,15 @@
 ---
 # Device ids keyd grabs, exactly as listed in the config's [ids] section.
-# The default is the laptop's built-in keyboard: i8042 "AT Translated Set 2
-# keyboard" (k: = keyboard devices only). External keyboards have their own
-# ids, so they are not grabbed and keep the stock layout. Find an id with
-# `sudo keyd monitor` while typing on that keyboard.
+# Both entries are keyboards we type on today; `k:` = keyboard devices only.
+#   - the laptop's built-in keyboard: i8042 "AT Translated Set 2 keyboard";
+#   - the Keychron K1: 05ac:024f, the id this unit reports in its current
+#     Mac/Win switch position (Apple's "Aluminium Keyboard" id). The K1 also
+#     exposes a second, consumer-control interface under the same vid:pid;
+#     `k:` keeps that one out of the match.
+# Any keyboard whose id is not listed is not grabbed and keeps the stock
+# layout (AltGr included). Find an id with `sudo keyd monitor` while typing on
+# that keyboard; `journalctl -u keyd` prints the same id when it ignores a
+# device, and names the new id if a switch position changes it.
 keyd_ids:
   - k:0001:0001
+  - k:05ac:024f

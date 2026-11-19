@@ -16,11 +16,11 @@ Active managed workstations: `starling` (desktop) and `little-raven` (laptop —
 | User config (fish, nvim, git, ...) | chezmoi + git (`dotfiles` role)             |
 | Source code (`~/Projects`)         | git + GitHub                                |
 | `~/Documents`                      | Machine-local; not synced or backed up      |
-| Large/shared files                 | Unraid directly                             |
+| Large/shared files                 | Home-server storage through `docker-1`      |
 
-Roles: `arch_common` (optional `-Syu` via `-e arch_system_upgrade=true`, timezone/locale, NetworkManager → systemd-resolved fix for MagicDNS), `ssh`, `tailscale` (day-0 `tailscale up` is manual), `arch_packages` (official packages and AUR via yay; [package lists](../inventory/group_vars/workstations/packages.yml)), `docker` (re-login once for the group), `dotfiles` (sets the fish login shell, then chezmoi init or update; set `dotfiles_chezmoi_repo`), `kde_lock_layout` (US layout on screen lock), `kde_lock_immediate` (password prompt after resume), `laptop_power` (per-host gated battery tuning — [power guide](laptop-power.md)), `keyd` (built-in laptop keyboard only: Caps Lock = Ctrl, Right Alt = Hyper), `zsa_udev` (unprivileged browser/Keymapp access to ZSA keyboards).
+Roles: `arch_common` (optional `-Syu` via `-e arch_system_upgrade=true`, timezone/locale, NetworkManager → systemd-resolved fix for MagicDNS), `ssh`, `tailscale` (day-0 `tailscale up` is manual), `arch_packages` (official packages and AUR via yay; [package lists](../inventory/group_vars/workstations/packages.yml)), `docker` (re-login once for the group), `dotfiles` (sets the fish login shell, then chezmoi init or update; set `dotfiles_chezmoi_repo`), `kde_lock_layout` (US layout on screen lock), `kde_lock_immediate` (password prompt after resume), `laptop_power` (per-host gated battery tuning — [power guide](laptop-power.md)), `keyd` (built-in keyboard + Keychron K1: Caps Lock = Ctrl, Right Alt = Hyper), `zsa_udev` (unprivileged browser/Keymapp access to ZSA keyboards).
 
-**Desktop shortcuts.** Caps Lock acts as Ctrl and Right Alt as Hyper on the laptop's built-in keyboard only ([keyd](#keyboard-remapping-keyd)); external keyboards keep the stock layout, so they reach Hyper bindings by holding Ctrl+Alt+Shift+Super explicitly or by mapping that combo in the keyboard's own firmware. `Alt+Space` is the one binding that applies everywhere, so it stays a plain KDE shortcut:
+**Desktop shortcuts.** Caps Lock acts as Ctrl and Right Alt as Hyper on the laptop's built-in keyboard and the Keychron K1 ([keyd](#keyboard-remapping-keyd)); other keyboards keep the stock layout, so they reach Hyper bindings by holding Ctrl+Alt+Shift+Super explicitly or by mapping that combo in the keyboard's own firmware. `Alt+Space` is the one binding that applies everywhere, so it stays a plain KDE shortcut:
 
 | Shortcut       | Action                         | Where bound           |
 | -------------- | ------------------------------ | --------------------- |
@@ -40,11 +40,11 @@ Roles: `arch_common` (optional `-Syu` via `-e arch_system_upgrade=true`, timezon
 | `Meta`         | Application launcher           | plasmashell (default) |
 | `Alt+F2`       | KRunner (rarely used)          | KRunner (default)     |
 
-Source of truth: chezmoi-managed `~/.config/kglobalshortcutsrc` and Handy's `settings_store.json`; this table is a reference. Rationale: one held Hyper replaces four-key chords, so the hot paths — layout, dictation, terminal — stay on one-hand combos, while window management keeps the stock `Alt`/KWin keys and `Ctrl+Alt+T` remains a second terminal binding. On the internal keyboard Hyper comes from Right Alt; on a USB keyboard it is the four modifiers, physically or from firmware (Oryx on the ZSA boards).
+Source of truth: chezmoi-managed `~/.config/kglobalshortcutsrc` and Handy's `settings_store.json`; this table is a reference. Rationale: one held Hyper replaces four-key chords, so the hot paths — layout, dictation, terminal — stay on one-hand combos, while window management keeps the stock `Alt`/KWin keys and `Ctrl+Alt+T` remains a second terminal binding. On the internal keyboard and the K1 Hyper comes from Right Alt; on any other USB keyboard it is the four modifiers, physically or from firmware (Oryx on the ZSA boards).
 
 **Bootstrap a fresh machine:** install the OS with the login user `boss` (sudo/wheel) → `sudo systemctl enable --now sshd` → `sudo pacman -S openssh python tailscale` → `tailscale up` (disable key expiry; delete the machine's stale tailnet node first, or MagicDNS registers the new install as `<name>-1`) → generate the machine keypair `ssh-keygen -t ed25519 -C boss@<name> -f ~/.ssh/id_ed25519 -N ''`, register its public half on GitHub (the `dotfiles` role clones over `git@github.com:`) and replace `files/ssh/<name>.pub` → authorize the controller's key in `~/.ssh/authorized_keys` (`ssh-copy-id` while the fresh sshd still allows passwords) → add to `[workstations]` + optional `inventory/host_vars/<name>.yml` → `ansible-playbook playbooks/workstation.yml --limit <name> --ask-become-pass` (from an already-managed controller the MagicDNS name resolves immediately; the fresh host resolves tailnet names itself only after `arch_common` rewires NetworkManager to systemd-resolved, so a run started ON that host — a `-c local` day-0 — needs `-e ansible_host=<tailscale-ip>`). Day-0 on the machine hosting this repo (little-raven): `ansible-playbook playbooks/workstation.yml -c local --limit little-raven --ask-become-pass`. Partial runs: `--tags packages|docker|dotfiles|tailscale|layout|lockscreen|power`.
 
-**SSH key access:** `arch_common` adds the public keys listed in `workstation_ssh_keys` (`inventory/group_vars/workstations/common.yml`, filenames under `files/ssh/`) to `workstation_user` (`boss`). The shared list includes `starling.pub` and `little-raven.pub`; existing authorized keys are retained, and no root access is granted. To apply only these keys, run `ansible-playbook playbooks/workstation.yml --tags ssh_keys --ask-become-pass` (optionally `--limit <name>`). This does not run the other common tasks or change SSH daemon or sudo policy. Rotating a workstation key is a file replacement plus a manual purge: these loops are additive, so the previous blob stays authorized on `mon-1`, Unraid (both SSH paths) and the workstations until it is removed by hand.
+**SSH key access:** `arch_common` adds the public keys listed in `workstation_ssh_keys` (`inventory/group_vars/workstations/common.yml`, filenames under `files/ssh/`) to `workstation_user` (`boss`). The shared list includes `starling.pub` and `little-raven.pub`; existing authorized keys are retained, and no root access is granted. To apply only these keys, run `ansible-playbook playbooks/workstation.yml --tags ssh_keys --ask-become-pass` (optionally `--limit <name>`). This does not run the other common tasks or change SSH daemon or sudo policy. Rotating a workstation key is a file replacement plus a manual purge: additive lists retain the previous blob on managed VPSes, PVE, the Docker VM and workstations until removed by hand. Repository cleanup does not revoke keys retained on the old Unraid USB.
 
 **fprintd gotcha (little-raven; laptop-only, provisioned by no role):** `/etc/pam.d/sudo` puts `pam_fprintd.so` first, so a non-interactive `sudo` (Ansible become) waits for a FINGER before it ever prints the password prompt — the run appears stuck at Gathering Facts and dies with "Timed out waiting for become success". When that happens, just touch the fingerprint reader; the become password typed at the start is then not even used.
 
@@ -129,14 +129,22 @@ credentials that were overwritten without a separate backup.
 
 ## Keyboard remapping (keyd)
 
-`keyd` owns `/etc/keyd/default.conf` and remaps the **built-in keyboard only**:
-Caps Lock = Ctrl, Right Alt = Hyper (Super+Alt+Ctrl+Shift). The config lists
-explicit device ids (`keyd_ids`, default `k:0001:0001` — the i8042 "AT
-Translated Set 2 keyboard"), so keyd grabs that one device; any other keyboard
-is not grabbed, is never remapped and keeps AltGr. Source:
+`keyd` owns `/etc/keyd/default.conf` and remaps **the built-in keyboard and the
+Keychron K1**: Caps Lock = Ctrl, Right Alt = Hyper (Super+Alt+Ctrl+Shift). The
+config lists explicit device ids — `k:0001:0001`, the i8042 "AT Translated Set
+2 keyboard", and `k:05ac:024f`, the K1 — so keyd grabs exactly those devices;
+any other keyboard is not grabbed, is never remapped and keeps AltGr. The `k:`
+prefix limits an id to keyboard-class devices, which keeps the K1's second
+(consumer-control) interface out of the match. Source:
 [role tasks](../roles/keyd/tasks/main.yml),
 [config template](../roles/keyd/templates/default.conf.j2), and
 [defaults](../roles/keyd/defaults/main.yml).
+
+`keyd_ids` matches USB ids, not models: `05ac:024f` is what this K1 reports
+with its Mac/Win switch where it is now (it carries Apple's "Aluminium
+Keyboard" id). Different firmware or the other switch position can report a
+different id; `journalctl -u keyd` names it (`DEVICE: ignoring 05ac:…`), and
+the new id goes into `keyd_ids`, one entry per keyboard.
 
 The chezmoi-managed `kxkbrc` carries no XKB options — the former
 `ctrl:nocaps` applied to every keyboard, which is what the device-scoped keyd
@@ -153,15 +161,18 @@ XKB option until it restarts):
 ```bash
 systemctl status keyd
 cat /etc/keyd/default.conf
+journalctl -u keyd -b | grep 05ac:024f   # DEVICE: match ..., not ignoring
 kreadconfig6 --file kxkbrc --group Layout --key Options
 sudo keyd monitor   # prints the events keyd emits; Ctrl+C to stop
 ```
 
-Expected: keyd active; `[ids]` lists only `k:0001:0001`; `Options` is empty;
-on the internal keyboard Caps Lock acts as Ctrl and holding Right Alt plus a
-key emits the C-M-A-S combo, while an external keyboard's keys pass through
-unchanged. Find another keyboard's id with `sudo keyd monitor` and add it to
-`keyd_ids` (one id per keyboard) if it should be remapped too.
+Expected: keyd active; `[ids]` lists `k:0001:0001` and `k:05ac:024f`;
+`Options` is empty; the K1 is grabbed (`DEVICE: match 05ac:024f … (keyboard)`)
+without a second match line for its consumer-control interface; on both
+keyboards Caps Lock acts as Ctrl and holding Right Alt plus a key emits the
+C-M-A-S combo, while an unlisted keyboard's keys pass through unchanged. Find
+another keyboard's id with `sudo keyd monitor` and add it to `keyd_ids` (one
+id per keyboard) if it should be remapped too.
 
 To recover, stop and disable the daemon (`sudo systemctl disable --now keyd`)
 and delete `/etc/keyd/default.conf`; the internal keyboard returns to its stock

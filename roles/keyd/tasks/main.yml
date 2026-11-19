@@ -3,6 +3,7 @@
 # every app/WM/compositor and in a VT. Per-device filtering happens in the
 # config's [ids] section (keyd_ids): the daemon is always on and any keyboard
 # not listed passes through untouched, with no virtual device of its own.
+# keyd_ids covers the built-in keyboard and the Keychron K1.
 
 - name: Install keyd
   ansible.builtin.pacman:
