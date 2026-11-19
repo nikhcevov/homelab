@@ -5,6 +5,9 @@
 Sources: [compose definitions](../compose/), [guest baseline](../roles/docker_vm/),
 [deployment role](../roles/compose_stacks/), [GPU role](../roles/nvidia_guest/),
 [Docker variables](../inventory/group_vars/docker/compose.yml),
+[manual deploy workflow](../.github/workflows/deploy-docker.yml),
+[pending deploy issue](../.github/workflows/detect-pending-deploys.yml),
+[deploy command](../.github/workflows/deploy-command.yml),
 [host provisioning](pve-host.md#vm-and-gpu), [backups](backups-proxmox.md).
 
 Guest baseline and authorized production deployment are applied.
@@ -159,7 +162,10 @@ services are Paperless, FlareSolverr, Immich ML, Jellyfin and Minecraft. Source
 application images are pinned to audited digests, including Paperless2.20.15 and Immich3.1.0;
 PostgreSQL14/18 majors and their data-directory layouts are preserved. An OS/
 driver transition does not authorize an application/database-major upgrade.
-Update those independently after migration and restore proof.
+Update those independently after migration and restore proof. Stock PostgreSQL
+is pinned at 18.4 for Paperless, order-manager and Sure; Immich keeps its vendor
+14-vectorchord image. A data directory created by a newer minor must be
+dumped/restored or reinitialized before changing the pin.
 
 Code-owned Immich extension YAML is deployed beside its Compose file, not into
 appdata. Sanitized Caddyfile/home/public routing templates are versioned;
@@ -182,8 +188,8 @@ without a backend, preserved all six proxy URI paths and followed a changed
 backend IP without restart in an isolated same-image proof. Production UI and
 proxied OpenAPI returned200; the real sign-in form rendered without browser errors.
 
-Sure is a four-container Rails stack: `web`, a Sidekiq `worker`, PostgreSQL16 and
-Redis8. Images are digest-pinned. It publishes only loopback port3010 because
+Sure is a four-container Rails stack: `web`, a Sidekiq `worker`, PostgreSQL and
+Redis. Images are digest-pinned. It publishes only loopback port3010 because
 Grafana owns3000. Caddy serves the internal `https://sure.home.arpa` with its
 local CA and the public `https://budget.<public-domain>` with an ACME
 certificate. The public site adds HSTS and `X-Robots-Tag: noindex, nofollow`;
@@ -195,6 +201,11 @@ SameSite. Clients using the internal name must trust
 `/mnt/appdata/caddy/data/caddy/pki/authorities/local/root.crt`.
 Caddy uses a code-owned `/etc/resolv.conf` with public resolvers because the
 router resolver returns FORMERR for ACME DNS-01 zone discovery.
+
+PostgreSQL18 mounts `/mnt/appdata/sure/postgres` at `/var/lib/postgresql`;
+its data lives under the versioned `18/docker` subdirectory. A16.x cluster is
+not compatible; do not delete existing data to make an image update start.
+
 Memory is deliberately constrained: `RAILS_MAX_THREADS=2` (Puma two threads;
 Sidekiq one default plus one AI lane), jemalloc `narenas:2` with one-second dirty/
 muzzy decay, PostgreSQL `shared_buffers=64MB`/`max_connections=20`, and Redis
@@ -232,10 +243,11 @@ Detection is delegated to [Renovate](https://docs.renovatebot.com/) through
 [`renovate.json5`](../renovate.json5). Install the
 [Mend Renovate app](https://github.com/apps/renovate) on the GitHub repository
 once. It maintains one **Container updates** issue (the
-Dependency Dashboard) and opens grouped PRs per stack. Major updates are
-disabled; database and application majors need their own backup and migration
-check. Renovate changes only `compose/**/compose.yaml` and never deploys.
-PRs are scheduled daily before 06:00 Europe/Moscow.
+Dependency Dashboard) and opens grouped PRs per stack. Major application
+updates appear in the dashboard but require manual approval; database majors
+stay disabled because they need pg_upgrade or dump/restore. Renovate changes
+only `compose/**/compose.yaml` and never deploys. PRs are scheduled daily
+before 06:00 Europe/Moscow.
 
 Review and merge the PR, then apply only the affected stack:
 
@@ -249,6 +261,76 @@ The role copies the changed Compose file; `docker compose up -d` pulls the new
 digest and recreates only changed services. Do not use `docker compose pull` on
 the host as an update mechanism: the digest pin wins over a moving tag, so a
 pull without a source change does nothing.
+
+### Manual GitHub Actions deploy
+
+[`deploy-docker.yml`](../.github/workflows/deploy-docker.yml) is the manual
+wrapper. It and [`deploy-command.yml`](../.github/workflows/deploy-command.yml)
+call the shared
+[`deploy-docker-reusable.yml`](../.github/workflows/deploy-docker-reusable.yml).
+The wrapper is `workflow_dispatch` only; the push-triggered
+[`detect-pending-deploys.yml`](../.github/workflows/detect-pending-deploys.yml)
+only creates an issue and never deploys.
+
+Inputs:
+
+- `stacks`: comma-separated stack names from `compose_stacks`; unknown names are
+  rejected.
+- `confirm_restore_gate`: must be checked; the workflow always passes
+  `compose_data_restored=true`.
+
+Required secrets in the GitHub Environment `production`:
+
+| Secret | Purpose |
+| --- | --- |
+| `ANSIBLE_VAULT_PASSWORD` | `.vault_pass` for the encrypted inventory |
+| `SSH_PRIVATE_KEY` | dedicated key for `boss@docker-1`; do not reuse a personal key |
+| `SSH_KNOWN_HOSTS` | pinned host key for `docker-1` |
+| `TS_OAUTH_CLIENT_ID` | Tailscale OAuth client tagged `tag:ci` |
+| `TS_OAUTH_CLIENT_SECRET` | corresponding OAuth secret |
+
+Create the `production` environment with a required reviewer. The reusable job
+attaches this environment; the manual and `/deploy` caller jobs use
+`secrets: inherit`. GitHub does not allow an `environment` key on a job that
+calls a reusable workflow, so the environment belongs on the reusable job. Put
+the secrets in the environment (preferred) or at repository level. The runner
+joins the tailnet as `tag:ci`; the Tailscale policy must allow `tag:ci` to
+`docker-1:22` and MagicDNS. See [Tailscale policy](tailscale.md). Add the public
+half of `SSH_PRIVATE_KEY` to `boss`'s `authorized_keys` through
+`docker_vm_ssh_keys`; the public key is
+[`files/ssh/github-actions.pub`](../files/ssh/github-actions.pub). Generate
+`SSH_KNOWN_HOSTS` for the inventory's `ansible_host` value (the MagicDNS name)
+with `ssh-keyscan -H` from a trusted controller and store the output.
+
+The workflow runs the offline Ansible/Compose gates, deploys only
+`playbooks/docker.yml --tags compose`, prints `docker ps`, and removes the
+temporary credentials. It does not run destructive tags. The local command
+above remains the fallback when GitHub or Tailscale is unavailable.
+
+The repository is public, so the workflow uses a GitHub-hosted runner, not a
+self-hosted runner; secrets are masked in logs. Do not add a self-hosted runner
+for fork PRs.
+
+#### Pending deploy issue and `/deploy`
+
+`detect-pending-deploys.yml` runs on push to `main` for `compose/**`,
+`inventory/group_vars/docker/compose.yml`, and `roles/compose_stacks/**`. It
+creates or updates one rolling issue, **Container deployment pending**, with a
+comment listing the changed stacks and image references. It never deploys.
+
+On that issue, comment `/deploy media,paperless` with the stacks you want. The
+`deploy-command.yml` workflow:
+
+- ignores non-maintainers and bot comments;
+- validates every stack against `compose_stacks`;
+- calls the reusable deploy workflow;
+- requires the `production` environment approval;
+- comments the result and run URL back on the issue.
+
+The command is a comment, not a native checkbox: GitHub issues do not trigger
+Actions from checkboxes without a GitHub App/watcher. The manual **Deploy
+containers** workflow remains available and calls the same reusable workflow.
+Close the issue when the pending changes are deployed.
 
 Manual bump when Renovate is unavailable:
 

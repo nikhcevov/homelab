@@ -4,9 +4,25 @@
   // Compose files are the only update surface. Host packages, Ansible
   // collections and GitHub Actions stay manually pinned.
   "enabledManagers": ["docker-compose"],
+  // The default docker-compose pattern also matches
+  // inventory/group_vars/docker/compose.yml, which is Ansible variables.
+  "docker-compose": {
+    "managerFilePatterns": ["compose/*/compose.yaml"]
+  },
   "extends": ["config:recommended", "docker:pinDigests"],
   "timezone": "Europe/Moscow",
   "schedule": ["before 6am"],
+
+  // The hosted runner shares public registry limits. Keep GHCR lookups
+  // serial and treat 429 as a skipped lookup instead of aborting the run.
+  "hostRules": [
+    {
+      "matchHost": "ghcr.io",
+      "concurrentRequestLimit": 1,
+      "maxRequestsPerSecond": 1,
+      "abortIgnoreStatusCodes": [429]
+    }
+  ],
 
   // The dashboard is the update list; one issue instead of a PR per image.
   "dependencyDashboard": {
@@ -22,8 +38,20 @@
 
   "packageRules": [
     {
-      // A database- or application-major transition needs its own migration
-      // and backup check; it is never automated here.
+      // Major application updates are visible in the Dependency Dashboard,
+      // but no PR is created until the checkbox is approved.
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      // Database majors need pg_upgrade/dump-restore and extension checks.
+      // Keep them out of the dashboard rather than pending approval.
+      "matchDatasources": ["docker"],
+      "matchPackageNames": [
+        "/^(?:docker\\.io\\/)?(?:library\\/)?(?:postgres|redis|couchdb)$/",
+        "/^(?:docker\\.io\\/)?valkey\\/valkey$/",
+        "/^ghcr\\.io\\/immich-app\\/postgres$/"
+      ],
       "matchUpdateTypes": ["major"],
       "enabled": false
     },
@@ -37,11 +65,38 @@
       // LinuxServer build tags carry a build suffix that is part of the
       // published version, not a compatibility variant.
       "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/linuxserver/*"],
+      "versioning": "loose",
+      // Only stable LinuxServer build tags; RE2 has no negative lookahead.
+      "allowedVersions": "/^v?[0-9]+\\.[0-9]+.*-ls[0-9]+$/"
+    },
+    {
+      // qBittorrent's LinuxServer tag also publishes legacy Ubuntu builds
+      // whose leading number is not the application major. Stay on 5.3.x
+      // build tags; the plain 5.3.0 alias is not an exact build.
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/linuxserver/qbittorrent"],
+      "allowedVersions": "/^5\\.3\\.[0-9]+_v[0-9.]+-ls[0-9]+$/"
+    },
+    {
+      // Sonarr's LinuxServer tag also publishes the legacy Mono v2 build
+      // under a higher leading version. Stay on the Sonarr 4.0.x build line.
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/linuxserver/sonarr"],
+      "allowedVersions": "/^4\\.[0-9]+\\.[0-9]+\\.[0-9]+-ls[0-9]+$/"
+    },
+    {
+      // A 0.x minor release can be breaking; show it for approval instead of
+      // creating a PR automatically.
+      "matchDatasources": ["docker"],
       "matchPackageNames": [
-        "lscr.io/linuxserver/*",
-        "ghcr.io/linuxserver/*"
+        "gcr.io/cadvisor/cadvisor",
+        "ghcr.io/nikhcevov/order-manager-for-wife",
+        "ghcr.io/nikhcevov/livesync-publisher",
+        "ghcr.io/we-promise/sure"
       ],
-      "versioning": "loose"
+      "matchUpdateTypes": ["minor"],
+      "dependencyDashboardApproval": true
     },
     { "matchFileNames": ["compose/caddy-cloudflare/compose.yaml"], "groupName": "caddy-cloudflare stack" },
     { "matchFileNames": ["compose/dns-server/compose.yaml"], "groupName": "dns-server stack" },

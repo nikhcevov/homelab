@@ -10,7 +10,6 @@ compose_data_restored: false
 compose_puid: 99
 compose_pgid: 100
 compose_tz: Europe/Moscow
-
 # The first Sure super-admin exists. Keep registration closed; change to
 # invite_only only if a deliberate invitation flow is wanted.
 sure_onboarding_state: closed

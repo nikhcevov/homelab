@@ -1,0 +1,78 @@
+---
+name: Detect pending container deploys
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'compose/**'
+      - 'inventory/group_vars/docker/compose.yml'
+      - 'roles/compose_stacks/**'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: deploy-issue
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    name: Comment pending stacks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Build deploy report
+        env:
+          SERVER: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          before="${BEFORE}"
+          if [ "$before" = "0000000000000000000000000000000000000000" ]; then
+            before=$(git rev-parse "$AFTER^")
+          fi
+          mapfile -t stacks < <(git diff --name-only "$before" "$AFTER" -- compose | awk -F/ 'NF >= 3 {print $2}' | sort -u)
+          {
+            echo "### Container changes merged"
+            echo
+            echo "Commit: [\`${AFTER:0:12}\`](${SERVER}/${REPO}/commit/${AFTER})"
+            echo
+            if [ "${#stacks[@]}" -eq 0 ]; then
+              echo "Deployment-related files changed, but no compose stack was detected."
+              echo "Review the change and run the manual **Deploy containers** workflow."
+            else
+              for stack in "${stacks[@]}"; do
+                echo "#### ${stack}"
+                git diff --unified=0 "$before" "$AFTER" -- "compose/$stack" \
+                  | sed -n 's/^[+-][[:space:]]*image:[[:space:]]*/- `/p' \
+                  | sed 's/$/`/'
+                echo
+              done
+              echo "Deploy with the manual **Deploy containers** workflow or comment:"
+              echo
+              echo '`/deploy '"${stacks[*]}"'`'
+            fi
+          } > /tmp/deploy-report.md
+
+      - name: Publish pending deploy issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          number=$(gh issue list --state open --search 'Container deployment pending in:title' --json number --jq '.[0].number // empty')
+          if [ -z "$number" ]; then
+            gh issue create --title 'Container deployment pending' --body 'This issue tracks container changes merged to main that still need a deployment. Comment `/deploy <stack>` or run the manual **Deploy containers** workflow.' >/dev/null
+            number=$(gh issue list --state open --search 'Container deployment pending in:title' --json number --jq '.[0].number // empty')
+          fi
+          gh issue comment "$number" --body-file /tmp/deploy-report.md

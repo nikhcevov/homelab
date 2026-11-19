@@ -3,7 +3,7 @@
 services:
   minecraft-mc:
     container_name: minecraft-mc
-    image: itzg/minecraft-server:java25@sha256:4f855c470f6bea196971e6031311130b23d8976258ad5db7e024d568fbda79f1
+    image: itzg/minecraft-server:java25@sha256:eb30f3c5b8b5fad2e05182762bf020abfae130c800ae6572d36aae4cff6b3a12
     restart: unless-stopped
     mem_limit: 7g
     stop_grace_period: 60s

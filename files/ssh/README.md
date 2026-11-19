@@ -14,6 +14,9 @@ Rotating a machine's key means replacing its file: every consumer references it 
 | Workstations | `boss` | `workstation_ssh_keys` in `inventory/group_vars/workstations/common.yml` |
 | Home Assistant | `boss` | Advanced SSH & Web Terminal add-on's `ssh.authorized_keys` option |
 
+`github-actions.pub` is the GitHub Actions container-deploy key. Only its public
+half belongs here; the private half is the `SSH_PRIVATE_KEY` environment secret.
+
 Managed key lists include `little-raven.pub`. Additive updates retain existing access; they do not revoke rotated keys. Home Assistant's options are managed separately from Ansible; retain the backup collector's key when adding the operator key.
 
 Apply only authorized keys, without upgrades, SSH daemon changes, or other service configuration:

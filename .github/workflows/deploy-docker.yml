@@ -1,0 +1,32 @@
+---
+name: Deploy containers
+
+on:
+  workflow_dispatch:
+    inputs:
+      stacks:
+        description: Comma-separated stack names from compose_stacks (for example media)
+        required: true
+        type: string
+      confirm_restore_gate:
+        description: Confirm compose_data_restored=true and the restore marker exists
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-docker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy-docker-reusable.yml
+    with:
+      stacks: ${{ inputs.stacks }}
+      confirm_restore_gate: ${{ inputs.confirm_restore_gate }}
+    secrets: inherit
+    permissions:
+      contents: read

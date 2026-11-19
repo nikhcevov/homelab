@@ -6,6 +6,7 @@ docker_vm_user: boss
 docker_vm_ssh_keys:
   - starling.pub
   - little-raven.pub
+  - github-actions.pub
 
 docker_vm_nfs_server: 10.77.0.1
 docker_vm_nfs_options: "rw,hard,_netdev,noatime,vers=4.1"
