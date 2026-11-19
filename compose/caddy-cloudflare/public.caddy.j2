@@ -50,6 +50,15 @@ vault.{{ vault_caddy_public_domain }} {
     reverse_proxy 127.0.0.1:4743
 }
 
+budget.{{ vault_caddy_public_domain }} {
+    encode zstd gzip
+    tls {
+        dns cloudflare {$CLOUDFLARE_API_TOKEN}
+    }
+    header X-Robots-Tag "noindex, nofollow"
+    reverse_proxy 127.0.0.1:3010
+}
+
 matchagirlie.{{ vault_caddy_public_domain }} {
     import public
     reverse_proxy 127.0.0.1:4893

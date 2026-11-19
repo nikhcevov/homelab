@@ -16,6 +16,9 @@ services:
       - /mnt/appdata/caddy/Caddyfile:/etc/caddy/Caddyfile:rw
       - /mnt/appdata/caddy/data:/data:rw
       - /mnt/appdata/caddy/config:/config:rw
+      # The router's resolver returns FORMERR for ACME DNS-01 zone discovery.
+      # This resolver is for Caddy's outbound ACME/Cloudflare lookups only.
+      - ./resolv.conf:/etc/resolv.conf:ro
       - /mnt/appdata/obsidian/blog/public:/srv/obsidian:rw
       - /mnt/appdata/minecraft/mc/client_pack:/srv/pack/mc:rw
     command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

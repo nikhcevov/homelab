@@ -8,6 +8,12 @@
 	}
 }
 
+https://sure.home.arpa {
+    import home
+    tls internal
+    reverse_proxy 127.0.0.1:3010
+}
+
 http://prowlarr.home.arpa {
     import home
     reverse_proxy 127.0.0.1:9696

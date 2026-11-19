@@ -1,7 +1,6 @@
 ---
-# Compose stacks on the Docker VM. Paths are the mount points inside the VM;
-# the host side (ZFS datasets exported over NFS) is described in
-# docs/proxmox-migration.md.
+# Compose stacks on the Docker VM. Guest-local disks and private media NFS
+# mount boundaries are described in docs/docker-stacks.md#storage-boundary.
 
 compose_root: /opt/compose
 compose_data_restored: false
@@ -11,6 +10,10 @@ compose_data_restored: false
 compose_puid: 99
 compose_pgid: 100
 compose_tz: Europe/Moscow
+
+# The first Sure super-admin exists. Keep registration closed; change to
+# invite_only only if a deliberate invitation flow is wanted.
+sure_onboarding_state: closed
 
 compose_appdata: /mnt/appdata
 compose_data: /mnt/data
@@ -32,6 +35,18 @@ compose_directories:
     owner: "10001"
     group: "10001"
     mode: "0750"
+  - path: "{{ compose_appdata }}/sure/storage"
+    owner: "1000"
+    group: "1000"
+    mode: "0750"
+  - path: "{{ compose_appdata }}/sure/postgres"
+    owner: "999"
+    group: "999"
+    mode: "0700"
+  - path: "{{ compose_appdata }}/sure/redis"
+    owner: "999"
+    group: "999"
+    mode: "0750"
 
 compose_stacks:
   - caddy-cloudflare
@@ -44,10 +59,14 @@ compose_stacks:
   - observability
   - order-manager
   - paperless
+  - sure
   - vaultwarden
 
 # Code-owned compose extension files live beside the deployed definitions.
 compose_extra_files:
+  - stack: caddy-cloudflare
+    src: resolv.conf
+    dest: "{{ compose_root }}/caddy-cloudflare/resolv.conf"
   - stack: homelable
     src: nginx.conf.template
     dest: "{{ compose_root }}/homelable/nginx.conf.template"
