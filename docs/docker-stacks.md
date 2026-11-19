@@ -250,10 +250,11 @@ Required secrets in the GitHub Environment `production`:
 Create the `production` environment with a required reviewer. The runner joins
 the tailnet as `tag:ci`; the Tailscale policy must allow `tag:ci` to
 `docker-1:22` and MagicDNS. See [Tailscale policy](tailscale.md). Add the public
-half of `SSH_PRIVATE_KEY` to `boss`'s `authorized_keys`, preferably through the
-existing `ssh` role. Generate `SSH_KNOWN_HOSTS` for the inventory's
-`ansible_host` value (the MagicDNS name) with `ssh-keyscan -H` from a trusted
-controller and store the output.
+half of `SSH_PRIVATE_KEY` to `boss`'s `authorized_keys` through
+`docker_vm_ssh_keys`; the public key is
+[`files/ssh/github-actions.pub`](../files/ssh/github-actions.pub). Generate
+`SSH_KNOWN_HOSTS` for the inventory's `ansible_host` value (the MagicDNS name)
+with `ssh-keyscan -H` from a trusted controller and store the output.
 
 The workflow runs the offline Ansible/Compose gates, deploys only
 `playbooks/docker.yml --tags compose`, prints `docker ps`, and removes the
