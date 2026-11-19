@@ -165,7 +165,10 @@ Exporter Full (`/d/rYdddlPWk/node-exporter-full`), cAdvisor
 (`/d/disk-health/disk-health`), and Logs & Errors
 (`/d/logs-errors/logs-and-errors`). Docker logs carry `container`,
 `compose_project`, and `service` labels; the observability containers are
-excluded to prevent a log-feedback loop. The cAdvisor scrape relabels the
+excluded to prevent a log-feedback loop. The Logs & Errors dashboard has a
+`Container` variable (`All` by default). The `Container logs (selected range)`
+panel shows all logs from the selected range for the chosen containers; the
+volume and error timeseries use the same variable and the dashboard interval. The cAdvisor scrape relabels the
 Compose service label to `name` and the instance to `docker-1`. Disk
 temperatures and SMART health come from `smartctl_device_temperature` and
 `smartctl_device_smart_status`. Disk Health also exposes raw SMART counters:

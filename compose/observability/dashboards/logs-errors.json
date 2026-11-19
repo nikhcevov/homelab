@@ -20,7 +20,7 @@
       "id": 1,
       "targets": [
         {
-          "expr": "topk(10, sum by (container) (count_over_time({host=\"docker-1\", container=~\".+\"} [5m])))",
+          "expr": "topk(10, sum by (container) (count_over_time({host=\"docker-1\", container=~\"$container\"} [$__interval])))",
           "legendFormat": "{{container}}",
           "queryType": "range",
           "refId": "A"
@@ -49,7 +49,7 @@
       "id": 2,
       "targets": [
         {
-          "expr": "topk(10, sum by (container) (count_over_time({host=\"docker-1\", container=~\".+\"} |~ \"(?i)error|fatal|panic|exception\" [5m])))",
+          "expr": "topk(10, sum by (container) (count_over_time({host=\"docker-1\", container=~\"$container\"} |~ \"(?i)error|fatal|panic|exception\" [$__interval])))",
           "legendFormat": "{{container}}",
           "queryType": "range",
           "refId": "A"
@@ -82,7 +82,7 @@
       },
       "targets": [
         {
-          "expr": "{host=~\"docker-1|great-hornbill\"} |~ \"(?i)error|fatal|panic|exception\"",
+          "expr": "{host=\"docker-1\", container=~\"$container\"} |~ \"(?i)error|fatal|panic|exception\"",
           "maxLines": 100,
           "queryType": "range",
           "refId": "A"
@@ -156,6 +156,39 @@
       ],
       "title": "PVE journal",
       "type": "logs"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "id": 6,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "expr": "{host=\"docker-1\", container=~\"$container\"}",
+          "maxLines": 500,
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Container logs (selected range)",
+      "type": "logs"
     }
   ],
   "refresh": "30s",
@@ -165,6 +198,39 @@
     "logs",
     "errors"
   ],
+  "templating": {
+    "list": [
+      {
+        "name": "container",
+        "label": "Container",
+        "description": "Docker containers on docker-1; All includes every container.",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "P8E80F9AEF21F6940"
+        },
+        "definition": "label_values({host=\"docker-1\"}, container)",
+        "query": "label_values({host=\"docker-1\"}, container)",
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 1,
+        "sort": 1,
+        "hide": 0,
+        "skipUrlSync": false,
+        "options": [],
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      }
+    ]
+  },
   "time": {
     "from": "now-6h",
     "to": "now"
