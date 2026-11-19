@@ -99,6 +99,7 @@ jobs:
       - name: Comment on deploy issue
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           ISSUE: ${{ needs.parse.outputs.issue }}
           RESULT: ${{ needs.deploy.result }}
           STACKS: ${{ needs.parse.outputs.stacks }}
