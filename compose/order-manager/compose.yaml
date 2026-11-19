@@ -8,7 +8,7 @@ x-logging: &logging
 
 services:
   app:
-    image: ghcr.io/nikhcevov/order-manager-for-wife:0.4.0@sha256:577dc9d8b1b90422f80754693ea98d6e6c7516baa83887c9202fe351362c944f
+    image: ghcr.io/nikhcevov/order-manager-for-wife:0.5.1@sha256:2501e88cc3cf7b5dc0ee33dbbf61dba4c1f58b65000b942b4e07b1ca4e70d1ba
     restart: unless-stopped
     mem_limit: 256m
     logging: *logging
@@ -33,7 +33,7 @@ services:
   db:
     # Shared stock PostgreSQL pin. An 18.6 data directory must be
     # reinitialized or restored before this image can start.
-    image: postgres:18.7@sha256:2ea8630df176ad090ec92136dee850397c5af8781e4bcf2e4162593691c61bbc
+    image: postgres:18.7@sha256:e754b839f447639b7004895f4d8a4bfcb4e9dbe3a1bc035f27f646562a16fd61
     restart: unless-stopped
     mem_limit: 256m
     logging: *logging
