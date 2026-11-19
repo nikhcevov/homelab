@@ -2,14 +2,25 @@
 - name: Provision the explicitly enabled PBS appliance
   when: pve_pbs_enabled | bool
   block:
+    - name: Require explicit datastore participation
+      ansible.builtin.assert:
+        that:
+          - item.enabled is defined
+          - item.enabled is boolean
+        fail_msg: Every retained PBS datastore identity requires an explicit enabled boolean.
+      loop: "{{ pve_pbs_datastores }}"
+
     - name: Validate the fixed private PBS topology
       ansible.builtin.assert:
         that:
           - pve_pbs_id | int == 101
           - pve_pbs_address == '10.77.0.3'
           - pve_pbs_host_address == '10.77.0.1'
-          - pve_pbs_dataset == 'tank/pbs'
-          - pve_pbs_host_path == '/tank/pbs'
+          - pve_pbs_datastore in (pve_pbs_datastores | selectattr('enabled') | map(attribute='name') | list)
+          - pve_pbs_secondary_datastore == '' or pve_pbs_secondary_datastore in (pve_pbs_datastores | selectattr('enabled') | map(attribute='name') | list)
+          - pve_pbs_secondary_datastore != pve_pbs_datastore
+          - pve_pbs_datastores | length > 0
+          - (pve_pbs_datastores | map(attribute='source') | unique | length) == (pve_pbs_datastores | length)
           - pve_pbs_memory | int >= 4096
         fail_msg: PBS requires the reviewed CT101/private storage topology.
 
@@ -21,6 +32,16 @@
         group: root
         mode: '0700'
 
+
+    - name: Mount only the existing UUID-identified backup filesystems
+      ansible.posix.mount:
+        path: "{{ item.mountpoint }}"
+        src: "{{ item.source }}"
+        fstype: xfs
+        opts: defaults,nofail,nodev,nosuid,noexec,relatime
+        state: mounted
+      loop: "{{ pve_pbs_datastores | selectattr('enabled') | list }}"
+      when: item.fstype == 'xfs'
     - name: Install the PBS mount guard
       ansible.builtin.template:
         src: pbs-mount-guard.sh.j2
@@ -28,6 +49,16 @@
         owner: root
         group: root
         mode: '0755'
+
+    - name: Check real datastore filesystems before creating directories
+      ansible.builtin.command: /usr/local/sbin/homelab-pbs-mount-guard
+      changed_when: false
+
+    - name: Create only datastore directories on the verified filesystems
+      ansible.builtin.file:
+        path: "{{ item.host_path }}"
+        state: directory
+      loop: "{{ pve_pbs_datastores | selectattr('enabled') | list }}"
 
     - name: Create the PBS container service override directory
       ansible.builtin.file:
@@ -42,8 +73,11 @@
         dest: /etc/systemd/system/pve-container@101.service.d/datastore.conf
         content: |
           [Unit]
+          {% if pve_pbs_datastores | selectattr('enabled') | selectattr('fstype', 'equalto', 'zfs') | list | length > 0 %}
           After=zfs-mount.service
           Requires=zfs-mount.service
+          {% endif %}
+          RequiresMountsFor={{ pve_pbs_datastores | selectattr('enabled') | map(attribute='mountpoint') | join(' ') }}
           [Service]
           ExecStartPre=/usr/local/sbin/homelab-pbs-mount-guard
         owner: root
@@ -69,3 +103,24 @@
       register: _pbs_provision
       changed_when: "'CHANGED' in _pbs_provision.stdout"
       no_log: true
+
+    - name: Install native PBS maintenance alert configuration
+      ansible.builtin.template:
+        src: notifications.py.j2
+        dest: /usr/local/sbin/homelab-pbs-notifications
+        owner: root
+        group: root
+        mode: '0700'
+      no_log: true
+      tags: pbs_notifications
+
+    - name: Configure native PBS warning and error delivery
+      ansible.builtin.command: /usr/local/sbin/homelab-pbs-notifications
+      register: _pbs_notifications
+      changed_when: "'CHANGED' in _pbs_notifications.stdout"
+      no_log: true
+      tags: pbs_notifications
+
+    - name: Configure conservative standby only after backup acceptance
+      ansible.builtin.include_tasks: power.yml
+      when: pve_pbs_hdd_standby_enabled | bool

@@ -79,7 +79,7 @@ the state instead.
 | --- | --- |
 | `PVE` | Proxmox host, VM/LXC, storage, ZFS |
 | `Docker` | Docker VM, containers, Compose stacks |
-| `Backup` | PVE/PBS/Unraid/VPN backup and restore checks |
+| `Backup` | PVE/PBS/VPN backup and restore checks |
 | `Updates` | APT, APK, firmware, reboot-required |
 | `Disk` | Filesystem usage, SMART, temperature |
 | `UPS` | NUT/UPS state |
@@ -96,7 +96,6 @@ the state instead.
 | `roles/openwrt_upgrades` | `Updates` | APK + owut check |
 | `roles/pve_backup` | `Backup` | PVE/PBS file backup |
 | `roles/pve_pbs` | `PBS` | native PBS warning/error webhook |
-| `files/unraid/*` | `Backup` | Unraid pull/restic checks |
 | Grafana Alerting | per rule label | `component` label is required |
 | Gatus | `Monitor` / endpoint group | external availability |
 

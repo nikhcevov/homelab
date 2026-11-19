@@ -5,7 +5,7 @@
 Sources: [compose definitions](../compose/), [guest baseline](../roles/docker_vm/),
 [deployment role](../roles/compose_stacks/), [GPU role](../roles/nvidia_guest/),
 [Docker variables](../inventory/group_vars/docker/compose.yml),
-[migration runbook](proxmox-migration.md), [backups](backups-proxmox.md).
+[host provisioning](pve-host.md#vm-and-gpu), [backups](backups-proxmox.md).
 
 Guest baseline and authorized production deployment are applied.
 See [current status](status.md) for real-machine evidence and remaining gates.
@@ -16,14 +16,22 @@ Run controller commands from the repository root.
 | Guest path | Backing storage |
 | --- | --- |
 | `/var/lib/docker` | Guest root disk160G, `local-zfs` on host SSD |
-| `/mnt/appdata` | Guest-local ext4 disk128G, SCSI serial `homelab-appdata` |
-| `/mnt/photos` | Private NFSv4.1, host `tank/photos` |
-| `/mnt/files` | Private NFSv4.1, host `tank/files` |
-| `/mnt/data` | Private NFSv4.1, host `media/data` |
+| `/mnt/appdata` | Guest-local ext4 disk128G on SSD, serial `homelab-appdata` |
+| `/mnt/photos` | Managed3072 GiB ext4 `scsi2`, `tank/vm` via `tank-vm` |
+| `/mnt/files` | Managed64 GiB ext4 `scsi3`, `tank/vm` via `tank-vm` |
+| `/mnt/data` | External/private NFSv4.1, host `media/data`; excluded from backup |
+
+This storage boundary is now deployed: all34 original containers resumed after
+the immutable seed, frozen final delta and local mount cutover. Both data disks
+have `backup=1`; staging mounts are gone. Configured healthchecks, four core HTTP
+services, four PostgreSQL clusters and GPU checks passed. Originals are retained
+for recovery. Full B-primary VM restore acceptance passed; A remains quarantined.
+See [current acceptance](status.md) for dated evidence and protection limits.
 
 PostgreSQL and SQLite files stay local to the guest. Neither placing NFS on the
 same physical machine nor using `hard` makes it suitable for these databases.
-PBS images both VM disks; NFS bulk data requires independent file backup.
+Final PBS VM backups include root/appdata/EFI/photos/files, not external media.
+Data disks are managed ZFS volumes, never raw physical-disk passthrough.
 
 The appdata initializer requires explicit `docker_vm_initialize_appdata=true`,
 the exact SCSI serial, no partitions/signatures and an entirely zero-filled
@@ -34,6 +42,21 @@ Mount tasks create missing mountpoints themselves. Never chown/chmod an already
 mounted appdata/NFS root as part of directory setup: that changes restored data
 ownership. The full baseline rerun preserves the original numeric IDs and modes.
 
+Photos/files use actual aliases
+`/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi2` and
+`/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi3`; independently validate
+serials `homelab-photos`/`homelab-files`, sizes and ext4 labels
+`HOMELAB_PHOTOS`/`HOMELAB_FILES`. The serial is not the by-id filename.
+See [guest disk authority](../inventory/group_vars/docker/docker_vm.yml).
+`--tags docker_vm_data_prepare` inspects/prepares only these disks without
+replacing production NFS mounts. Initialization additionally requires explicit
+`-e docker_vm_initialize_data=true` and parent-proven fresh allocation; it is
+not a request to scan3 TiB of zeros or format unknown/restored volumes.
+Both current disks are already initialized: omit that flag.
+After writer pause, final comparison and explicit NFS unmount, use
+`--tags docker_vm_data_cutover` to mount the existing local filesystems.
+Do not run the untagged target baseline during the live seed.
+
 `/mnt/data/torrents` and `/mnt/data/media` remain one dataset, preserving Arr
 hardlinks and atomic renames. Preserve numeric ownership during restoration;
 `99:100` applies to selected applications, not every database or Minecraft tree.
@@ -41,7 +64,7 @@ hardlinks and atomic renames. Preserve numeric ownership during restoration;
 ## Baseline and authorization
 
 `playbooks/docker.yml` configures base packages, operator/root keys, local and
-private bulk mounts, restricted backup helpers, SSH/Tailscale, Docker and GPU.
+private media mounts, SSH/Tailscale, Docker and GPU.
 Its first run uses the verified VM LAN address until Tailscale is joined:
 
 ```bash
@@ -81,9 +104,12 @@ During controlled startup, select one stack explicitly:
 ansible-playbook playbooks/docker.yml --limit docker-1 --tags compose -e compose_data_restored=true -e '{"compose_stacks":["caddy-cloudflare"]}'
 ```
 
-The physical-host refusal runs even with `--tags compose`. Selected deployment
-renders only that stack's extra/configuration files and preserves existing
-configuration-parent ownership/modes. Missing parents alone are created.
+The physical-host refusal runs even with `--tags compose`. Before any Compose
+mutation, strict local mount guards validate the expected devices, serials,
+filesystems, labels, writable/noatime mounts and reject NFS/empty fallbacks.
+Thus source-defined compose-only reconciliation is not a live-seed shortcut.
+Selected deployment renders only that stack's extra/configuration files and
+preserves existing configuration-parent ownership/modes. Missing parents alone are created.
 Changed generated configurations force recreation of the affected stack:
 atomic replacement of a single-file bind otherwise leaves the old inode mounted.
 This can restart that stack's database too; an unchanged run does not recreate
@@ -149,8 +175,8 @@ old physical-host application address.
 Homelable's pinned Nginx frontend uses the code-owned
 [`nginx.conf.template`](../compose/homelable/nginx.conf.template), mounted over
 the image's input template rather than its generated configuration. Its shared
-upstream resolves Docker DNS at runtime: checkpoint resume uses `docker start`,
-not Compose dependency ordering. The original static resolution caused two
+upstream resolves Docker DNS at runtime: independently restarted containers need
+not follow Compose dependency ordering. The original static resolution caused two
 frontend startup exits when `backend` was still absent. The replacement started
 without a backend, preserved all six proxy URI paths and followed a changed
 backend IP without restart in an isolated same-image proof. Production UI and
@@ -257,9 +283,9 @@ restore the pre-update backup in that case. See [Recover](#recover).
 - Arr download/indexer integrations were audited: Sonarr uses `qbittorrent` and
   `prowlarr`; Prowlarr applications/proxy already use service DNS names. Preserve
   these names rather than introducing host LAN-address dependencies.
-- At cutover, retarget private edge HTTPS/Minecraft/voice upstreams to `docker-1`
-  and assign its backend tag. Changing only LAN DNS leaves public ingress pointing
-  at the physical host. See [migration phase7](proxmox-migration.md#phase-7--ingress-monitoring-and-decommission).
+- Private edge HTTPS/Minecraft/voice upstreams target `docker-1` with its trusted
+  backend tag, not the physical `great-hornbill` host. Keep public routing and
+  [tailnet endpoint identity](tailscale.md) aligned; LAN DNS alone cannot retarget ingress.
 
 ### Stable LAN identity and local DNS
 
@@ -332,8 +358,9 @@ encrypted bank/provider tokens unreadable. The first super-admin is created in
 the UI while onboarding is open.
 
 Paperless receives explicit PostgreSQL engine/application password and polling
-for its NFS consume directory. The audit confirmed 86 documents in its actual
-PostgreSQL database; a new empty SQLite installation is not a migration success.
+for its consume directory (historically NFS, local files disk after cutover).
+The audit confirmed86 documents in its actual PostgreSQL database; a new empty
+SQLite installation is not a migration success.
 Its pinned2.20.15 polling setting is `PAPERLESS_CONSUMER_POLLING=30`.
 
 Order-manager's audited application URL password matched its initialization
@@ -367,8 +394,10 @@ cutover. Parsing Compose and waiting for container health are not recovery proof
 
 ## Recover
 
-- Failed backup resume: run `homelab-backup resume` on PVE; preserve the guest's
-  durable running manifest until all original containers are running again.
+- Interrupted native PBS snapshot-mode backup: inspect the native task, guest
+  agent freeze/thaw and database recovery. Routine jobs restart neither the VM
+  nor containers. Confirm filesystems are thawed before retrying; retired cold
+  backup helpers and their manifests are not the current recovery mechanism.
 - Missing mount: restore the real device/dataset; never create an empty fallback
   and authorize Docker to make the boot pass.
 - Broken update: restore compatible data/config or roll back the pinned image;
@@ -377,5 +406,5 @@ cutover. Parsing Compose and waiting for container health are not recovery proof
   remove `/mnt/appdata/caddy/certificates/local/<host>` and restart
   `caddy-cloudflare`; Caddy reissues from its local CA. Clients must trust
   `/mnt/appdata/caddy/data/caddy/pki/authorities/local/root.crt`.
-- Lost guest/root SSD: use [PBS/restic recovery](backups-proxmox.md). Keep the vault
+- Lost guest/root SSD: use [native PBS recovery](backups-proxmox.md#ssd-loss-bootstrap). Keep the vault
   password independently offline; rendered environments help only if recoverable.

@@ -68,7 +68,7 @@ Dependency installation downloads packages from PyPI and Ansible Galaxy. Once in
 [the gate](tests/check_ansible.py) runs locally without network access, `.vault_pass`,
 private `vars/proxy.yml`, production credentials, or SSH:
 
-- Syntax-check every entrypoint in the flat `playbooks/` directory (currently 9);
+- Syntax-check every entrypoint in the flat `playbooks/` directory;
   fail if no playbooks are discovered. Root `requirements.yml` is collection metadata.
 - Render the existing nginx templates with [the public routing example](vars/proxy.example.yml).
 - Reject duplicate SNI names, SNI over UDP, mixed SNI/plain listeners, multiple defaults,

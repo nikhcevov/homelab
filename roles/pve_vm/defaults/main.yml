@@ -19,3 +19,7 @@ pve_vm_hostpci: []
 
 pve_vm_appdata_size: 128
 pve_vm_private_mac: "BC:24:11:36:00:02"
+
+pve_vm_data_storage: tank-vm
+pve_vm_data_backup: true
+pve_vm_data_disks: []

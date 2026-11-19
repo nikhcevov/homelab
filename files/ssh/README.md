@@ -4,17 +4,17 @@ Drop your public SSH keys here, bird-named after the device, e.g. `starling.pub`
 
 `starling.pub` is the desktop; `little-raven.pub` is the laptop, which hosts the homelab repository and is the management controller. Keep private keys on their source machines; only public keys belong here.
 
-Rotating a machine's key means replacing its file: every consumer references it by filename, but the `authorized_key` loops on workstations, VPSes and Unraid are additive, so the previous key blob stays authorized there until it is purged by hand (routers render their configured list authoritatively).
+Rotating a machine's key means replacing its file: every consumer references it by filename. Root key lists on VPSes/PVE/Docker, Docker operator keys and workstation keys are additive, so the previous key blob stays authorized until purged by hand. Routers render their configured list authoritatively.
 
 | Target | Login | Key list |
 | ------ | ----- | -------- |
-| Edge, VPN, monitoring VPSes | `root` | `bootstrap_root_ssh_keys` in each group's `bootstrap.yml` |
+| VPSes, PVE and Docker VM | `root` | `bootstrap_root_ssh_keys` in each group's `bootstrap.yml` |
 | OpenWrt routers | `root` | `ssh_authorized_keys` in `inventory/group_vars/routers/ssh.yml` |
-| Unraid | `root` | `ssh_authorized_keys` in `inventory/group_vars/unraid/ssh.yml` |
+| Docker VM | `boss` | `docker_vm_ssh_keys` in `inventory/group_vars/docker/docker_vm.yml` |
 | Workstations | `boss` | `workstation_ssh_keys` in `inventory/group_vars/workstations/common.yml` |
 | Home Assistant | `boss` | Advanced SSH & Web Terminal add-on's `ssh.authorized_keys` option |
 
-All inventory groups include `little-raven.pub`. VPSes, workstations, and Unraid add keys without removing existing access; routers render their configured key list authoritatively. Unraid updates both persistent flash and active SSH paths. Home Assistant's options are managed separately from Ansible; retain the backup collector's key when adding the operator key.
+Managed key lists include `little-raven.pub`. Additive updates retain existing access; they do not revoke rotated keys. Home Assistant's options are managed separately from Ansible; retain the backup collector's key when adding the operator key.
 
 Apply only authorized keys, without upgrades, SSH daemon changes, or other service configuration:
 
@@ -23,9 +23,13 @@ ansible-playbook playbooks/edge.yml --tags ssh_keys
 ansible-playbook playbooks/vpn.yml --tags ssh_keys
 ansible-playbook playbooks/mon.yml --tags ssh_keys
 ansible-playbook playbooks/openwrt.yml --tags ssh_keys
-ansible-playbook playbooks/unraid.yml --tags ssh_keys
+ansible-playbook playbooks/pve.yml --tags ssh_keys
+ansible-playbook playbooks/docker.yml --tags ssh_keys
 ansible-playbook playbooks/workstation.yml --tags ssh_keys --ask-become-pass
 ```
+
+Docker's key-only command updates root keys; operator keys are reconciled by the
+[guest baseline](../../docs/docker-stacks.md#baseline-and-authorization).
 
 For the local operator workstation, key-only deployment needs no root privilege:
 

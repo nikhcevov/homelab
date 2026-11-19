@@ -1,5 +1,5 @@
 ---
-# Operator account, local appdata, required bulk mounts and guest agent.
+# Operator account, local managed data, replaceable media NFS and guest agent.
 
 - name: Ensure the operator account exists
   ansible.builtin.user:
@@ -95,6 +95,45 @@
     opts: defaults,noatime
     state: mounted
 
+# The tagged pair can prepare only fresh disks during live copy, leaving all
+# current NFS mounts and Docker configuration untouched until final cutover.
+- name: Install managed data disk guard
+  ansible.builtin.template:
+    src: prepare-data.py.j2
+    dest: /usr/local/sbin/homelab-prepare-vm-data
+    owner: root
+    group: root
+    mode: "0700"
+  tags: [docker_vm_data_prepare, docker_vm_data_cutover]
+
+- name: Inspect or explicitly initialize managed data disks
+  ansible.builtin.command:
+    argv: "{{ ['/usr/local/sbin/homelab-prepare-vm-data'] + (['--initialize'] if docker_vm_initialize_data | bool else []) }}"
+  register: _docker_vm_data_prepare
+  changed_when: "'CHANGED' in _docker_vm_data_prepare.stdout_lines"
+  tags: [docker_vm_data_prepare, docker_vm_data_cutover]
+
+- name: Refuse to replace still-mounted NFS or foreign local data
+  ansible.builtin.command: /usr/local/sbin/homelab-prepare-vm-data
+  changed_when: false
+  when: docker_vm_initialize_data | bool
+  tags: docker_vm_data_cutover
+
+- name: Mount managed local photos and files before Docker installation
+  ansible.posix.mount:
+    path: "{{ item.path }}"
+    src: "{{ item.device }}"
+    fstype: ext4
+    opts: defaults,noatime
+    state: mounted
+  loop: "{{ docker_vm_data_disks }}"
+  tags: docker_vm_data_cutover
+
+- name: Verify final local data mount identities
+  ansible.builtin.command: /usr/local/sbin/homelab-prepare-vm-data --mounted
+  changed_when: false
+  tags: docker_vm_data_cutover
+
 # hard mount: the host is the same physical box, and a hung NFS server must
 # block I/O rather than silently corrupt a database.
 - name: Mount the PVE exports
@@ -105,6 +144,7 @@
     opts: "{{ docker_vm_nfs_options }}"
     state: mounted
   loop: "{{ docker_vm_nfs_mounts }}"
+  tags: docker_vm_data_cutover
 
 # Docker must not start before the bind-mount sources exist: a container with
 # a missing mount path starts empty and silently loses its data.
@@ -115,18 +155,20 @@
     owner: root
     group: root
     mode: "0755"
+  tags: docker_vm_data_cutover
 
 - name: Require restored local appdata and bulk mounts before Docker
   ansible.builtin.copy:
     dest: /etc/systemd/system/docker.service.d/10-mounts.conf
     content: |
       [Unit]
-      RequiresMountsFor={{ ([docker_vm_appdata_path] + (docker_vm_nfs_mounts | map(attribute='path') | list)) | join(' ') }}
+      RequiresMountsFor={{ ([docker_vm_appdata_path] + (docker_vm_data_disks | map(attribute='path') | list) + (docker_vm_nfs_mounts | map(attribute='path') | list)) | join(' ') }}
       After=local-fs.target remote-fs.target
       ConditionPathExists={{ docker_vm_appdata_path }}/.homelab-restored
       ConditionPathExists=/etc/docker/homelab-compose-authorized
       [Service]
       ExecStartPre=/usr/bin/mountpoint -q {{ docker_vm_appdata_path }}
+      ExecStartPre=/usr/local/sbin/homelab-prepare-vm-data --mounted
       {% for mount in docker_vm_nfs_mounts %}
       ExecStartPre=/usr/bin/mountpoint -q {{ mount.path }}
       {% endfor %}
@@ -134,9 +176,11 @@
     group: root
     mode: "0644"
   notify: Reload systemd
+  tags: docker_vm_data_cutover
 
 - name: Activate mount ordering before installing Docker
   ansible.builtin.meta: flush_handlers
+  tags: docker_vm_data_cutover
 
 - name: Ensure the QEMU guest agent is running
   ansible.builtin.service:

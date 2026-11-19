@@ -1,0 +1,334 @@
+#!/usr/bin/python3
+"""PBS filesystem backup proof and native VM/sync completion gates."""
+from datetime import datetime, timedelta, timezone
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+from zoneinfo import ZoneInfo
+
+COLLECTOR = Path({{ pve_backup_collector | to_json }})
+STATE = Path('/var/lib/homelab-backup')
+CT = {{ pve_backup_pbs_vmid | to_json }}
+BACKUP_ID = {{ pve_backup_id | to_json }}
+VM = str({{ pve_pbs_backup_vm | to_json }})
+VM_ARCHIVES = {
+    'qemu-server.conf.blob', 'drive-efidisk0.img.fidx',
+    'drive-scsi0.img.fidx', 'drive-scsi1.img.fidx',
+{% for disk in pve_vm_data_disks %}
+    {{ ('drive-' ~ disk.slot ~ '.img.fidx') | to_json }},
+{% endfor %}
+}
+SCHEDULE = {{ pve_pbs_backup_schedule | to_json }}
+TIMEZONE = ZoneInfo({{ bootstrap_timezone | to_json }})
+STORE = {{ pve_pbs_datastore | to_json }}
+SECONDARY = {{ pve_pbs_secondary_datastore | to_json }}
+STORAGE = {{ pve_pbs_storage_id | to_json }}
+ADDRESS = {{ pve_pbs_address | to_json }}
+AUTH = {{ pve_pbs_user | to_json }} + '!' + {{ pve_pbs_token | to_json }}
+SECRET = Path({{ pve_pbs_secret_path | to_json }})
+SYNC_JOB = {{ pve_backup_sync_job | to_json }}
+WAIT_SECONDS = int({{ pve_backup_vm_wait_seconds | to_json }})
+LOCAL_MAX_AGE = int({{ pve_backup_local_max_age_hours | to_json }}) * 3600
+SYNC_MAX_AGE = int({{ pve_backup_sync_max_age_hours | to_json }}) * 3600
+
+
+def run(*args, env=None):
+    result = subprocess.run([str(arg) for arg in args], env=env, capture_output=True, text=True)
+    if result.returncode:
+        # Never emit captured output or exception args: recovery operations handle secrets.
+        raise RuntimeError('Native command failed: ' + str(args[0]))
+    return result.stdout
+
+
+def pve(*args):
+    return json.loads(run('pvesh', 'get', *args, '--output-format', 'json'))
+
+
+def manager(*args):
+    return run('pct', 'exec', str(CT), '--', 'proxmox-backup-manager', *args)
+
+
+def latest_archive(root, pattern, max_age, now=None):
+    now = time.time() if now is None else now
+    if not pattern or '/' in pattern or max_age <= 0:
+        raise RuntimeError('Invalid latest archive age policy')
+    candidates = [path for path in Path(root).glob(pattern) if path.is_file() and not path.is_symlink()]
+    if not candidates:
+        raise RuntimeError('No completed upstream archive matches policy')
+    latest = max(candidates, key=lambda path: path.stat().st_mtime)
+    metadata = latest.stat()
+    age = now - metadata.st_mtime
+    if metadata.st_size == 0 or age < 0 or age > max_age:
+        raise RuntimeError('Latest upstream archive is empty, future-dated or stale')
+    return latest
+
+
+def credentials():
+    metadata = SECRET.stat()
+    if SECRET.is_symlink() or not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o077:
+        raise RuntimeError('PBS recovery credentials must be a root-only regular file')
+    saved = json.loads(SECRET.read_text())
+    if saved.get('auth-id') != AUTH or not isinstance(saved.get('value'), str) or not saved['value']:
+        raise RuntimeError('PBS recovery credentials do not match configured identity')
+    storage = pve('/storage/' + STORAGE)
+    if (storage.get('type') != 'pbs' or storage.get('server') != ADDRESS
+            or storage.get('datastore') != STORE or storage.get('username') != AUTH
+            or not re.fullmatch(r'(?:[a-fA-F0-9]{2}:){31}[a-fA-F0-9]{2}', storage.get('fingerprint', ''))):
+        raise RuntimeError('Native PBS storage identity or pinned fingerprint differs')
+    environment = os.environ.copy()
+    environment['PBS_PASSWORD'] = saved['value']
+    environment['PBS_FINGERPRINT'] = storage['fingerprint']
+    environment['PBS_REPOSITORY'] = AUTH + '@' + ADDRESS + ':' + STORE
+    return environment
+
+
+def client(environment, *args):
+    return run('proxmox-backup-client', *args, env=environment)
+
+
+def snapshots(environment, group):
+    # Listing visible groups also handles the first run, before this host group
+    # exists. Asking the API for a nonexistent group can fail instead.
+    kind, identity = group.split('/', 1)
+    rows = json.loads(client(environment, 'snapshot', 'list', '--output-format', 'json'))
+    return [row for row in rows if row.get('backup-type') == kind and str(row.get('backup-id')) == identity]
+
+
+def snapshot_name(group, epoch):
+    return group + '/' + datetime.fromtimestamp(epoch, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def prove_snapshot(environment, group, epoch, required):
+    if not any(row.get('backup-time') == epoch for row in snapshots(environment, group)):
+        raise RuntimeError('Expected completed PBS snapshot is missing')
+    name = snapshot_name(group, epoch)
+    files = json.loads(client(environment, 'snapshot', 'files', name, '--output-format', 'json'))
+    if not required.issubset({row['filename'] for row in files}):
+        raise RuntimeError('PBS snapshot is missing required backup archives')
+    return name
+
+
+def atomic_save(name, value):
+    fd, temporary = tempfile.mkstemp(prefix='.pbs-receipt-', dir=STATE)
+    try:
+        with os.fdopen(fd, 'w') as stream:
+            stream.write(value + '\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, STATE / name)
+        directory = os.open(STATE, os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def backup_files():
+    environment = credentials()
+    group = 'host/' + BACKUP_ID
+    previous = snapshots(environment, group)
+    epoch = int(time.time())
+    if any(row['backup-time'] >= epoch for row in previous):
+        raise RuntimeError('Refusing to reuse an existing or future PBS backup point')
+    client(environment, 'backup', 'recovery.pxar:' + str(STATE / 'recovery'),
+           'collector.pxar:' + str(COLLECTOR), '--backup-type', 'host', '--backup-id', BACKUP_ID,
+           '--backup-time', str(epoch), '--crypt-mode', 'none')
+    name = prove_snapshot(environment, group, epoch, {'recovery.pxar.didx', 'collector.pxar.didx'})
+    # A successful process alone is insufficient. Persist only after the exact new
+    # completed point and both expected archives are visible through the native API.
+    atomic_save('pbs-file-latest.json', json.dumps({'backup-time': epoch, 'snapshot': name, 'store': STORE}))
+    atomic_save('pbs-file-last-success', str(int(time.time())))
+
+
+def cycle_floor(now):
+    if not re.fullmatch(r'\d{2}:\d{2}', SCHEDULE):
+        raise RuntimeError('Native nightly VM schedule must be an explicit HH:MM for the completion gate')
+    hour, minute = map(int, SCHEDULE.split(':'))
+    current = datetime.fromtimestamp(now, TIMEZONE)
+    boundary = current.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if boundary > current:
+        boundary -= timedelta(days=1)
+    return int(boundary.timestamp())
+
+
+def current_vm_task(rows, floor):
+    current = [row for row in rows if row.get('type') == 'vzdump' and str(row.get('id')) == VM
+               and row.get('starttime', 0) >= floor]
+    if not current:
+        raise RuntimeError('No native VM backup task in the current scheduled cycle')
+    latest = max(current, key=lambda row: row['starttime'])
+    if latest.get('status') == 'RUNNING' or not latest.get('endtime'):
+        return None
+    if latest.get('status') != 'OK':
+        raise RuntimeError('Latest current-night native VM backup failed')
+    return latest
+
+
+def current_vm_snapshot(rows, task):
+    points = [row['backup-time'] for row in rows
+              if task['starttime'] <= row.get('backup-time', 0) <= task['endtime']]
+    if not points:
+        raise RuntimeError('Successful current native VM task has no matching primary PBS point')
+    return max(points)
+
+
+def complete_cycle():
+    if SECONDARY == STORE:
+        raise RuntimeError('Secondary datastore must differ from primary')
+    environment = credentials()
+    now = time.time()
+    floor = cycle_floor(now)
+    receipt = read_receipt('pbs-file-latest.json')
+    epoch = receipt.get('backup-time')
+    if (type(epoch) is not int or receipt.get('store') != STORE
+            or not floor <= epoch <= now
+            or receipt.get('snapshot') != snapshot_name('host/' + BACKUP_ID, epoch)):
+        raise RuntimeError('No current-cycle primary filesystem backup proof')
+    prove_snapshot(environment, 'host/' + BACKUP_ID, epoch, {'recovery.pxar.didx', 'collector.pxar.didx'})
+    deadline = time.monotonic() + WAIT_SECONDS
+    while True:
+        rows = pve('/nodes/localhost/tasks', '--typefilter', 'vzdump', '--vmid', VM,
+                   '--since', str(floor), '--source', 'all', '--limit', '1000')
+        task = current_vm_task(rows, floor)
+        if task is not None:
+            break
+        if time.monotonic() >= deadline:
+            raise RuntimeError('Timed out waiting for native VM backup completion')
+        time.sleep(60)
+    if not floor <= task['starttime'] <= task['endtime'] <= time.time() or not valid_task(task.get('upid')):
+        raise RuntimeError('Native VM task identity or current-cycle times differ')
+    vm_epoch = current_vm_snapshot(snapshots(environment, 'vm/' + VM), task)
+    prove_snapshot(environment, 'vm/' + VM, vm_epoch, VM_ARCHIVES)
+    completed = int(time.time())
+    atomic_save('pbs-primary-latest.json', json.dumps({
+        'task': task['upid'], 'file-time': epoch, 'vm-time': vm_epoch,
+        'store': STORE, 'completed-at': completed,
+    }))
+    atomic_save('pbs-primary-last-success', str(completed))
+    if not SECONDARY:
+        # Historical replica receipts remain history, never evidence for this mode.
+        return
+    config = json.loads(manager('sync-job', 'show', SYNC_JOB, '--output-format', 'json'))
+    if (config.get('store') != SECONDARY or config.get('remote-store') != STORE
+            or config.get('remote') or config.get('remove-vanished', False)
+            or config.get('owner') != AUTH
+            or config.get('sync-direction', 'pull') != 'pull'
+            or config.get('ns') or config.get('remote-ns')):
+        raise RuntimeError('Secondary sync must be a local root-namespace pull without delete propagation')
+    upid = json.loads(manager('sync-job', 'run', SYNC_JOB, '--output-format', 'json'))
+    if not isinstance(upid, str) or not upid.startswith('UPID:'):
+        raise RuntimeError('Native PBS sync did not return a task identity')
+    deadline = time.monotonic() + WAIT_SECONDS
+    while True:
+        tasks = json.loads(manager('task', 'list', '--all', 'true', '--limit', '1000', '--output-format', 'json'))
+        sync = next((row for row in tasks if row.get('upid') == upid), None)
+        if sync and sync.get('endtime'):
+            if sync.get('status') != 'OK':
+                raise RuntimeError('Native secondary sync task failed')
+            break
+        if time.monotonic() >= deadline:
+            raise RuntimeError('Timed out waiting for native secondary sync completion')
+        time.sleep(60)
+    secondary = dict(environment, PBS_REPOSITORY=AUTH + '@' + ADDRESS + ':' + SECONDARY)
+    prove_snapshot(secondary, 'host/' + BACKUP_ID, epoch, {'recovery.pxar.didx', 'collector.pxar.didx'})
+    prove_snapshot(secondary, 'vm/' + VM, vm_epoch, VM_ARCHIVES)
+    completed = int(time.time())
+    atomic_save('pbs-sync-latest.json', json.dumps({
+        'task': upid, 'file-time': epoch, 'vm-time': vm_epoch,
+        'store': SECONDARY, 'primary-store': STORE, 'completed-at': completed,
+    }))
+    atomic_save('pbs-sync-last-success', str(completed))
+
+
+def read_receipt(name):
+    try:
+        receipt = json.loads((STATE / name).read_text())
+    except (OSError, ValueError):
+        raise RuntimeError('Required PBS receipt is missing or invalid') from None
+    if not isinstance(receipt, dict):
+        raise RuntimeError('Required PBS receipt is missing or invalid')
+    return receipt
+
+
+def valid_task(value):
+    return isinstance(value, str) and value.startswith('UPID:')
+
+
+def fresh_timestamp(value, limit, now):
+    if type(value) is not int or value <= 0 or limit <= 0 or not 0 <= now - value <= limit:
+        raise RuntimeError('PBS backup evidence is missing, invalid or overdue')
+    return value
+
+
+def success_time(name, limit, now):
+    try:
+        value = (STATE / (name + '-last-success')).read_text().strip()
+    except OSError:
+        raise RuntimeError('Required PBS success timestamp is missing') from None
+    if not re.fullmatch(r'[0-9]+', value):
+        raise RuntimeError('Required PBS success timestamp is invalid')
+    return fresh_timestamp(int(value), limit, now)
+
+
+def freshness():
+    now = time.time()
+    file = read_receipt('pbs-file-latest.json')
+    primary = read_receipt('pbs-primary-latest.json')
+    file_epoch = fresh_timestamp(file.get('backup-time'), LOCAL_MAX_AGE, now)
+    file_success = success_time('pbs-file', LOCAL_MAX_AGE, now)
+    vm_epoch = fresh_timestamp(primary.get('vm-time'), LOCAL_MAX_AGE, now)
+    completed = fresh_timestamp(primary.get('completed-at'), LOCAL_MAX_AGE, now)
+    primary_success = success_time('pbs-primary', LOCAL_MAX_AGE, now)
+    if (file.get('store') != STORE or primary.get('store') != STORE
+            or file.get('snapshot') != snapshot_name('host/' + BACKUP_ID, file_epoch)
+            or primary.get('file-time') != file_epoch or not valid_task(primary.get('task'))
+            or file_success < file_epoch or completed < max(file_epoch, vm_epoch, file_success)
+            or primary_success != completed):
+        raise RuntimeError('Primary PBS receipts do not match the selected datastore and points')
+    if SECONDARY:
+        replica = read_receipt('pbs-sync-latest.json')
+        synced = fresh_timestamp(replica.get('completed-at'), SYNC_MAX_AGE, now)
+        sync_success = success_time('pbs-sync', SYNC_MAX_AGE, now)
+        fresh_timestamp(replica.get('file-time'), SYNC_MAX_AGE, now)
+        fresh_timestamp(replica.get('vm-time'), SYNC_MAX_AGE, now)
+        if (SECONDARY == STORE or replica.get('store') != SECONDARY
+                or replica.get('primary-store') != STORE or not valid_task(replica.get('task'))
+                or replica.get('file-time') != file_epoch or replica.get('vm-time') != vm_epoch
+                or synced < completed or sync_success != synced):
+            raise RuntimeError('Replica PBS receipts do not match the configured primary cycle')
+
+
+
+def main():
+    os.umask(0o077)
+    if len(sys.argv) == 5 and sys.argv[1] == 'source-age':
+        latest_archive(Path(sys.argv[2]), sys.argv[3], int(sys.argv[4]))
+    elif sys.argv[1:] == ['backup']:
+        backup_files()
+    elif sys.argv[1:] == ['complete-cycle']:
+        complete_cycle()
+    elif sys.argv[1:] == ['freshness']:
+        freshness()
+    else:
+        raise RuntimeError('Expected source-age PATH PATTERN MAX_SECONDS, backup, complete-cycle or freshness')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except RuntimeError as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(1)
+    except (OSError, ValueError, KeyError, TypeError):
+        # Do not print exception contents: JSON/native output may include secrets.
+        print('PBS file pipeline failed; check protected inputs and native command schemas', file=sys.stderr)
+        sys.exit(1)

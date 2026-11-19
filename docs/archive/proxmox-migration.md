@@ -1,19 +1,25 @@
 # Proxmox migration
 
-[Repository overview](../README.md)
+> Historical archive, frozen during repository cleanup on 2026-11-19.
+> Not current deployment instructions: schedules, pending stages and approvals below
+> describe their original checkpoints, not permission to repeat them. Use
+> [current status](../status.md) and [native PBS operations](../backups-proxmox.md).
+
+[Repository overview](../../README.md)
 
 Sources: read-only Unraid audits on 2026-11-09 and 2026-11-10;
-[current status](status.md), [PVE host](pve-host.md),
-[Docker stacks](docker-stacks.md), [Proxmox backups](backups-proxmox.md),
+[current status](../status.md), [PVE host](../pve-host.md),
+[Docker stacks](../docker-stacks.md), [Proxmox backups](../backups-proxmox.md),
 [existing Unraid backups](backups-unraid.md).
 
-This is desired configuration and a future cutover runbook. The running Unraid
-host has not been reconfigured. Never deploy the PVE/Docker roles to Unraid.
+This runbook preserves the historical Unraid cutover evidence and anchors below.
+PVE/Docker production is now running; the subsequent PBS-only migration is in
+immutable seed/full verification, not yet final cutover. Never deploy these roles to Unraid.
 
 ## Scope and decision
 
 Run Proxmox VE 9 on the existing box, with Docker Compose in one Debian 13 VM.
-Keep ZFS on the host, guest-local databases, and independent file backups.
+Keep ZFS on the host, guest-local databases and important data, and PBS-only backups.
 This improves recoverability and configuration ownership, not availability:
 a single host failure still stops every local guest.
 
@@ -90,7 +96,7 @@ old restic vault remain intact.
 | Tree | Original estimate | Preservation policy |
 | --- | --- | --- |
 | `photos` | ~2.05 TB | Irreplaceable; mirrored and backed up |
-| `appdata` | 41 GB | Irreplaceable; local guest disk, PBS and restic |
+| `appdata` | 41 GB | Irreplaceable; local guest disk, PBS target; retained historical restic |
 | `data` | 679 GB | Replaceable media; no backup |
 | `backup` | 60 GB | Stage all; restore the collector subtree, retain old plugin archives through recovery proof |
 | `files`, `domains`, `isos` | 12 GB combined | Preserve files and legacy HAOS disk; do not infer disposability from inactivity |
@@ -104,26 +110,29 @@ VM disks with `rsync -S`; preserve hardlinks, ACLs, xattrs and numeric IDs.
 ```mermaid
 flowchart TB
   subgraph PVE["Proxmox VE · great-hornbill"]
-    R[("rpool · one SSD initially")]
+    R[("rpool · SSD<br/>root/appdata/EFI + recovery collector")]
     V["Docker VM100 · Debian13<br/>160G root + 128G ext4 appdata"]
-    T[("tank · mirror 8+8<br/>photos / files / pbs")]
-    M[("media · single 4 TB<br/>one data dataset")]
-    B["PBS CT101 · 5 GiB<br/>bind-mounted tank/pbs"]
-    S[("rpool backup-staging<br/>quiesced appdata copy")]
-    L[("old 10 TB · existing restic")]
-    O[("new 10 TB · internal staging<br/>later second local restic repository")]
+    T[("tank · mirror 8+8<br/>tank/vm · storage tank-vm")]
+    D["Managed ext4 VM disks<br/>scsi2 photos3072GiB · scsi3 files64GiB"]
+    M[("media · single4TB<br/>external NFS · excluded")]
+    B["PBS CT101 · 5GiB<br/>only enabled XFS binds"]
+    L[("10TB XFS A · offline<br/>preserved PBS/restic history")]
+    O[("10TB XFS B · temporary primary<br/>preserved migration trees")]
     R --- V
-    R --- S
-    T -- "private NFS bulk only" --> V
+    T --- D
+    D --- V
     M -- "private NFS" --> V
-    T --- B
-    V -- "PBS virtual disks" --> B
-    V -- "restricted SSH / rsync" --> S
-    S --> L
-    T -- "immutable file snapshots" --> L
-    L -- "restic copy · after recovery proof" --> O
+    V -- "native snapshot-mode VM backup" --> B
+    R -- "PBS filesystem recovery archive" --> B
+    B --> O
   end
 ```
+
+The local-data placement is deployed. After A's repeated I/O faults, the owner
+approved B as the temporary sole active PBS repository; fresh B recovery
+acceptance is pending. No current second/off-site copy is claimed.
+Legacy `tank/photos`, `tank/files`, `tank/pbs` and A histories remain preserved;
+production photos/files use managed local VM disks, not their former NFS mounts.
 
 - **One Docker VM, not Docker-in-LXC.** GPU and Docker upgrades remain guest-owned.
 - **Local databases.** `/mnt/appdata` is ext4 on serial `homelab-appdata`, not
@@ -141,9 +150,12 @@ flowchart TB
   SeaBIOS+GTX1650 boot stalled before disk reads, while the same disks booted
   without GPU and then with OVMF plus both functions. Debian supports both;
   this choice follows hardware evidence. Serial-only VNC is explicit display config.
-- **Recovery tools.** PBS protects guest disks; restic independently protects
-  files, consistent appdata, and recovery credentials. PBS can also back up host
-  directories using its client; a remote-protection destination remains deferred.
+- **Recovery tools.** PBS protects root/appdata/EFI/photos/files and filesystem
+  recovery archives, credentials and collected external backups. B is the
+  selected temporary primary; A remains offline for diagnosis/repair. Neither
+  existing10 TB XFS disk is reformatted. Keep old encrypted Restic repositories
+  and passwords for historical recovery. Healthy secondary/remote protection
+  requires separate configuration and real recovery proof.
 
 ## Storage decision: ZFS mirror
 
@@ -198,7 +210,7 @@ life expectancy from a linear extrapolation of those counters.
 
 ### Drive price per terabyte
 
-[HDD price research](hdd-price-research.md) retains the dated US retail snapshot
+[HDD price research](../hdd-price-research.md) retains the dated US retail snapshot
 and method. Recheck local delivered prices, warranty, CMR status and port count
 when purchasing. There is no immediate capacity purchase in this migration;
 a backup copy and recovery proof have priority over speculative expansion.
@@ -210,11 +222,12 @@ a backup copy and recovery proof have priority over speculative expansion.
 | `rpool/data`, PVE storage `local-zfs` | VM and CT volumes | Pool name is not a PVE storage ID |
 | VM100 `scsi0` | 160G guest root and Docker | Headroom above the audited 43G Docker usage |
 | VM100 `scsi1` | 128G ext4 `/mnt/appdata` | Serial, blank-disk and explicit initialization checks |
-| `rpool/backup-staging/appdata` | Cold consistent appdata mirror | Parent staging quota 128G |
-| `tank/photos` | Immich assets | Mirrored; daily backup checkpoint |
-| `tank/files` | Files, collector, retained legacy VM disk | Mirrored; daily backup checkpoint |
-| `tank/pbs` | PBS datastore | `atime=on`, 1T quota, mapped backup ownership |
-| `media/data` | Torrent and media trees | One dataset for hardlinks; no backup |
+| VM100 `scsi2` / `scsi3` on `tank/vm` (`tank-vm`) | 3072 GiB photos /64 GiB files, ext4 | Managed volumes; serial/size/label validation, no raw passthrough |
+| `rpool/backup-staging/collector` | External archives and PBS file-job staging | Freshness and recovery credential checks |
+| `tank/photos`, `tank/files` | Retained original datasets, no longer production data | Preserve originals through final recovery acceptance |
+| `tank/pbs` | Legacy PBS history | Retire registration/mp0 only after A/B proof; preserve data |
+| `/mnt/vault/pbs`, `/mnt/backup-b/pbs` | Independent10 TB XFS PBS A/B | Exact UUID/mount guards; preserve other directories |
+| `media/data` | Torrent and media trees, external NFS | One dataset for hardlinks; no backup |
 
 RAM budget: VM18 GiB + PBS5 GiB + ARC ceiling4 GiB leaves roughly4 GiB for the
 host/QEMU and other overhead. ARC is a ceiling, not a reservation. Measure guest
@@ -223,20 +236,64 @@ the existing non-ECC DIMMs; a second SATA SSD is the simplest root mirror upgrad
 
 ## Backup flow
 
-See [Proxmox backups](backups-proxmox.md) for implementation, activation and
-recovery. Applications are paused only for dumps, the local appdata copy and
-host snapshots; they resume before restic scans, retention or full integrity
-checks. The first cold appdata copy can take appreciable downtime.
+See [Proxmox backups](../backups-proxmox.md) and
+[backup inventory](../../inventory/group_vars/pve/backup.yml) for source authority.
+The local RPO target is24 hours. Native PVE snapshot mode uses QEMU Guest Agent
+filesystem freeze/thaw without nightly VM/GPU restarts. It preserves dirty
+bitmaps; stop mode would reread bulk data after losing them. Databases recover
+through journal/WAL replay, not a clean shutdown. Recurring backups do not
+cold-rsync appdata, dump databases or use prepare/resume helpers. The filesystem job
+captures recovery configuration/credentials and independently collected external
+archives, then coordinates native B sync after current VM/file inputs succeed.
 
-The local RPO target is24 hours. The new disk stays inside the same server;
-its future restic copy is additional local history, not off-site protection.
-The Google Drive seed was cancelled after account loss; its partial upload is not
-available recovery protection. Keep the old restic vault intact and establish a
-current, independently verified local recovery copy before destructive cutover.
-PBS and application recovery gates still apply; a replacement remote target is
-a separate decision.
+The Google Drive seed was cancelled after account loss; its partial upload is
+not recovery protection. Keep old encrypted restic history and migration trees
+until actual A/B recovery acceptance. No offsite protection exists until B
+actually resides on a remote host/location.
+
+### PBS-only transition — 2026-11-15
+
+Source target and native deployment are deliberately staged. A is provisioned
+on existing XFS; `tank/vm`/`tank-vm` backs the managed `scsi2`/`scsi3` disks.
+Both ext4 disks now mount at `/mnt/photos` and `/mnt/files`, with `backup=1`.
+Immutable seed verification passed at2026-11-16T06:26:31Z, frozen final delta at
+09:43:23Z, and all34 original workloads resumed at10:00:30Z. Configured health,
+four data-service HTTP probes, four PostgreSQL clusters and GPU checks passed.
+Follow the [current backup acceptance evidence](../status.md) for full VM recovery,
+secondary datastore/sync and the gate before enabling staged schedules.
+Evidence root: `/root/migration-pbs-only-20261115T113912Z`.
+
+Actual aliases are `/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi2`
+and `..._drive-scsi3`, independently checked against serials
+`homelab-photos`/`homelab-files`. See [guest disk configuration](../../inventory/group_vars/docker/docker_vm.yml)
+and [preparation/cutover tags](../docker-stacks.md#storage-boundary). Explicit
+`docker_vm_initialize_data=true` is valid only for parent-proven fresh
+allocations, never restored/unknown volumes; current disks must not be formatted again.
+
+After seed proof, pause writers for final delta/comparison, unmount original
+NFS paths explicitly, and apply `docker_vm_data_cutover` to existing local
+filesystems. Only then enable both disk backup flags and final native snapshot mode.
+Compose-only deployment runs strict local mounted-device guards before mutation;
+it is not compatible with skipping the migration gate while production uses NFS.
+The old pipeline remains active during seed. Legacy prepare/resume may be used
+once for cold SQL acceptance references; clear original manifests and prove
+restore before retiring helpers. No recurring cold appdata workflow survives.
+
+Full native bulk backup, isolated A restore, B sync/recovery and standby
+observation are not yet complete. Require root/appdata/EFI and both data image
+archives on A/B, not just a configuration blob. Avoid concurrent18 GiB guests
+on this32 GiB host and isolate restore network/GPU identities.
+The PBS role assigns explicit datastore `mount_index` slots0 legacy tank,
+1 A,2 B. After A/B acceptance retire legacy tank registration and CT mp0,
+without deleting `/tank/pbs`, so the backup appliance no longer depends on
+the primary mirror. Source120-minute standby policy applies only to the two
+identified10 TB SATA/XFS disks; deployment/observation and lifespan benefit
+are not claimed.
 
 ## Migration plan
+
+Phases0–5 below retain the historical Unraid-to-PVE sequence and evidence;
+they are not instructions to repeat disk initialization or replace current data.
 
 ### Phase 0 — preparation
 
@@ -511,7 +568,7 @@ writer holds remain intact. No source disk was erased or PVE installed.
    explicit guest-before-NFS shutdown ordering and verified physical device IDs.
 
 The read-only reconnection gate passed2026-11-13; see
-[checkpoint and restore proof](status.md#reconnected-storage--2026-11-13).
+[checkpoint and restore proof](migration-checkpoints.md#reconnected-storage--2026-11-13).
 The following map records verified identities. On2026-11-13, the operator
 explicitly approved erasing only the listed8+8+4 TB source disks and creating
 `tank`/`media`, with bulk data restored from staging. Both10 TB disks and the PVE
@@ -649,7 +706,7 @@ post-rerun comparison is empty. No restoration/startup occurred at that baseline
    the current client serializes it as `-@-1`, which the installed parser rejects.
 2. After copying, change the temporary key to
    `restrict,from="10.77.0.1",command="/usr/bin/rrsync -ro /mnt/appdata"`.
-   Use the unchanged [repository verifier](../scripts/verify-tree.py) on PVE:
+   Use the unchanged [repository verifier](../../scripts/verify-tree.py) on PVE:
 
    ```bash
    python3 "$MIGRATION_CONTROL/verify-tree.py" / /mnt/staging/appdata --source-host root@10.77.0.2 \
@@ -671,7 +728,7 @@ post-rerun comparison is empty. No restoration/startup occurred at that baseline
    `ansible-playbook playbooks/docker.yml --limit docker-1 --tags compose -e compose_data_restored=true`.
    The role writes a separate persistent startup authorization. Select one stack
    at a time during controlled activation; start Caddy before Minecraft.
-   See [deployment scope and config-update behavior](docker-stacks.md#baseline-and-authorization).
+   See [deployment scope and config-update behavior](../docker-stacks.md#baseline-and-authorization).
 4. Exercise actual state: Paperless's 86 existing documents, Immich albums/assets,
    Vaultwarden vault, order-manager database, Arr queues/hardlinks, Jellyfin
    playback, Frigate decode/authenticated UI, Minecraft state and LiteLLM request.
@@ -690,7 +747,7 @@ Evidence: `/root/migration-appdata-20261113T212605Z/RESTORE_VERIFIED.json`.
 
 Subsequent operator-authorized startup completed2026-11-14: all twelve stacks/
 34 containers run, configured healthchecks pass and native retained-state checks
-are recorded in [current workload evidence](status.md#authorized-workload-startup--2026-11-14).
+are recorded in [current workload evidence](migration-checkpoints.md#authorized-workload-startup--2026-11-14).
 Minecraft's inherited EDNS failure required an app-only DNS override, not skipping
 Packwiz or relying on a one-hour cache. Frigate decodes all four cameras but its
 external MQTT broker is unreachable. Owner-client sign-ins and playback quality
@@ -704,12 +761,12 @@ state; do not overwrite it with historical staging. Evidence:
 
 ### Phase 6 — backup and recovery proof
 
-After separate backup activation approval, enable PBS and host backup roles as described in [Proxmox backups](backups-proxmox.md).
-Test local file restoration and an isolated PBS VM restore. Test a secondary
-repository too if configured; it remains local protection while the disk stays
-in this server. Test a normal reboot and controlled UPS shutdown while NFS-backed
-guests are active. Leave staging intact until the complete cycle and recovery
-gates pass. An independent remote copy remains a separate deferred step.
+The PBS-only transition above supersedes the original mixed PBS/Restic design.
+After seed and final cutover, prove a full native VM backup, isolated A restore
+with real SQL/application/photo/file checks, native B sync and independent B
+recovery. Keep original datasets, encrypted restic history and migration trees
+intact until these gates pass. Physical populated UPS evidence is historical,
+not proof of the new bulk backup/recovery path. Remote B remains deferred.
 
 ### Phase 7 — ingress, monitoring and decommission
 
@@ -719,7 +776,7 @@ gates pass. An independent remote copy remains a separate deferred step.
 2. At cutover, update the private `vars/proxy.yml` home/Minecraft/voice upstreams
    from `great-hornbill` to `docker-1` and apply the edge playbook. Do not change
    the live routing map early. Verify public TLS, Minecraft and voice from an
-   external client; see [edge](edge.md) and [tailnet policy](tailscale.md).
+   external client; see [edge](../edge.md) and [tailnet policy](../tailscale.md).
 3. Update Technitium/LAN DNS, remote clients and router-trvl's LiteLLM destination
    to the VM's address; do not change unrelated router configuration. Preserve
    direct Jellyfin discovery and explicitly intended game/torrent ports.
@@ -730,11 +787,11 @@ gates pass. An independent remote copy remains a separate deferred step.
 
 ## Verify before cutover
 
-Run the [local gates](../CONTRIBUTING.md#local-ansible-checks), then the real
+Run the [local gates](../../CONTRIBUTING.md#local-ansible-checks), then the real
 phase gates above. Applied hardware/workload stages and remaining limits are
-recorded in [current status](status.md); offline checks do not prove them.
+recorded in [current status](../status.md); offline checks do not prove them.
 Stop on a failed comparison, wrong disk/mount, SMART error, missing credential,
-empty application, failed dump/resume, or failed restore. Never suppress the gate
+empty application, interrupted writer recovery, or failed restore. Never suppress the gate
 or recreate a pool to make a check green.
 
 ## Rollback

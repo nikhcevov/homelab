@@ -1,34 +1,63 @@
 ---
-- name: Install guest backup tools
-  ansible.builtin.apt:
-    name: [rsync, jq, openssh-server]
-    state: present
 
-- name: Create protected backup state and SSH directories
+- name: Inspect old managed guest backup timers
+  ansible.builtin.stat:
+    path: "/etc/systemd/system/{{ item }}"
+  loop:
+    - homelab-appdata-backup.timer
+    - homelab-backup.timer
+  register: _docker_backup_old_timers
+
+- name: Disarm any old guest backup timers without stopping applications
+  ansible.builtin.systemd:
+    name: "{{ item.item }}"
+    enabled: false
+    state: stopped
+  loop: "{{ _docker_backup_old_timers.results }}"
+  when: item.stat.exists
+
+- name: Inspect guest cold backup units before retiring them
+  ansible.builtin.service_facts:
+
+- name: Refuse to retire a running guest cold transaction
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services.get(item, {}).get('state', 'stopped') != 'running'
+    fail_msg: Let the old guest cold backup transaction finish before retiring its helpers.
+  loop:
+    - homelab-appdata-backup.service
+    - homelab-backup.service
+
+- name: Inspect the original running-container recovery manifest
+  ansible.builtin.stat:
+    path: /var/lib/homelab-appdata-backup/running.json
+  register: _docker_backup_manifest
+
+- name: Preserve pending recovery manifests and fail closed before helper removal
+  ansible.builtin.assert:
+    that: not _docker_backup_manifest.stat.exists
+    fail_msg: Recover the pending old cold transaction and archive its manifest manually before applying PBS-only retirement. No manifest or SQL dump is deleted by this role.
+
+- name: Remove only obsolete forced-command collector authorizations
+  ansible.builtin.lineinfile:
+    path: /root/.ssh/authorized_keys
+    regexp: 'command="/usr/local/sbin/homelab-backup-ssh"'
+    state: absent
+    create: false
+  no_log: true
+
+- name: Retire cold helper commands and units without removing backup artifacts
   ansible.builtin.file:
     path: "{{ item }}"
-    state: directory
-    owner: root
-    group: root
-    mode: "0700"
+    state: absent
   loop:
-    - /var/lib/homelab-appdata-backup
-    - /root/.ssh
+    - /usr/local/sbin/homelab-appdata-backup
+    - /usr/local/sbin/homelab-backup-ssh
+    - /etc/systemd/system/homelab-appdata-backup.service
+    - /etc/systemd/system/homelab-appdata-backup.timer
+    - /etc/systemd/system/homelab-backup.service
+    - /etc/systemd/system/homelab-backup.timer
 
-- name: Install guest quiesce and SSH restriction helpers
-  ansible.builtin.template:
-    src: "{{ item }}.j2"
-    dest: "/usr/local/sbin/{{ item }}"
-    owner: root
-    group: root
-    mode: "0700"
-  loop:
-    - homelab-appdata-backup
-    - homelab-backup-ssh
-
-- name: Authorize the preserved collector identity for restricted private-link access
-  ansible.posix.authorized_key:
-    user: root
-    key: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../files/ssh/great-hornbill.pub') }}"
-    key_options: 'restrict,from="{{ docker_backup_source_address }}",command="/usr/local/sbin/homelab-backup-ssh"'
-    state: present
+- name: Reload units after retiring guest cold backup installation
+  ansible.builtin.systemd:
+    daemon_reload: true

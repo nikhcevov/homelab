@@ -1,7 +1,7 @@
 ---
 # NUT for the USB-attached CyberPower UPS (role: pve_ups).
-# The cable moves from the Unraid host at cutover. NUT shuts the host down;
-# Proxmox stops the guests on the way.
+# USB stays on PVE. NUT requests normal host shutdown;
+# Proxmox stops guests before host storage shuts down.
 
 pve_ups_name: cyberpower
 pve_ups_driver: usbhid-ups

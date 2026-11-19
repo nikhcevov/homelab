@@ -1,8 +1,17 @@
 #!/bin/sh
 set -eu
-# A directory on rpool must never masquerade as the surviving HDD datastore.
-[ "$(zfs get -H -o value mounted {{ pve_pbs_dataset | quote }})" = yes ]
-[ "$(findmnt -rn -M {{ pve_pbs_host_path | quote }} -o SOURCE)" = {{ pve_pbs_dataset | quote }} ]
-[ "$(zfs get -H -o value mountpoint {{ pve_pbs_dataset | quote }})" = {{ pve_pbs_host_path | quote }} ]
-# PBS garbage collection needs real access-time updates.
-[ "$(zfs get -H -o value atime {{ pve_pbs_dataset | quote }})" = on ]
+# Never initialize backups in an empty directory on the host root filesystem.
+{% for store in pve_pbs_datastores if store.enabled %}
+findmnt -rn -M {{ store.mountpoint | quote }} -S {{ store.source | quote }} -t {{ store.fstype | quote }} >/dev/null
+options="$(findmnt -rn -M {{ store.mountpoint | quote }} -o OPTIONS)"
+case ",$options," in *,rw,*) ;; *) exit 1 ;; esac
+# PBS garbage collection requires access-time updates, including on XFS.
+case ",$options," in *,noatime,*) exit 1 ;; esac
+{% if store.fstype == 'zfs' %}
+[ "$(zfs get -H -o value mounted {{ store.source | quote }})" = yes ]
+[ "$(zfs get -H -o value mountpoint {{ store.source | quote }})" = {{ store.mountpoint | quote }} ]
+[ "$(zfs get -H -o value atime {{ store.source | quote }})" = on ]
+{% endif %}
+# An existing symlink must not redirect the datastore outside its filesystem.
+[ "$(realpath -m {{ store.host_path | quote }})" = {{ store.host_path | quote }} ]
+{% endfor %}

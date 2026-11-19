@@ -1,0 +1,79 @@
+#!/usr/bin/python3
+"""Configure native PBS error delivery; secret values never enter process arguments."""
+import base64
+import json
+import subprocess
+
+CT = {{ pve_pbs_id | to_json }}
+URL = {{ ntfy_url | to_json }}
+CHANNEL = {{ ntfy_topic_alerts | to_json }}
+TARGET = 'homelab-pbs-ntfy'
+MATCHER = 'homelab-pbs-errors'
+
+{% raw %}
+def run(*args, input=None):
+    result = subprocess.run([str(arg) for arg in args], input=input, capture_output=True, text=True)
+    if result.returncode:
+        raise RuntimeError('Native PBS notification configuration failed; protected output withheld')
+    return result.stdout
+
+
+def manager(*args):
+    return run('pct', 'exec', CT, '--', 'proxmox-backup-manager', 'notification', *args)
+
+
+def listing(*args):
+    return json.loads(manager(*args, '--output-format', 'json'))
+
+
+if not URL.startswith('https://') or not CHANNEL or '\n' in CHANNEL or '/' in CHANNEL:
+    raise RuntimeError('Notifications require HTTPS and the existing single ntfy channel')
+config = run('pct', 'config', CT)
+if 'homelab-managed-pbs/v1' not in config or 'unprivileged: 1' not in config:
+    raise RuntimeError('Refusing to configure an unowned PBS container')
+endpoints = listing('endpoint', 'webhook', 'list')
+action = 'update' if any(row['name'] == TARGET for row in endpoints) else 'create'
+body = base64.b64encode(('**Homelab · PBS**\n\n**{{ title }}**\n\n{{ message }}').encode()).decode()
+manager('endpoint', 'webhook', action, TARGET, '--method', 'post',
+        '--url', URL.rstrip('/') + '/{{ secrets.channel }}', '--body', body,
+        '--header', 'name=Title,value=' + base64.b64encode('⚠️ Homelab · PBS'.encode()).decode(),
+        '--header', 'name=Priority,value=' + base64.b64encode(b'4').decode(),
+        '--header', 'name=Tags,value=' + base64.b64encode(b'warning,pbs').decode(),
+        '--header', 'name=Markdown,value=' + base64.b64encode(b'yes').decode(),
+        '--disable', 'true', '--comment', 'Ansible-owned PBS maintenance failure delivery')
+
+# The native CLI takes secret values in argv. Send them instead to a root-only,
+# atomically replaced private configuration section through the CT's stdin.
+# The preceding native operation canonicalizes section layout; preserve all
+# other endpoints and their secrets, including future user-managed targets.
+writer = r'''
+import json,os,pathlib,re,sys,tempfile
+settings=json.load(sys.stdin)
+p=pathlib.Path('/etc/proxmox-backup/notifications-priv.cfg')
+if p.is_symlink():raise RuntimeError('Private notification configuration is redirected')
+text=p.read_text() if p.exists() else ''
+pattern=r'(?m)^webhook:[ \t]+'+re.escape(settings['name'])+r'[ \t]*\n(?:[ \t][^\n]*\n|\n)*'
+if len(re.findall(pattern,text))>1:raise RuntimeError('Duplicate owned webhook section')
+section='webhook: '+settings['name']+'\n\tsecret name=channel,value='+settings['encoded']+'\n\n'
+updated=re.sub(pattern,lambda match:section,text) if re.search(pattern,text) else text.rstrip()+'\n\n'+section
+fd,name=tempfile.mkstemp(prefix='.homelab-notifications-',dir=p.parent)
+try:
+ with os.fdopen(fd,'w') as stream:
+  stream.write(updated);stream.flush();os.fsync(stream.fileno())
+ os.chmod(name,0o600);os.replace(name,p)
+ directory=os.open(p.parent,os.O_DIRECTORY)
+ try:os.fsync(directory)
+ finally:os.close(directory)
+finally:
+ if os.path.exists(name):os.unlink(name)
+'''
+run('pct', 'exec', CT, '--', 'python3', '-c', writer,
+    input=json.dumps({'name': TARGET, 'encoded': base64.b64encode(CHANNEL.encode()).decode()}))
+# API update keeps the private value while registering only its public name.
+manager('endpoint', 'webhook', 'update', TARGET, '--secret', 'name=channel', '--disable', 'false')
+matchers = listing('matcher', 'list')
+action = 'update' if any(row['name'] == MATCHER for row in matchers) else 'create'
+manager('matcher', action, MATCHER, '--mode', 'all', '--match-severity', 'warning,error',
+        '--target', TARGET, '--disable', 'false', '--comment', 'Ansible-owned PBS warning/error routing')
+print('CHANGED')
+{% endraw %}

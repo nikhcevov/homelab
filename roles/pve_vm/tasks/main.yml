@@ -17,6 +17,27 @@
       - (_vm_storage_config.stdout | from_json).pool == 'rpool/data'
       - "'images' in (_vm_storage_config.stdout | from_json).content.split(',')"
 
+- name: Require active dedicated bulk image storage
+  ansible.builtin.command: "pvesm status --storage {{ pve_vm_data_storage }}"
+  register: _vm_data_storage
+  changed_when: false
+  failed_when: "_vm_data_storage.rc != 0 or 'active' not in _vm_data_storage.stdout"
+
+- name: Inspect dedicated bulk storage backing
+  ansible.builtin.command: "pvesh get /storage/{{ pve_vm_data_storage }} --output-format json"
+  register: _vm_data_storage_config
+  changed_when: false
+
+- name: Reject non-sparse or incorrectly backed bulk storage
+  ansible.builtin.assert:
+    that:
+      - pve_vm_data_storage != pve_vm_storage
+      - (_vm_data_storage_config.stdout | from_json).type == 'zfspool'
+      - (_vm_data_storage_config.stdout | from_json).pool == 'tank/vm'
+      - (_vm_data_storage_config.stdout | from_json).sparse | default(false) | bool
+      - (_vm_data_storage_config.stdout | from_json).blocksize | default('') | lower == '64k'
+      - "'images' in (_vm_data_storage_config.stdout | from_json).content.split(',')"
+
 - name: Create VM provisioning directories
   ansible.builtin.file:
     path: "{{ item }}"

@@ -1,0 +1,62 @@
+---
+- name: Require a conservative backup HDD standby interval
+  ansible.builtin.assert:
+    that:
+      - pve_pbs_hdd_standby_timeout | int >= 241
+      - pve_pbs_hdd_standby_timeout | int <= 251
+    fail_msg: Backup HDD standby must use30-minute ATA intervals, not frequent spin cycling.
+
+- name: Ensure the native ATA power-management utility is present
+  ansible.builtin.apt:
+    name: hdparm
+    state: present
+
+- name: Inspect only the UUID-identified backup HDDs
+  ansible.builtin.command:
+    argv:
+      - lsblk
+      - --json
+      - --tree
+      - --output
+      - TYPE,ROTA,SERIAL,FSTYPE,UUID
+      - "{{ item.device }}"
+  loop: "{{ pve_pbs_datastores | selectattr('enabled') | selectattr('fstype', 'equalto', 'xfs') | list }}"
+  register: _pbs_standby_disks
+  changed_when: false
+
+- name: Refuse power settings on foreign disks or ZFS mirror members
+  ansible.builtin.assert:
+    that:
+      - item.item.device is match('^/dev/disk/by-id/ata-[^\\s{}]+$')
+      - geometry | length == 1
+      - disk.type == 'disk'
+      - disk.rota | bool
+      - item.item.device.split('_') | last == disk.serial
+      - disk.children | default([]) | length == 1
+      - disk.children[0].fstype == 'xfs'
+      - "item.item.source == 'UUID=' ~ disk.children[0].uuid"
+    fail_msg: Standby requires the declared SATA HDD and its exact existing XFS UUID.
+  vars:
+    geometry: "{{ (item.stdout | from_json).blockdevices }}"
+    disk: "{{ geometry | first }}"
+  loop: "{{ _pbs_standby_disks.results }}"
+
+- name: Persist only backup HDD standby rules without replacing unrelated settings
+  ansible.builtin.blockinfile:
+    path: /etc/hdparm.conf
+    create: true
+    owner: root
+    group: root
+    mode: '0644'
+    marker: '# {mark} ANSIBLE HOMELAB BACKUP DISKS'
+    block: |
+      {% for store in pve_pbs_datastores if store.enabled and store.fstype == 'xfs' %}
+      {{ store.device }} {
+          spindown_time = {{ pve_pbs_hdd_standby_timeout }}
+      }
+      {% endfor %}
+
+- name: Apply the conservative timer without forcing a live disk to sleep
+  ansible.builtin.command:
+    argv: [hdparm, -S, "{{ pve_pbs_hdd_standby_timeout }}", "{{ item.device }}"]
+  loop: "{{ pve_pbs_datastores | selectattr('enabled') | selectattr('fstype', 'equalto', 'xfs') | list }}"

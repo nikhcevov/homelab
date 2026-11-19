@@ -1,5 +1,5 @@
 [Unit]
-Description=Alert when local backups or configured secondary copies are overdue
+Description=Alert when configured PBS backup protection is overdue
 Wants=network-online.target
 After=network-online.target
 OnFailure=homelab-backup-failure@%n.service

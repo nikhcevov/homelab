@@ -1,8 +1,8 @@
 ---
 # Docker VM: base system, operator account, NFS mounts from the PVE host,
 # tailnet, Docker Engine with the NVIDIA runtime, and the compose stacks.
-# The VM itself is created at Phase 4 of docs/proxmox-migration.md; this
-# playbook starts on a booted Debian guest with the operator account.
+# Provision the VM with playbooks/pve.yml; see docs/pve-host.md#vm-and-gpu.
+# This playbook starts on a booted Debian guest with the operator account.
 - name: Configure the Docker VM
   hosts: docker
   become: true
@@ -19,7 +19,8 @@
   roles:
     - debian_common
     - docker_vm
-    - docker_backup
+    - role: docker_backup
+      tags: [backup]
     - ssh
     - tailscale
     - docker_debian

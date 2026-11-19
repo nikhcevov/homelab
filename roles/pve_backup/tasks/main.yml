@@ -1,30 +1,78 @@
 ---
-- name: Install host backup utilities
-  ansible.builtin.apt:
-    name: [restic, rsync, curl, jq, openssh-client, sqlite3, xfsprogs]
-    state: present
 
-- name: Install fail-closed local or private-SSH tree comparison
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../scripts/verify-tree.py"
-    dest: /usr/local/sbin/homelab-verify-tree
-    owner: root
-    group: root
-    mode: "0755"
+- name: Inspect old managed backup timers
+  ansible.builtin.stat:
+    path: "/etc/systemd/system/{{ item }}"
+  loop:
+    - homelab-backup.timer
+    - homelab-backup-collect.timer
+    - homelab-backup-check.timer
+  register: _pve_backup_old_timers
 
-- name: Require preserved credentials and disk identity before activation
+- name: Disarm old schedules before replacing commands
+  ansible.builtin.systemd:
+    name: "{{ item.item }}"
+    enabled: false
+    state: stopped
+  loop: "{{ _pve_backup_old_timers.results }}"
+  when: item.stat.exists
+
+- name: Inspect backup units before the PBS-only cutover
+  ansible.builtin.service_facts:
+
+- name: Refuse to replace an active backup transaction
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services.get(item, {}).get('state', 'stopped') != 'running'
+    fail_msg: Wait for the existing backup transaction to finish before applying the PBS-only role.
+  loop:
+    - homelab-backup.service
+    - homelab-backup-collect.service
+    - homelab-backup-check.service
+
+- name: Inspect the preserved host recovery marker
+  ansible.builtin.stat:
+    path: /var/lib/homelab-backup/guest-needs-resume
+  register: _pve_backup_recovery
+
+- name: Require old cold transactions to be recovered before retirement
+  ansible.builtin.assert:
+    that: not _pve_backup_recovery.stat.exists
+    fail_msg: A preserved guest-needs-resume marker exists. Recover and archive the old transaction manually before retiring its helpers.
+
+- name: Require the preserved collector identity and native PBS interfaces
   ansible.builtin.assert:
     that:
       - vault_pve_backup_ssh_private_key is defined
       - pve_backup_ssh_private_key | length > 0
-      - pve_backup_vault_uuid | length > 0
-      - vault_restic_password is defined
-      - pve_backup_snapshot_keep | int > 0
-    fail_msg: Supply the source collector identity and existing XFS vault UUID before enabling backups.
-  when: pve_backup_provision | bool or pve_backup_enabled | bool
+      - pve_pbs_datastore | length > 0
+      - pve_pbs_secondary_datastore is string
+      - pve_pbs_secondary_datastore | length == 0 or pve_pbs_datastore != pve_pbs_secondary_datastore
+      - pve_backup_pbs_vmid | int == 101
+      - pve_backup_vm_wait_seconds | int > 0
+      - pve_pbs_secret_path is match('^/')
+      - pve_backup_id is match('^[A-Za-z0-9][A-Za-z0-9_-]*$')
+    fail_msg: Supply the preserved SSH identity and the existing native PBS configuration.
   no_log: true
 
-- name: Create protected backup installation directories
+- name: Require a complete source age policy
+  ansible.builtin.assert:
+    that:
+      - item.name is match('^[A-Za-z0-9][A-Za-z0-9_-]*$')
+      - item.latest_pattern | length > 0
+      - "'/' not in item.latest_pattern"
+      - item.latest_max_age_hours | int > 0
+    fail_msg: Each source needs a safe name, completed archive glob and positive latest archive maximum age.
+  loop: "{{ pve_backup_rsync_sources }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Install PBS filesystem backup utilities
+  ansible.builtin.apt:
+    name: [proxmox-backup-client, rsync, curl, openssh-client, sqlite3, python3]
+    state: present
+
+- name: Create protected backup installation directories without removing history
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
@@ -37,28 +85,35 @@
     - /var/lib/homelab-backup/recovery
     - /usr/local/lib/homelab-backup
 
-- name: Ensure mount paths exist without changing mounted filesystem metadata
+- name: Require the already migrated collector dataset before enabling its timer
+  ansible.builtin.command:
+    argv: [findmnt, -n, -o, "FSTYPE,SOURCE,OPTIONS", --mountpoint, "{{ pve_backup_collector }}"]
+  register: _pve_backup_collector_mount
+  changed_when: false
+  when: pve_backup_enabled | bool
+
+- name: Reject fallback collector directories and read-only datasets
+  ansible.builtin.assert:
+    that:
+      - _pve_backup_collector_mount.stdout.split()[0] == 'zfs'
+      - _pve_backup_collector_mount.stdout.split()[1] == pve_backup_collector_dataset
+      - "'ro' not in _pve_backup_collector_mount.stdout.split()[2].split(',')"
+    fail_msg: Migrate the existing collector history to the configured mounted ZFS dataset before enabling backups.
+  when: pve_backup_enabled | bool
+
+- name: Protect the migrated collector without recursively changing archives
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ pve_backup_collector }}"
     state: directory
-  loop:
-    - "{{ pve_backup_vault_mount }}"
-    - "{{ pve_backup_offsite_mount }}"
+    owner: root
+    group: root
+    mode: "0700"
+  when: pve_backup_enabled | bool
 
 - name: Preserve the existing collector SSH identity
   ansible.builtin.copy:
     content: "{{ pve_backup_ssh_private_key }}\n"
     dest: /etc/homelab-backup/id_ed25519
-    owner: root
-    group: root
-    mode: "0600"
-  when: vault_pve_backup_ssh_private_key is defined
-  no_log: true
-
-- name: Store the existing restic password
-  ansible.builtin.copy:
-    content: "{{ vault_restic_password }}\n"
-    dest: /etc/homelab-backup/restic-password
     owner: root
     group: root
     mode: "0600"
@@ -75,9 +130,9 @@
     block: "{{ pve_backup_known_hosts }}"
   no_log: true
 
-- name: Build the expected SSH host list
+- name: Build the expected external collector SSH host list
   ansible.builtin.set_fact:
-    _pve_backup_hosts: "{{ ([pve_backup_guest_host] + (pve_backup_rsync_sources | map(attribute='host') | list) + (pve_backup_routers | map(attribute='host') | list)) | unique }}"
+    _pve_backup_hosts: "{{ ((pve_backup_rsync_sources | map(attribute='host') | list) + (pve_backup_routers | map(attribute='host') | list)) | unique }}"
 
 - name: Inspect existing pinned host entries
   ansible.builtin.command:
@@ -90,7 +145,6 @@
 - name: Explicitly bootstrap missing SSH pins from expected hosts
   ansible.builtin.command:
     argv: [ssh-keyscan, -T, '10', -t, ed25519, "{{ item.item }}"]
-  delegate_to: "{{ inventory_hostname }}"
   register: _pve_backup_scans
   changed_when: false
   loop: "{{ _pve_backup_pins.results }}"
@@ -107,69 +161,14 @@
   loop: "{{ _pve_backup_scans.results }}"
   when: item.stdout is defined
 
-- name: Protect pinned host keys
-  ansible.builtin.file:
-    path: /etc/homelab-backup/known_hosts
-    state: touch
-    access_time: preserve
-    modification_time: preserve
-    owner: root
-    group: root
-    mode: "0600"
-
-- name: Require every SSH host to be pinned before activation
+- name: Require every collector SSH host to be pinned before activation
   ansible.builtin.command:
     argv: [ssh-keygen, -F, "{{ item }}", -f, /etc/homelab-backup/known_hosts]
   changed_when: false
   loop: "{{ _pve_backup_hosts }}"
-  when: pve_backup_provision | bool or pve_backup_enabled | bool
+  when: pve_backup_enabled | bool
 
-- name: Configure existing vault mount without mounting or initializing it
-  ansible.posix.mount:
-    path: "{{ pve_backup_vault_mount }}"
-    src: "UUID={{ pve_backup_vault_uuid }}"
-    fstype: xfs
-    opts: defaults,nofail,nodev,nosuid,noexec
-    state: present
-  when: pve_backup_vault_uuid | length > 0
-
-- name: Configure optional secondary XFS mount without attaching it automatically
-  ansible.posix.mount:
-    path: "{{ pve_backup_offsite_mount }}"
-    src: "UUID={{ pve_backup_offsite_uuid }}"
-    fstype: xfs
-    opts: noauto,nofail,nodev,nosuid,noexec
-    state: present
-  when: pve_backup_offsite_uuid | length > 0
-
-- name: Create the staging parent dataset
-  community.general.zfs:
-    name: "{{ pve_backup_staging_dataset.rsplit('/', 1)[0] }}"
-    state: present
-    extra_zfs_properties:
-      compression: zstd
-      atime: 'off'
-  when: pve_backup_provision | bool or pve_backup_enabled | bool
-
-- name: Create the private staging dataset without replacing existing data
-  community.general.zfs:
-    name: "{{ pve_backup_staging_dataset }}"
-    state: present
-    extra_zfs_properties:
-      mountpoint: "{{ pve_backup_staging }}"
-      compression: zstd
-      atime: 'off'
-  when: pve_backup_provision | bool or pve_backup_enabled | bool
-
-- name: Protect staging through its parent without changing guest metadata
-  ansible.builtin.file:
-    path: "{{ pve_backup_staging | dirname }}"
-    owner: root
-    group: root
-    mode: "0700"
-  when: pve_backup_provision | bool or pve_backup_enabled | bool
-
-- name: Install protected backup commands and configuration
+- name: Install protected PBS backup commands
   ansible.builtin.template:
     src: "{{ item.src }}"
     dest: "{{ item.dest }}"
@@ -180,9 +179,19 @@
     - {src: common.sh.j2, dest: /usr/local/lib/homelab-backup/common.sh}
     - {src: homelab-backup.j2, dest: /usr/local/sbin/homelab-backup}
     - {src: homelab-backup-collect.j2, dest: /usr/local/sbin/homelab-backup-collect}
+    - {src: pbs-file-backup.py.j2, dest: /usr/local/lib/homelab-backup/pbs-file-backup}
   no_log: true
 
-- name: Install backup services and timers
+- name: Remove obsolete restic and independent collector schedules only
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}"
+    state: absent
+  loop:
+    - homelab-backup-check.service
+    - homelab-backup-check.timer
+    - homelab-backup-collect.timer
+
+- name: Install PBS file backup and freshness services
   ansible.builtin.template:
     src: "{{ item }}.j2"
     dest: "/etc/systemd/system/{{ item }}"
@@ -193,14 +202,12 @@
     - homelab-backup.service
     - homelab-backup.timer
     - homelab-backup-collect.service
-    - homelab-backup-collect.timer
-    - homelab-backup-check.service
-    - homelab-backup-check.timer
     - homelab-backup-freshness.service
     - homelab-backup-freshness.timer
     - homelab-backup-failure@.service
+  no_log: true
 
-- name: Enable configured backup timers
+- name: Enable configured PBS file backup and freshness timers
   ansible.builtin.systemd:
     name: "{{ item }}"
     daemon_reload: true
@@ -208,6 +215,4 @@
     state: "{{ 'started' if pve_backup_enabled | bool else 'stopped' }}"
   loop:
     - homelab-backup.timer
-    - homelab-backup-collect.timer
-    - homelab-backup-check.timer
     - homelab-backup-freshness.timer

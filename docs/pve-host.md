@@ -8,11 +8,13 @@ Sources: [playbook](../playbooks/pve.yml), [host](../roles/pve_host/),
 [PBS](../roles/pve_pbs/), [backup](../roles/pve_backup/),
 [group variables](../inventory/group_vars/pve/).
 
-PVE management/storage/private NFS/NUT, VM100 provisioning and guest baseline are applied.
-All five bulk restores and cold guest appdata restoration passed full comparisons.
-Production startup is authorized and applied; see [runtime evidence and limits](status.md#authorized-workload-startup--2026-11-14).
-The destructive sequence and rollback boundaries are in the
-[migration runbook](proxmox-migration.md#migration-plan).
+PVE management/storage/private NFS/NUT, VM100 and PBS CT101 are in production.
+Photos/files use verified managed local VM disks included in native PBS backups.
+Native PBS schedules are active. B-primary restore/standby acceptance passed;
+B remains the only accepted local copy. See [current state and remaining risks](status.md) and
+the [operational backup/recovery guide](backups-proxmox.md).
+Original destructive approvals and cutover evidence are retained in the
+[migration archive](archive/proxmox-migration.md#migration-plan).
 Run controller commands from the repository root.
 
 ## Scope
@@ -38,14 +40,14 @@ fails rather than silently changing an enterprise subscription configuration.
 1. Install PVE9 onto the identified SSD only. Configure `192.168.15.36/24`,
    gateway `192.168.15.1`, matching node hostname resolution and a DHCP exclusion
    or reservation. Do not rely on the router usually returning the same lease.
-2. Move the inventory host from `[unraid]` to `[pve]` only after installation.
-   Authorize the controller root key from the console and verify the new SSH
-   fingerprint through IPMI before replacing its controller known-host entry.
+2. Use the existing `[pve]` inventory entry. Authorize the controller root key
+   from the console and verify the new SSH fingerprint through IPMI before
+   replacing its controller known-host entry.
    Root-key updates resolve the managed symlink and change content only, retaining
    pmxcfs's fixed ownership. `authorized_key` with `follow: true` still attempts
    `chown` and fails on this native store; it is not used for root-key updates.
-   Before joining Tailscale, rename/archive the offline Unraid machine entry so
-   the new host can reuse `great-hornbill`; preserve the old node for rollback.
+   On a replacement installation, inspect the existing `great-hornbill` tailnet
+   identity before joining; do not delete a live node or assume its address.
    Without a subscription, disable both PVE and unused Ceph enterprise sources
    in Node → Updates → Repositories, then add the signed PVE No-Subscription
    repository. Keep Debian/security sources enabled; no reinstall is needed.
@@ -104,8 +106,10 @@ the bootstrap step is current.
 
 Pool creation is deliberately not an automatic wipe operation:
 
-1. Finish staging/checksum/restore prerequisites in the migration guide.
-2. Explicitly erase only the selected source disks after confirming serials.
+1. For new/replacement pools only, prove independent recovery of any data on the
+   candidate disks. Existing `tank`/`media` need no reinitialization; original
+   one-time approvals are in the [archived gates](archive/proxmox-migration.md#migration-plan).
+2. Explicitly authorize erasing only the selected disks after confirming serials.
 3. Populate `pve_storage_pools[].disks` and
    `pve_storage_approved_blank_disks` with by-id paths.
 4. Run only storage, without activating unrelated roles:
@@ -122,16 +126,35 @@ private host address and client `10.77.0.2/32`. The `mountpoint` export guard
 refuses empty underlying directories if a dataset is not mounted. NFSv2/v3 and
 other v4 minor versions are disabled. No appdata/database export exists.
 
+Photos/files exports retain original migration data, not the active guest
+storage model. Production photos3072 GiB `scsi2` and files64 GiB `scsi3`
+are managed ext4 VM disks on `tank/vm`, registered as
+`tank-vm` (sparse ZFS,64K blocks); no raw HDD passthrough. SSD `local-zfs`
+continues to hold root/appdata/EFI. Only replaceable media stays external NFS
+and excluded from PBS. Dataset/export authority is
+[storage inventory](../inventory/group_vars/pve/storage.yml).
+
+The owner approved PBS CT101 with B `/mnt/backup-b/pbs` as the temporary sole
+active datastore after A's recurring errors. A `/mnt/vault/pbs` and legacy
+`/tank/pbs` histories remain untouched/offline. [PBS inventory](../inventory/group_vars/pve/pbs.yml)
+retains explicit slots0 legacy tank,1 A,2 B and boolean `enabled` participation.
+Only enabled stores supply bind/startup/guard and HDD-policy dependencies; exact
+inactive binds are retired without deleting data/configuration. PBS must not
+require A or the old mirror-backed bind to start. B is local, not off-site or
+dual-copy protection. Its native restore and120-minute standby/real-backup wake
+acceptance passed; follow [current evidence and remaining risks](status.md).
+
 `pve-guests.service` starts after NFS and stops before NFS during host shutdown.
 The dependency is `Wants`, not `Requires`: restarting NFS must not invoke PVE's
-stop-all-guests action. The real UPS test observed this ordering with an empty
-guest inventory; actual VM shutdown durations still need proof after provisioning.
+stop-all-guests action. The populated physical UPS cycle proved guest shutdown
+before host NFS shutdown; see the dated evidence below.
 
 ## VM and GPU
 
-VM100 uses `local-zfs` backed by `rpool/data`, not a storage ID inferred from
-pool name `rpool`. A dated Debian13 genericcloud image and its SHA512 are pinned
-in [VM variables](../inventory/group_vars/pve/vm.yml).
+VM100 uses SSD `local-zfs` backed by `rpool/data` for root/appdata/EFI and
+HDD `tank-vm` backed by `tank/vm` for managed photos/files disks. Neither storage
+ID is inferred from a pool name. A dated Debian13 genericcloud image and its
+SHA512 are pinned in [VM variables](../inventory/group_vars/pve/vm.yml).
 
 Guest provisioning is off by default (`pve_vm_enabled: false`). After the storage
 and GPU phase gates, explicitly authorize VM100 creation/reconciliation:
@@ -276,8 +299,8 @@ cat /sys/module/zfs/parameters/zfs_arc_max
 upsc cyberpower@localhost
 ```
 
-Expected: correct pool mounts and quotas, three private exports, both VM disks,
-private NIC, correct VFIO ownership and running guest once explicitly enabled.
+Expected: correct pool mounts and quotas, retained transition exports, SSD and
+managed data disks, private NIC, correct VFIO ownership and running guest once explicitly enabled.
 ARC changes apply after initramfs/reboot. NFSv3-only `showmount` discovery is not
 a readiness gate for the v4-only server.
 

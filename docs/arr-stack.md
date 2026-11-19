@@ -4,7 +4,7 @@
 [TRaSH Guides](https://trash-guides.info/), синхронизация профилей и кастомных
 форматов — через [Clonarr](https://github.com/ProphetSe7en/clonarr).
 
-[Обзор репозитория](../README.md) · [Резервные копии Unraid](backups-unraid.md).
+[Обзор репозитория](../README.md) · [Резервные копии Proxmox](backups-proxmox.md).
 
 ## Архитектура
 

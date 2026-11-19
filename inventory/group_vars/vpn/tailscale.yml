@@ -1,7 +1,7 @@
 ---
-# Tailscale mesh VPN (playbook: playbooks/vpn.yml). VPN servers join so Unraid
-# (great-hornbill) can pull /opt/vpn-backup over the tailnet instead of
-# the public internet.
+# Tailscale mesh VPN (playbook: playbooks/vpn.yml). VPN servers join so the PVE
+# collector (great-hornbill) can pull /opt/vpn-backup over the tailnet instead
+# of the public internet.
 
 # Hostname shown in the tailnet (defaults to the inventory name).
 tailscale_hostname: "{{ inventory_hostname }}"

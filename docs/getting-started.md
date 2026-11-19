@@ -14,7 +14,6 @@ Run commands from the repository root. These day-0 instructions cover VPS hosts;
 │   ├── vpn.yml                  VPN VPS setup/update; --tags restore for explicit recovery
 │   ├── mon.yml                  monitoring VPS setup/update
 │   ├── openwrt.yml              router setup/update; --tags upgrade for explicit upgrades
-│   ├── unraid.yml               deploy backup scripts to Unraid
 │   ├── pve.yml                  Proxmox host: base, ZFS, NFS, UPS
 │   ├── docker.yml               Docker VM: Docker Engine and compose stacks
 │   ├── workstation.yml          Arch/CachyOS desktops
@@ -28,10 +27,10 @@ Run commands from the repository root. These day-0 instructions cover VPS hosts;
 ├── vars/                        public proxy.example.yml; private proxy.yml (gitignored)
 ├── roles/                       configuration behavior; monitoring/files owns checks
 │   └── debian_common/           Debian-family (Debian/Ubuntu) baseline
-├── files/                       shared SSH public keys, Unraid templates, tailnet policy
+├── files/                       shared SSH public keys and tailnet policy
 ├── scripts/                     operator tools (laptop power benchmarks)
 ├── tests/                       offline Ansible gate
-└── docs/                        operational guides
+└── docs/                        operational guides; archive/ holds historical migration evidence
 ```
 
 Inventory-adjacent variables load from `inventory/` even when a playbook is outside
@@ -39,9 +38,10 @@ the repository. Group settings remain shared defaults; host variables override t
 All entrypoints use the existing root `roles/` through `roles_path` in `ansible.cfg`.
 The private routing map stays at `vars/proxy.yml`, resolved explicitly from the plays.
 
-There are eight deployment playbooks, one per host type, plus the local-only
-`proxy-render.yml` utility. Use the same deployment command for initial setup and
-configuration updates. Edge stage tags are `bootstrap`, `security`, `network`,
+The infrastructure table in the [overview](../README.md#infrastructure) maps
+deployment entrypoints to host types; `proxy-render.yml` is local-only.
+Use the same deployment command for initial setup and configuration updates.
+Edge stage tags are `bootstrap`, `security`, `network`,
 `proxy`, and `services`; routing changes need the full default run so firewall
 listeners and nginx reconcile together. VPN restore and router upgrades are
 never part of normal reconciliation; follow their guides for explicit maintenance.

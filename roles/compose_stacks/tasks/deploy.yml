@@ -13,8 +13,13 @@
 - name: Require appdata and all bulk mounts
   ansible.builtin.command:
     argv: [mountpoint, --quiet, "{{ item }}"]
-  loop: "{{ [compose_appdata] + (docker_vm_nfs_mounts | map(attribute='path') | list) }}"
+  loop: "{{ [compose_appdata] + (docker_vm_data_disks | default([]) | map(attribute='path') | list) + (docker_vm_nfs_mounts | map(attribute='path') | list) }}"
   changed_when: false
+
+- name: Validate exact local data devices before any compose mutation
+  ansible.builtin.command: /usr/local/sbin/homelab-prepare-vm-data --mounted
+  changed_when: false
+  when: docker_vm_data_disks | default([]) | length > 0
 
 - name: Ensure compose stack directories exist
   ansible.builtin.file:

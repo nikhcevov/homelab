@@ -110,6 +110,45 @@
   loop: "{{ pve_storage_datasets }}"
   when: item.name.split('/')[0] in _zpool.stdout_lines
 
+- name: Inspect native Proxmox storage definitions
+  ansible.builtin.command:
+    argv: [pvesh, get, /storage, --output-format, json]
+  register: _pve_storage_definitions
+  changed_when: false
+  when: pve_storage_vm_storages | length > 0
+
+- name: Refuse replacing an existing unrelated VM storage definition
+  ansible.builtin.assert:
+    that:
+      - existing.type == 'zfspool'
+      - existing.pool == item.pool
+      - existing.sparse | default(0) | int == 1
+      - existing.blocksize | default('8k') == item.blocksize
+    fail_msg: Existing VM storage differs; never redirect or replace it automatically.
+  vars:
+    matching: "{{ (_pve_storage_definitions.stdout | from_json) | selectattr('storage', 'equalto', item.name) | list }}"
+    existing: "{{ matching | first }}"
+  loop: "{{ pve_storage_vm_storages }}"
+  when: matching | length > 0
+
+- name: Register only new sparse managed-disk storage on the existing mirror
+  ansible.builtin.command:
+    argv:
+      - pvesm
+      - add
+      - zfspool
+      - "{{ item.name }}"
+      - --pool
+      - "{{ item.pool }}"
+      - --content
+      - images
+      - --sparse
+      - '1'
+      - --blocksize
+      - "{{ item.blocksize }}"
+  loop: "{{ pve_storage_vm_storages }}"
+  when: item.name not in ((_pve_storage_definitions.stdout | from_json) | map(attribute='storage') | list)
+
 - name: Check export paths
   ansible.builtin.stat:
     path: "{{ item.path }}"

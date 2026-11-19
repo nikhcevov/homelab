@@ -18,11 +18,9 @@ class ManagedVMResume(unittest.TestCase):
     def setUp(self):
         values = yaml.safe_load((ROOT / "roles/pve_vm/defaults/main.yml").read_text())
         values.update(yaml.safe_load((ROOT / "inventory/group_vars/pve/vm.yml").read_text()))
-        environment = Environment(undefined=StrictUndefined)
-        environment.filters["to_json"] = json.dumps
-        template = environment.from_string((ROOT / "roles/pve_vm/templates/provision.py.j2").read_text())
-        self.program = compile(template.render(**values), "provision.py", "exec")
         self.values = values
+        self.render()
+        self.data_storage = values["pve_vm_data_storage"]
         self.storage = values["pve_vm_storage"]
         self.root_volume = f"{self.storage}:vm-{values['pve_vm_id']}-disk-0"
         self.volumes = {self.root_volume: {"size": "3G", "data": b"existing imported operating system"}}
@@ -36,15 +34,24 @@ class ManagedVMResume(unittest.TestCase):
         self.running = False
         self.mutations = []
 
+    def render(self):
+        environment = Environment(undefined=StrictUndefined)
+        environment.filters["to_json"] = json.dumps
+        environment.filters["bool"] = bool
+        template = environment.from_string((ROOT / "roles/pve_vm/templates/provision.py.j2").read_text())
+        self.program = compile(template.render(**self.values), "provision.py", "exec")
+
     def inspect(self, args, **kwargs):
         args = [str(value) for value in args]
         if args[0] == "pvesm":
             raise subprocess.CalledProcessError(2, args, stderr="Unknown option: output-format")
         if args[:2] == ["pvesh", "get"]:
-            expected = f"/nodes/localhost/storage/{self.storage}/content"
+            storage = args[2].split("/")[-2]
+            expected = f"/nodes/localhost/storage/{storage}/content"
             if args[2] != expected or args[3:] != ["--vmid", str(self.values["pve_vm_id"]), "--output-format", "json"]:
                 raise subprocess.CalledProcessError(2, args)
-            return json.dumps([{"volid": volume, "content": "images", "format": "raw"} for volume in self.volumes])
+            return json.dumps([{"volid": volume, "content": "images", "format": "raw"}
+                               for volume in self.volumes if volume.startswith(storage + ":")])
         if args[:2] == ["qm", "config"]:
             return "\n".join(f"{key}: {value}" for key, value in self.configuration.items())
         if args[:2] == ["qm", "status"]:
@@ -62,10 +69,11 @@ class ManagedVMResume(unittest.TestCase):
                 self.assertEqual(value.split(",")[0], self.root_volume)
                 self.configuration.pop("unused0")
                 value += ",size=" + self.volumes[self.root_volume]["size"]
-            elif key == "scsi1":
+            elif key in ("scsi1", "scsi2", "scsi3") and value.split(",")[0].split(":")[-1].isdigit():
                 allocation, options = value.split(",", 1)
-                size = allocation.split(":")[1] + "G"
-                volume = f"{self.storage}:vm-{self.values['pve_vm_id']}-disk-1"
+                storage, size = allocation.split(":")
+                size += "G"
+                volume = f"{storage}:vm-{self.values['pve_vm_id']}-disk-{key[4:]}"
                 self.volumes[volume] = {"size": size, "data": b""}
                 value = volume + "," + options + ",size=" + size
             elif key == "ide2":
@@ -95,7 +103,7 @@ class ManagedVMResume(unittest.TestCase):
         self.assertTrue(self.running)
         self.assertEqual(self.configuration["scsi0"].split(",")[0], self.root_volume)
         self.assertEqual(self.volumes[self.root_volume]["data"], b"existing imported operating system")
-        attached = {self.configuration[key].split(",")[0] for key in ("scsi0", "scsi1", "efidisk0")}
+        attached = {self.configuration[key].split(",")[0] for key in ("scsi0", "scsi1", "scsi2", "scsi3", "efidisk0")}
         self.assertEqual(set(self.volumes), attached)
         self.assertNotIn("unused0", self.configuration)
 
@@ -112,6 +120,132 @@ class ManagedVMResume(unittest.TestCase):
             self.execute()
         self.assertEqual(self.mutations, [])
         self.assertEqual(self.volumes[self.root_volume]["data"], b"existing imported operating system")
+
+    def test_new_data_disks_use_dedicated_storage_and_are_backed_up(self):
+        self.execute()
+        for slot, size, serial in (("scsi2", "3072G", "homelab-photos"),
+                                   ("scsi3", "64G", "homelab-files")):
+            self.assertEqual(self.configuration[slot],
+                             f"tank-vm:vm-100-disk-{slot[4:]},serial={serial},discard=on,iothread=1,backup=1,size={size}")
+
+    def test_staging_excludes_only_data_disks_from_backup(self):
+        self.values["pve_vm_data_backup"] = False
+        self.render()
+        self.execute()
+        self.assertIn(",backup=0,", self.configuration["scsi2"])
+        self.assertIn(",backup=0,", self.configuration["scsi3"])
+        self.assertNotIn("backup=0", self.configuration["scsi0"])
+        self.assertNotIn("backup=0", self.configuration["scsi1"])
+
+    def test_running_vm_hot_adds_only_authorized_missing_disks(self):
+        self.execute()
+        for slot in ("scsi2", "scsi3"):
+            volume = self.configuration.pop(slot).split(",")[0]
+            del self.volumes[volume]
+        self.mutations.clear()
+        self.execute()
+        self.assertEqual([command[3] for command in self.mutations], ["--scsi2", "--scsi3"])
+        self.assertTrue(self.running)
+
+    def test_hot_add_refuses_unrelated_live_config_drift(self):
+        self.execute()
+        volume = self.configuration.pop("scsi2").split(",")[0]
+        del self.volumes[volume]
+        self.configuration["net0"] = "virtio=BC:24:11:36:00:01,bridge=foreign"
+        self.mutations.clear()
+        with self.assertRaisesRegex(SystemExit, "stop it"):
+            self.execute()
+        self.assertEqual(self.mutations, [])
+
+    def test_hot_add_requires_disk_hotplug_without_enabling_it(self):
+        self.execute()
+        volume = self.configuration.pop("scsi2").split(",")[0]
+        del self.volumes[volume]
+        self.configuration["hotplug"] = "network,usb"
+        self.mutations.clear()
+        with self.assertRaisesRegex(SystemExit, "hotplug"):
+            self.execute()
+        self.assertEqual(self.mutations, [])
+
+    def test_foreign_data_volume_or_identity_is_never_replaced(self):
+        self.execute()
+        for bad in ("other:vm-100-disk-2,serial=homelab-photos,size=3072G",
+                    "tank-vm:vm-101-disk-2,serial=homelab-photos,size=3072G",
+                    "tank-vm:vm-100-disk-2,serial=homelab-photos-old,size=3072G",
+                    "tank-vm:vm-100-disk-2,serial=homelab-photos,size=3071G"):
+            with self.subTest(disk=bad):
+                self.configuration["scsi2"] = bad
+                self.mutations.clear()
+                with self.assertRaisesRegex(SystemExit, "Unknown data disk"):
+                    self.execute()
+                self.assertEqual(self.mutations, [])
+
+    def test_unattached_data_volume_is_not_adopted_or_duplicated(self):
+        self.execute()
+        self.configuration.pop("scsi2")
+        self.mutations.clear()
+        with self.assertRaisesRegex(SystemExit, "orphan"):
+            self.execute()
+        self.assertEqual(self.mutations, [])
+
+    def test_backup_cutover_preserves_volume_identity_and_contents(self):
+        self.values["pve_vm_data_backup"] = False
+        self.render()
+        self.execute()
+        photos_volume = self.configuration["scsi2"].split(",")[0]
+        self.volumes[photos_volume]["data"] = b"precious photos"
+        self.running = False
+        self.values["pve_vm_data_backup"] = True
+        self.render()
+        self.execute()
+        self.assertEqual(self.configuration["scsi2"].split(",")[0], photos_volume)
+        self.assertEqual(self.volumes[photos_volume]["data"], b"precious photos")
+        self.assertIn(",backup=1,", self.configuration["scsi2"])
+
+    def test_equivalent_terabyte_size_is_accepted_without_resize(self):
+        self.execute()
+        self.configuration["scsi2"] = self.configuration["scsi2"].replace("size=3072G", "size=3T")
+        self.mutations.clear()
+        self.execute()
+        self.assertEqual(self.mutations, [])
+
+    def test_running_backup_flag_change_requires_stop_without_partial_hot_add(self):
+        self.values["pve_vm_data_backup"] = False
+        self.render()
+        self.execute()
+        volume = self.configuration.pop("scsi2").split(",")[0]
+        del self.volumes[volume]
+        self.values["pve_vm_data_backup"] = True
+        self.render()
+        self.mutations.clear()
+        with self.assertRaisesRegex(SystemExit, "stop it"):
+            self.execute()
+        self.assertEqual(self.mutations, [])
+
+    def test_pending_live_changes_block_hot_add(self):
+        self.execute()
+        volume = self.configuration.pop("scsi2").split(",")[0]
+        del self.volumes[volume]
+        self.mutations.clear()
+        original_inspect = self.inspect
+
+        def pending_inspect(args, **kwargs):
+            result = original_inspect(args, **kwargs)
+            if args == ["qm", "config", "100"]:
+                result += "\nnet0: virtio=BC:24:11:36:00:01,bridge=foreign"
+            return result
+
+        with patch.object(self, "inspect", side_effect=pending_inspect):
+            with self.assertRaisesRegex(SystemExit, "pending"):
+                self.execute()
+        self.assertEqual(self.mutations, [])
+
+    def test_orphan_bulk_volume_blocks_new_vm_creation(self):
+        self.exists = False
+        self.volumes = {"tank-vm:vm-100-disk-0": {"size": "3072G", "data": b"unknown"}}
+        with self.assertRaisesRegex(SystemExit, "orphan"):
+            self.execute()
+        self.assertEqual(self.mutations, [])
 
 
 if __name__ == "__main__":

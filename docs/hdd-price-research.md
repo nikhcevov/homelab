@@ -2,12 +2,12 @@
 
 [Repository overview](../README.md)
 
-Sources: [snapshots](hdd-prices/2026-11-09.csv), [validator and aggregator](../scripts/hdd-price-index.py), [Proxmox migration](proxmox-migration.md).
+Sources: [snapshots](hdd-prices/2026-11-09.csv), [validator and aggregator](../scripts/hdd-price-index.py), [archived Proxmox migration](archive/proxmox-migration.md).
 
 Run commands from the repository root.
 
 This document is the method behind the storage decision in the
-[Proxmox migration](proxmox-migration.md#drive-price-per-terabyte). It records
+[archived Proxmox migration](archive/proxmox-migration.md#drive-price-per-terabyte). It records
 what was measured, how, and how to repeat it later so the numbers stay
 comparable. Snapshots are append-only: never rewrite an existing file.
 

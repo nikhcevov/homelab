@@ -137,11 +137,10 @@ References: [Tailscale tags](https://tailscale.com/docs/features/tags) and
 
 Adding a service = adding a block here + `ansible-playbook playbooks/edge.yml`. The nginx config and (via `ufw_open_service_ports: true`) the firewall rule are regenerated automatically.
 
-For the [Unraid-to-PVE cutover](proxmox-migration.md#phase-7--ingress-monitoring-and-decommission),
-retarget the private home HTTPS/Minecraft/voice upstreams to `docker-1` only
-after restored services pass their gates and the VM has its trusted backend tag.
-Leaving them on `great-hornbill` sends application traffic to the physical PVE
-host. Do not deploy that routing change before the new endpoint is ready.
+Private home HTTPS/Minecraft/voice upstreams target `docker-1` with `tag:home`,
+not `great-hornbill` (the physical PVE host). Keep routing and
+[backend identity](tailscale.md) aligned; changing only LAN DNS does not retarget
+public ingress.
 
 Schema (full annotated examples in [`vars/proxy.example.yml`](../vars/proxy.example.yml)):
 

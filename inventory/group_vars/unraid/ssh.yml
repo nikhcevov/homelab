@@ -1,5 +1,0 @@
----
-# Public key files from files/ssh/ authorized additively for root.
-ssh_authorized_keys:
-  - starling.pub
-  - little-raven.pub

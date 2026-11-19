@@ -16,7 +16,7 @@ Ansible does **not** apply this file. The [Tailscale policy workflow](../.github
 | `docker-1` (Docker VM100) | `tag:home` | TCP 443, TCP 25565, UDP 24454 |
 | `ha-krm` | `tag:homeassistant` | TCP 443 |
 
-At the [Proxmox cutover](proxmox-migration.md#phase-7--ingress-monitoring-and-decommission),
+At the [Proxmox cutover](archive/proxmox-migration.md#phase-7--ingress-monitoring-and-decommission),
 the owner assigned `tag:home` to `docker-1`; the exact original node identity
 and live edge TCP443/25565 plus UDP24454 delivery were verified.
 PVE retains `great-hornbill`, without `tag:home`; it is not an application endpoint.

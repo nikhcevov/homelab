@@ -28,3 +28,15 @@ pve_vm_hostpci:
 
 pve_vm_appdata_size: 128
 pve_vm_private_mac: "BC:24:11:36:00:02"
+
+# Bulk data lives in managed sparse ZFS volumes, never physical-disk passthrough.
+# Override only pve_vm_data_backup=false during the initial copy.
+pve_vm_data_storage: tank-vm
+pve_vm_data_backup: true
+pve_vm_data_disks:
+  - slot: scsi2
+    size_gib: 3072
+    serial: homelab-photos
+  - slot: scsi3
+    size_gib: 64
+    serial: homelab-files

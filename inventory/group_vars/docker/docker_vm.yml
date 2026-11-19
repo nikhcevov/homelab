@@ -1,6 +1,6 @@
 ---
-# Local appdata lives on the serial-identified second virtual disk.
-# Bulk NFS uses only the isolated host/guest storage bridge.
+# Appdata and important bulk data use serial-identified managed VM disks.
+# Only replaceable media remains on the isolated host/guest NFS bridge.
 
 docker_vm_user: boss
 docker_vm_ssh_keys:
@@ -10,10 +10,19 @@ docker_vm_ssh_keys:
 docker_vm_nfs_server: 10.77.0.1
 docker_vm_nfs_options: "rw,hard,_netdev,noatime,vers=4.1"
 docker_vm_initialize_appdata: false
+# Explicit one-time authorization is valid only after proving fresh PVE allocation.
+docker_vm_initialize_data: false
+docker_vm_data_disks:
+  - device: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi2
+    serial: homelab-photos
+    size_gib: 3072
+    label: HOMELAB_PHOTOS
+    path: /mnt/photos
+  - device: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi3
+    serial: homelab-files
+    size_gib: 64
+    label: HOMELAB_FILES
+    path: /mnt/files
 docker_vm_nfs_mounts:
-  - path: /mnt/photos
-    remote: /tank/photos
-  - path: /mnt/files
-    remote: /tank/files
   - path: /mnt/data
     remote: /media/data

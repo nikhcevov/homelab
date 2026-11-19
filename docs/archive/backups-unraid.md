@@ -1,13 +1,18 @@
 # Backups → Unraid
 
-[Repository overview](../README.md)
+> Historical archive, frozen during repository cleanup on 2026-11-19.
+> Not current deployment instructions: schedules, pending stages and approvals below
+> describe their original checkpoints, not permission to repeat them. Use
+> [current status](../status.md) and [native PBS operations](../backups-proxmox.md).
 
-Sources: [playbooks/unraid.yml](../playbooks/unraid.yml), [homelab-backup-pull.sh.j2](../files/unraid/homelab-backup-pull.sh.j2), [restic-vault-backup.sh.j2](../files/unraid/restic-vault-backup.sh.j2), [restic-vault-check.sh.j2](../files/unraid/restic-vault-check.sh.j2).
+[Repository overview](../../README.md)
+
+Sources: `playbooks/unraid.yml`, `files/unraid/homelab-backup-pull.sh.j2`, `files/unraid/restic-vault-backup.sh.j2`, `files/unraid/restic-vault-check.sh.j2`.
 
 Run commands from the repository root.
 
 This remains the running host's backup path until cutover. The replacement
-[Proxmox backup lifecycle](backups-proxmox.md) retains its collector sources,
+[Proxmox backup lifecycle](../backups-proxmox.md) retains its collector sources,
 SSH identity, repository password and history; do not remove these jobs merely
 because the replacement roles exist.
 
@@ -26,7 +31,7 @@ One chain so the array wakes once a night and the `vault` pool disk only for res
 
 Restic must not scan while the mover works (renames mid-scan → spurious "file vanished" errors), hence the ordering.
 
-Unraid **pulls** the configured hosts' backups over the tailnet ([collector template](../files/unraid/homelab-backup-pull.sh.j2), deployed into the User Scripts plugin by [playbooks/unraid.yml](../playbooks/unraid.yml); schedule set in the plugin GUI). Pull model on purpose — source hosts hold no Unraid credentials and cannot log into the collector through this backup setup. The rsync copies use `--delete`: source deletions propagate to the mirror, so retained restic snapshots are the separate recovery layer.
+Unraid **pulls** the configured hosts' backups over the tailnet (`files/unraid/homelab-backup-pull.sh.j2`, deployed into the User Scripts plugin by `playbooks/unraid.yml`; schedule set in the plugin GUI). Pull model on purpose — source hosts hold no Unraid credentials and cannot log into the collector through this backup setup. The rsync copies use `--delete`: source deletions propagate to the mirror, so retained restic snapshots are the separate recovery layer.
 
 What gets pulled: `rsync` of `/opt/*-backup/archives/` from the VPS hosts (vpn/kuma, own 14-day rotation), `rsync` of `/backup/` from Home Assistant (`ha-krm`; its own automatic-backup retention applies — note HA encrypts backups by default, so the copies stay encrypted too: keep the encryption key in a password manager), and `sysupgrade -b` streamed over SSH from each router into dated tarballs (30-day retention). Every source is tracked in a state file: ntfy fires only on transitions (OK→FAIL alerts, FAIL→OK info).
 
@@ -37,18 +42,18 @@ Setup:
 3. Fill in `RSYNC_SOURCES` / `ROUTERS` / `DEST` in the script template.
 4. `ansible-playbook playbooks/unraid.yml` (raw + base64 — Unraid has no Python), then set the schedule in Settings → User Scripts and run once manually.
 5. Re-run `playbooks/openwrt.yml` / `playbooks/mon.yml` / `playbooks/vpn.yml` so the great-hornbill key is authorized on the sources.
-6. Home Assistant (`ha-krm`): install the _Advanced SSH & Web Terminal_ add-on, retain `files/ssh/great-hornbill.pub` and add `files/ssh/little-raven.pub` in its `ssh.authorized_keys` option, clear the password, and install `rsync` (`packages: [rsync]` add-on option). Manage persistent keys through the add-on options, not just the generated `/etc/ssh/authorized_keys` file. That shared file must remain readable by the login user (`boss`); root-owned mode 0600 blocks this non-root login. The [collector's `RSYNC_SOURCES`](../files/unraid/homelab-backup-pull.sh.j2) already includes `ha-krm`; verify its Tailscale IP and add-on username (currently `boss`), and that `sudo rsync` works without a password for access to root-owned `/backup`. Backups land in `/mnt/user/backup/homelab/ha-krm` and are included in the weekly restic backup of the `backup` share.
+6. Home Assistant (`ha-krm`): install the _Advanced SSH & Web Terminal_ add-on, retain `files/ssh/great-hornbill.pub` and add `files/ssh/little-raven.pub` in its `ssh.authorized_keys` option, clear the password, and install `rsync` (`packages: [rsync]` add-on option). Manage persistent keys through the add-on options, not just the generated `/etc/ssh/authorized_keys` file. That shared file must remain readable by the login user (`boss`); root-owned mode 0600 blocks this non-root login. The `files/unraid/homelab-backup-pull.sh.j2` already includes `ha-krm`; verify its Tailscale IP and add-on username (currently `boss`), and that `sudo rsync` works without a password for access to root-owned `/backup`. Backups land in `/mnt/user/backup/homelab/ha-krm` and are included in the weekly restic backup of the `backup` share.
 
-Restore: VPS DBs — copy the tarball back, complete `playbooks/vpn.yml` setup first, then run `ansible-playbook playbooks/vpn.yml --tags restore -e vpn_restore_archive=/path/to/archive.tar.gz` (see [VPN restore](vpn.md)); routers — upload in LuCI _Backup/Flash Firmware_ or `sysupgrade -r`.
+Restore: VPS DBs — copy the tarball back, complete `playbooks/vpn.yml` setup first, then run `ansible-playbook playbooks/vpn.yml --tags restore -e vpn_restore_archive=/path/to/archive.tar.gz` (see [VPN restore](../vpn.md)); routers — upload in LuCI _Backup/Flash Firmware_ or `sysupgrade -r`.
 
 ## Local weekly copy → vault pool (restic)
 
 The `photos` and `backup` shares are copied weekly into a restic repository on `vault`, a single-disk XFS pool (no parity, no shares — the disk spins down between runs). Sources are read via `/mnt/user/<share>` (FUSE union), so cache→array mover state is transparent; the source is strictly read-only, nothing is ever deleted from the shares.
 
-For a new installation, provision a single-disk pool named `vault` with XFS in the Unraid GUI; [playbooks/unraid.yml](../playbooks/unraid.yml) deploys scripts and prerequisites, not the pool or its schedule. Do not reformat an existing backup pool to follow these setup instructions.
+For a new installation, provision a single-disk pool named `vault` with XFS in the Unraid GUI; `playbooks/unraid.yml` deploys scripts and prerequisites, not the pool or its schedule. Do not reformat an existing backup pool to follow these setup instructions.
 
-Script [files/unraid/restic-vault-backup.sh.j2](../files/unraid/restic-vault-backup.sh.j2), deployed by `playbooks/unraid.yml` together with the pinned restic binary (stored at `/boot/extra/restic`, staged into `/usr/local/bin` at runtime — `/boot` is vfat+noexec) and the repo password (`/boot/config/restic/password`, root-only; master copy: `vault_restic_password` in the vault — keep another copy in a password manager). Retention: 8 weekly + 6 monthly snapshots (`forget --prune`); every run ends with `restic check` (metadata). Include list (see `BACKUP_PATHS` in the script): the `backup` share plus Immich `library/`, `upload/`, `backups/` (postgres dumps), `profile/`; Immich `thumbs/`/`encoded-video/` are regenerable and `frigate/` is skipped entirely. Tradeoff: new …
+Script `files/unraid/restic-vault-backup.sh.j2`, deployed by `playbooks/unraid.yml` together with the pinned restic binary (stored at `/boot/extra/restic`, staged into `/usr/local/bin` at runtime — `/boot` is vfat+noexec) and the repo password (`/boot/config/restic/password`, root-only; master copy: `vault_restic_password` in the vault — keep another copy in a password manager). Retention: 8 weekly + 6 monthly snapshots (`forget --prune`); every run ends with `restic check` (metadata). Include list (see `BACKUP_PATHS` in the script): the `backup` share plus Immich `library/`, `upload/`, `backups/` (postgres dumps), `profile/`; Immich `thumbs/`/`encoded-video/` are regenerable. Frigate data is no longer stored or backed up. Tradeoff: new …
 
 Restore: `cp /boot/extra/restic /usr/local/bin/restic && chmod 755 /usr/local/bin/restic`, then `export RESTIC_REPOSITORY=/mnt/vault/restic RESTIC_PASSWORD_FILE=/boot/config/restic/password` and `restic snapshots` / `restore latest --target ...` (details in the script header). After restoring Immich, re-run its thumbnail/transcode jobs to rebuild the excluded `thumbs/` and `encoded-video/`.
 
-Related guides: [VPN backup and restore](vpn.md), [monitoring backup and restore](monitoring.md), and [OpenWrt router provisioning](openwrt.md).
+Related guides: [VPN backup and restore](../vpn.md), [monitoring backup and restore](../monitoring.md), and [OpenWrt router provisioning](../openwrt.md).

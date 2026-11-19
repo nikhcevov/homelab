@@ -1,48 +1,39 @@
 ---
 pve_backup_enabled: false
-# Prepare the first supervised checkpoint without arming timers.
-pve_backup_provision: false
 pve_backup_bootstrap_known_hosts: false
 pve_backup_ssh_private_key: "{{ vault_pve_backup_ssh_private_key }}"
 pve_backup_known_hosts: ""
-pve_backup_guest_host: 10.77.0.2
-pve_backup_pbs_vmid: 101
-pve_backup_vault_mount: /mnt/vault
-pve_backup_vault_uuid: ""
-pve_backup_offsite_mount: /mnt/offsite
-pve_backup_offsite_uuid: ""
-pve_backup_collector: /tank/files/homelab-backups
-pve_backup_staging_dataset: rpool/backup-staging/appdata
-pve_backup_staging: /rpool/backup-staging/appdata
-pve_backup_bulk_datasets:
-  - dataset: tank/photos
-    mount: /tank/photos
-  - dataset: tank/files
-    mount: /tank/files
-pve_backup_snapshot_keep: 8
-pve_backup_keep_daily: 7
-pve_backup_keep_weekly: 8
-pve_backup_keep_monthly: 6
-pve_backup_offsite_max_age_days: 30
-# Daily completion times vary; allow the next run's scan plus timer jitter.
+pve_backup_pbs_vmid: "{{ pve_pbs_id }}"
+pve_backup_collector: /rpool/backup-staging/collector
+pve_backup_collector_dataset: rpool/backup-staging/collector
+pve_backup_id: pve-recovery
+pve_backup_calendar: '*-*-* 07:15:00'
 pve_backup_local_max_age_hours: 36
-pve_backup_collect_calendar: '*-*-* 01:00:00'
-pve_backup_calendar: '*-*-* 03:00:00'
-# Avoid the measured daily restic window and Sunday PBS verification.
-pve_backup_check_calendar: '*-*-01 12:00:00'
-pve_backup_check_subset: '10%'
+pve_backup_sync_max_age_hours: 36
+pve_backup_sync_job: "{{ pve_pbs_sync_job }}"
+pve_backup_vm_wait_seconds: 86400
+# rsync preserves source mtimes. Match only completed upstream archive names;
+# a recent unrelated file or successful transfer is not backup freshness.
+# Daily sources publish before07:15; yesterday's scheduled archives exceed24h.
+# A same-day delayed/manual collection must not fail a two-hour freshness window.
 pve_backup_rsync_sources:
-  - {name: vpn-nl, host: 100.100.146.5, path: /opt/vpn-backup/archives/, user: root, rsync_path: rsync}
-  - {name: mon-1, host: 100.107.77.74, path: /opt/kuma-backup/archives/, user: root, rsync_path: rsync}
-  - {name: ha-krm, host: 100.66.142.69, path: /backup/, user: boss, rsync_path: 'sudo rsync'}
+  - name: vpn-nl
+    host: 100.100.146.5
+    path: /opt/vpn-backup/archives/
+    user: root
+    rsync_path: rsync
+    latest_pattern: vpn-backup-*.tar.gz
+    latest_max_age_hours: 24
+  - name: ha-krm
+    host: 100.66.142.69
+    path: /backup/
+    user: boss
+    rsync_path: sudo rsync
+    latest_pattern: '*.tar'
+    latest_max_age_hours: 24
+pve_backup_router_retention_days: 30
 pve_backup_routers:
   - {name: router-srt, host: 100.77.53.118}
   - {name: router-krm, host: 100.84.111.78}
-  - {name: router-trvl, host: 100.81.91.97}
-pve_backup_router_retention_days: 30
-# Only replaceable recordings are omitted, never Frigate config or SQLite DB.
-pve_backup_rsync_excludes:
-  - /frigate/media/recordings/
-pve_backup_restic_excludes:
-  - /photos/frigate/recordings
-  - /appdata/frigate/media/recordings
+  # router-evn/router-trvl is inactive by owner approval (2026-11-18).
+  # Preserve its collector archives; re-add only after reachability and SSH-pin proof.

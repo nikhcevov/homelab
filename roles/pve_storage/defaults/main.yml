@@ -6,3 +6,4 @@ pve_storage_datasets: []
 pve_nfs_exports: []
 
 pve_storage_approved_blank_disks: []
+pve_storage_vm_storages: []

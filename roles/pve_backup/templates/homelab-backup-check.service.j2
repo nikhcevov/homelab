@@ -1,9 +1,0 @@
-[Unit]
-Description=Verify a random subset of local restic pack data
-OnFailure=homelab-backup-failure@%n.service
-
-[Service]
-Type=oneshot
-UMask=0077
-ExecStart=/usr/local/sbin/homelab-backup check-data
-TimeoutStartSec=infinity

@@ -2,584 +2,503 @@
 
 [Repository overview](../README.md)
 
-Sources: [host role](../roles/pve_backup/), [guest helpers](../roles/docker_backup/),
-[PBS role](../roles/pve_pbs/), [backup variables](../inventory/group_vars/pve/backup.yml),
-[PBS variables](../inventory/group_vars/pve/pbs.yml),
-[migration gates](proxmox-migration.md#migration-plan).
+Sources of truth: [PBS role](../roles/pve_pbs/),
+[file backup/collector role](../roles/pve_backup/),
+[legacy guest-helper retirement](../roles/docker_backup/),
+[PBS inventory](../inventory/group_vars/pve/pbs.yml),
+[collector inventory](../inventory/group_vars/pve/backup.yml),
+[collector age policy](../roles/pve_backup/defaults/main.yml),
+[VM disks](../inventory/group_vars/pve/vm.yml) and
+[guest mounts](../inventory/group_vars/docker/docker_vm.yml).
+See also the [historical migration gates](archive/proxmox-migration.md#migration-plan)
+and [dated backup cutover evidence](archive/backup-cutover.md).
 
-PBS CT101 and host automatic backups are enabled after native backup/recovery
-and first-activation checks. The first PBS image and isolated OS/appdata restore,
-four SQL imports, and full restic photo/PDF recovery passed.
-The first scheduled nightly PBS/restic execution and bounded recovery passed.
-Remote VPS/HA archive generation happens later than collection; see the timing
-warning in the first-night evidence below.
-Preserve the existing repository, all eleven historical snapshots and staging.
+**Temporary B-only protection accepted on2026-11-19.** Full VM/filesystem recovery
+and natural HDD standby/real-backup wake passed; A's hardware path remains untrusted.
+The owner approved B as the temporary sole active PBS datastore, with A offline.
+Native VM/file backup, freshness and PBS maintenance schedules are now enabled.
+This is one active local repository, not dual-copy or off-site protection.
+Restic histories and original datasets remain preserved; follow
+[current acceptance evidence](status.md). Dated prior workflows are preserved in
+[backup cutover history](archive/backup-cutover.md), not pending operational stages.
 
 ## Ownership and coverage
 
-| Mechanism | Covers | Does not establish |
+| Mechanism | Approved coverage | Limits |
 | --- | --- | --- |
-| PBS VM100 images | Guest root, Docker metadata, local ext4 appdata | NFS photos/files/media; host recovery |
-| Host restic | Quiesced appdata, photos, files, collector, PVE/guest/PBS recovery configuration | Replaceable media or an independent running host |
-| Second local restic copy | Retained repository snapshots on another internal disk | Off-site protection or an independent host |
-| ZFS snapshots | Immutable backup inputs and short local history | Independent backup or cross-host availability |
+| Native snapshot-mode VM100 backup to vault-b | OS/EFI, Docker/appdata, managed photos and files disks | Not host/PBS bootstrap, VM102 or external media |
+| Small PBS `host/pve-recovery` backup | PVE/PBS recovery configuration and remote VPS/HA/router collector | Independent source generations, not one transaction with VM100 |
+| Optional native secondary sync | Disabled; no healthy secondary configured | No current second active repository or off-site copy |
+| Original datasets, legacy PBS/Restic histories | Preserved rollback/recovery evidence during migration | Not proof of current PBS-only coverage |
 
-The old XFS vault is mounted at `/mnt/vault`; repository `/mnt/vault/restic`
-and `vault_restic_password` are retained. No local repository initialization or
-disk formatting is performed. Automatic restic retention requires both host
-`pve-backup` and tag `pve-owned`, grouped by host/tags. All eleven historical
-Unraid/migration snapshots are outside that selector; never broaden it to the
-whole repository. The same selector protects history in a secondary copy.
+VM102's image is outside this VM100 job; its source-managed gateway rebuild is
+documented in [OpenWrt day-0](openwrt.md#gateway-vm-router-gw).
 
-Before the refresh, a read-only Unraid check on2026-11-12 decrypted10 retained
-snapshot records. The latest historical snapshot, `3e3d300f4008` from2026-11-08
-at06:00+04:00, covered `/mnt/user/backup` and Immich `backups`, `library`,
-`profile`, `upload`; it did not establish current coverage of every migration tree.
+The active collector policy currently covers VPN/HA and router-srt/router-krm.
+The owner temporarily excluded offline router-trvl/planned router-evn; its old
+archives remain preserved and are not current protection. Re-enable it only
+after the intended device is reachable and its SSH identity is verified.
 
-A one-off [pre-cutover vault refresh](proxmox-migration.md#independent-pre-cutover-vault-refresh)
-completed2026-11-12 at18:44+04:00: snapshot `57492bf21849` includes all eight
-read-only staging trees and recovery, preserving all10 older snapshots.
-Metadata checking passed across11 snapshots;22.032 GiB of real recovery files,
-the Home Assistant disk and user-data samples were restored and verified against
-staging. This is not a full repository data scan or off-site protection.
-Its `migration-pre-pve` tag is outside automatic `pve-owned` retention.
+VM root160 GiB and appdata128 GiB remain on SSD-backed `local-zfs`. Photos
+3072 GiB (`scsi2`, serial `homelab-photos`) and files64 GiB (`scsi3`,
+`homelab-files`) are managed sparse volumes on the existing HDD ZFS mirror via
+`tank-vm`. Guest ext4 labels are `HOMELAB_PHOTOS`/`HOMELAB_FILES`; paths stay
+`/mnt/photos` and `/mnt/files`. Both are enabled for native image backup.
+The guest guard checks the actual device, serial, size, filesystem, label and
+mount; neither an empty directory nor a stale NFS view may substitute for a disk.
 
-Reviewed cadence uses the existing `bootstrap_timezone=Asia/Yerevan` authority
-(UTC+04, no daylight-saving changes), not a separate PBS timezone variable:
+Replaceable media `/mnt/data` remains actual host NFS (`/media/data`) and is
+outside the VM image. A full running stack still requires that real mount.
+Do not create an empty fallback to make Compose pass; compose-only applies also
+run the local disk/mount guard before mutation.
 
-| Job | Local time | UTC |
-| --- | --- | --- |
-| Collector | daily01:00 +0–5min jitter | previous day21:00 +0–5min |
-| PBS VM100 | daily02:00 | previous day22:00 |
-| Restic | daily03:00 +0–5min jitter | previous day23:00 +0–5min |
-| PBS prune | daily07:00 | daily03:00 |
-| PBS GC | daily08:00 | daily04:00 |
-| PBS verify | Sunday10:00 | Sunday06:00 |
-| Restic random10% data check | first day of month12:00 +0–5min | 08:00 +0–5min |
-| Freshness | hourly at:30 +0–5min | hourly at:30 +0–5min |
+The two existing10 TB XFS disks are not a mirror and are never reformatted:
 
-Host timer calendars explicitly include that timezone. PBS provisioning refuses
-a host timezone mismatch, sets CT101's persistent LXC timezone and reconciles its
-live timezone. The CT shares the synchronized host kernel clock; a separate CT
-NTP client is not required. PBS calendars use the CT's local time; PVE uses the
-host's. Maintenance was moved out of the observed03:00–~06:00 restic window
-(2h46m55s coordinator, PBS8m47s). These are measurements, not maximum runtimes.
-PBS has native task locks; it does not share the host restic/collector `flock`.
-The host commands share a lock with a1h wait; independent collection also has
-its own lock. Long contention fails visibly, rather than running concurrently.
+| Store | Participation | Host directory → CT101 directory | Existing filesystem UUID |
+| --- | --- | --- | --- |
+| vault-a | Inactive/offline after recurring errors | `/mnt/vault/pbs` → `/mnt/datastore/vault-a` | `6d3f33cb-faaf-4497-8131-2f40f07cfbbd` |
+| vault-b | Accepted temporary sole active primary | `/mnt/backup-b/pbs` → `/mnt/datastore/vault-b` | `d0347cdb-9c3b-41e8-88ce-498367a6f038` |
 
-Restic keeps7 daily,8 weekly,6 monthly points; PBS keeps7 daily,4 weekly,6 monthly.
-Only PBS performs PBS pruning: the PVE image job explicitly uses `keep-all=1`.
-Hourly freshness alerts after36h without a local success, allowing daily scan
-duration/jitter to vary without false24h overdue alerts. A configured secondary
-UUID also alerts after30 days; a blank UUID defers only that copy's check.
-Neither the internal replica nor successful checks establish off-site protection.
+Use only each disk's `pbs` subdirectory; preserve `/mnt/vault/restic` and all
+other migration trees on B. Datastore binds are excluded from CT backups.
+Unprivileged CT backup UID/GID34 maps to host100034. Only an empty datastore
+root may receive that ownership automatically; never recursively chown history.
+The mount guard rejects wrong UUID/filesystem, read-only mounts, `noatime`,
+symlink redirection and root-filesystem fallback. PBS GC needs access-time updates.
+
+`pve_pbs_datastores` retains each identity and stable `mount_index`, with explicit
+`enabled` participation. Only B is enabled; selected primary must be enabled.
+Inactive A and legacy tank remain offline recovery assets, not CT startup,
+mount-guard, maintenance or HDD-policy dependencies. Exact managed binds are
+retired without deleting datastore configuration or contents; foreign bind
+identities refuse reconciliation. Slots remain legacy0, A1, B2.
+
+With `pve_pbs_secondary_datastore` empty, no sync runs and no replica success is
+published. A future healthy enabled secondary can use native root-namespace
+local pull with owner `pve@pbs!pve` and `remove-vanished=false`, after independent
+recovery proof. PVE uses `keep-all=1`; server-owned prune/GC/verification owns
+retention, not the backup token. A later remote PBS is separate work; the current
+single local repository does not protect against loss of the host/site.
+
+### Retained legacy repository
+
+The old XFS repository `/mnt/vault/restic` and `vault_restic_password` remain
+recovery assets, not the destination of the new recurring pipeline. Preserve an
+offline password/vault-unlock copy; backing up a password inside its own encrypted
+repository cannot bootstrap recovery. Historical automatic Restic retention used
+host `pve-backup` plus tag `pve-owned`; do not run that retired retention workflow
+or broaden it to Unraid/migration points. Never initialize, forget or prune the
+retained repository as part of recovery. Dated snapshot IDs, refresh measurements
+and restore results are in [cutover history](archive/backup-cutover.md#retained-legacy-repository)
+and the [pre-cutover refresh](archive/proxmox-migration.md#independent-pre-cutover-vault-refresh).
+
+For read-only legacy recovery, identify the original disk by UUID before accessing
+`/mnt/vault/restic`; A is quarantined, so do not attach/use it automatically.
+Prefer an independently validated preserved copy. On an authorized recovery host,
+use a trusted compatible Restic binary and a protected offline password file
+(the historical Unraid location was `/boot/config/restic/password`, master secret
+`vault_restic_password`). Keep source repository and restore destination distinct:
+
+```bash
+export RESTIC_REPOSITORY=/VERIFIED_EXISTING_COPY/restic
+export RESTIC_PASSWORD_FILE=/PROTECTED_OFFLINE_PASSWORD_FILE
+restic --no-lock snapshots
+restic --no-lock ls EXACT_SNAPSHOT_ID
+restic --no-lock restore EXACT_SNAPSHOT_ID --verify --target /EMPTY_ISOLATED_RECOVERY_DIRECTORY
+```
+
+Use a read-only source mount, inspect the exact point's paths first (old snapshots
+use `/mnt/user/`, migration refresh uses `/mnt/staging/`) and restore into a new
+root-only destination, never over live applications or the source repository.
+Check recovered bytes/metadata and replay SQL only in isolated compatible images.
+Immich thumbnails/transcodes were excluded from routine legacy coverage; regenerate
+them after recovery. See [historical Unraid recovery](archive/backups-unraid.md#local-weekly-copy--vault-pool-restic)
+for retained paths and [application restore guides](archive/backups-unraid.md) for
+VPS, HA encryption-key and router recovery facts. Do not redeploy retired scripts.
 
 ## Consistency protocol
 
-1. The PVE coordinator verifies actual filesystem UUIDs, mounts and datasets.
-2. The collector refreshes VPS archives, Home Assistant backups and router
-   configurations. Failed sources alert individually; local application backup
-   continues with the last collected archives and reports overall failure.
-3. A restricted private-link SSH helper records the exact running container IDs
-   durably before stopping anything. It stops application writers, dumps the
-   configured PostgreSQL services atomically, then stops those databases.
-4. PVE pulls appdata read-only into `rpool/backup-staging/appdata`, preserving
-   numeric owners, ACLs, xattrs and hardlinks. The parent staging directory is
-   root-only; the copied guest root metadata remains unchanged.
-5. ZFS snapshots of appdata staging, `tank/photos` and `tank/files` are taken
-   in separate native calls while all relevant writers remain stopped across
-   every call. One invocation cannot span pools: native ZFS reports
-   `multiple snapshots of same fs not allowed`, even for distinct datasets.
-   This is one quiesced checkpoint, not an atomic transaction across two pools.
-6. Original database containers resume first, then other originally running
-   containers. Previously stopped containers remain stopped. No restic scanning,
-   retention or integrity checking happens during downtime.
-7. Restic reads read-only snapshot views and protected recovery archives.
-   Metadata checks must pass before recording local success. Only owned ZFS
-   snapshots expire; unrelated snapshots are untouched.
+1. PVE's native `homelab-vm100-pbs` job uses **snapshot** mode against
+   `pbs-vault-b`, with the enabled/running QEMU Guest Agent freezing/thawing local
+   filesystems. Recovery is crash-consistent, not a clean application shutdown;
+   databases must replay their journals/WAL. This preserves QEMU dirty bitmaps
+   between backups and avoids nightly VM/GPU restarts. Stopping the VM loses
+   those bitmaps and requires rereading its data even when little changes.
+   Recurring jobs do not stop containers, cold-rsync appdata, dump SQL or
+   choreograph ZFS snapshots. Cold cutover proofs are historical only.
+2. After upstream archive generation, the host coordinator collects remote
+   archives over the existing strictly pinned SSH identity into the root-only
+   ZFS dataset `/rpool/backup-staging/collector`. On a rebuild, recover its existing
+   history before enabling collection. The collector requires the exact mounted
+   writable dataset, not a fallback directory.
+3. Each archive source must have a matching completed regular non-symlink file,
+   nonempty, not future-dated and at most24h old. Successful rsync or a fresh
+   unrelated file is insufficient. Router backups are generated during collection
+   and must be nonempty valid gzip archives.
+4. The coordinator takes a consistent SQLite backup of pmxcfs, packages
+   `pve-config.tar.gz` (including the canonical PBS token) and
+   `pbs-config.tar.gz` (`/etc/proxmox-backup`), validates gzip, then sends
+   `recovery.pxar` and `collector.pxar` to PBS as `host/pve-recovery`.
+   Rendered guest configuration is protected inside the VM's OS/appdata image.
+5. The [PBS proof helper](../roles/pve_backup/templates/pbs-file-backup.py.j2)
+   requires the exact newly completed host point and both pxar indexes before
+   atomically fsyncing its receipt. It then requires the current-night successful
+   native VM task and its matching point, including OS/appdata/EFI **and both
+   managed bulk image indexes**. Yesterday's success or a config blob alone fails.
+6. `complete-cycle` waits for a running current VM task (up to the configured24h
+   limit) and publishes distinct primary-cycle evidence only after both inputs
+   pass. This gate is mandatory even without a secondary. If a secondary is
+   configured, it then validates/runs native local sync, awaits its exact taskOK
+   and proves both same points/all archives there before recording replica
+   success. Empty secondary means no sync call or fabricated replica marker.
 
-Traps and systemd `ExecStopPost` attempt resume after failures. A failed SSH
-resume retains `/var/lib/homelab-backup/guest-needs-resume`; the guest keeps its
-original running manifest until every container is running again. Power loss or
-SIGKILL can still interrupt recovery: inspect both manifests and explicitly run
-`homelab-backup resume` before any further repository work.
+Schedules use `bootstrap_timezone=Asia/Yerevan` (UTC+04). The role rejects host
+timezone drift and reconciles CT local time; CT shares the host kernel clock.
 
-Frigate configuration/database are protected; replaceable recordings under the
-configured exclusions are not. Media is deliberately excluded. External file
-writers must also be stopped during the checkpoint; do not add another writer
-without extending this ownership protocol.
+| Job | Local time | UTC |
+| --- | --- | --- |
+| Native VM100 snapshot-mode backup | daily02:00 | previous day22:00 |
+| Upstream HA / VPN generation (observed) | about04:00 /06:30 | 00:00 /02:30 |
+| Collect + host pxar + primary-cycle proof | daily07:15 | daily03:15 |
+| PBS prune / GC | daily07:00 /08:00 | 03:00 /04:00 |
+| PBS verify | Sunday10:00 | Sunday06:00 |
+| Host freshness | hourly:30 +0–5min jitter | hourly:30 +0–5min |
+
+VPN's Europe/Amsterdam schedule changes with DST; validate source generation
+against collection rather than assuming UTC never changes. At07:15 yesterday's
+scheduled04:00/05:00/06:30 files exceed24h and fail, while same-day delayed/manual
+collection remains possible. External systems need not share VM transaction time.
+PBS retains7 daily,4 weekly,6 monthly points. Maintenance has native locks and can
+overlap a long backup; these clocks are not runtime guarantees.
+
+### Receipts, failures and disk standby
+
+Protected root0700 state under `/var/lib/homelab-backup` includes file and primary
+receipt/epoch pairs: `pbs-file-latest.json`, `pbs-file-last-success`,
+`pbs-primary-latest.json`, `pbs-primary-last-success`. A configured replica also
+uses `pbs-sync-latest.json`/`pbs-sync-last-success`. Inspect native task/catalog
+evidence too: receipts alone are not restore proof.
+
+Hourly freshness requires matching selected-store file/primary evidence and
+age-valid points/completion markers, maximum36h. A configured secondary also
+requires matching replica points/store identity. Missing, torn, wrong-store,
+invalid/future or old points fail even with a newly touched success timestamp.
+Old replica markers are preserved but ignored when no secondary is configured;
+they never substitute for current primary protection. File success may precede
+a later completion failure. Never forge a receipt to make it green.
+
+The host lock waits up to1h. Missing/wrong mounts, failed source transfer/age,
+invalid credentials/TLS pin, missing image indexes, failed VM/sync task or timeout
+fail the coordinator and alert; a failed collection stops the file/sync pipeline,
+not the separately scheduled VM job. Source failures alert individually.
+Inspect service journals, native tasks and protected inputs, repair the cause and
+rerun deliberately. Do not delete receipts/manifests, weaken freshness, disable a
+source or accept yesterday's VM point to make the run green. Notifications are
+state-transition based; failed delivery leaves state unchanged for another attempt.
+
+Native PBS warning/error maintenance delivery is separate from the host helper:
+[`homelab-pbs-ntfy` webhook and `homelab-pbs-errors` matcher](../roles/pve_pbs/templates/notifications.py.j2)
+route verification/GC/prune warnings and errors to the existing alerts channel.
+The channel secret is kept only in root0600 PBS private notification configuration,
+never process arguments or logs. Native target delivery has been tested; phone
+receipt is not implied by that test.
+
+After backup/recovery acceptance, the
+[HDD policy](../roles/pve_pbs/tasks/power.yml) sets ATA timeout244, **120min idle**,
+only on enabled declared SATA/XFS10 TB disks after serial/UUID checks; currently B.
+Disks stay connected and mounted; this is standby, not physical power-off,
+unplugging or forced sleep during active work. Include VM/file backup, sync,
+prune, GC and verify in the I/O/wake window, not merely the02:00 VM start.
+SMART monitoring respects standby. Observe an actual idle interval and successful
+backup/maintenance wake afterward; polling must not itself wake disks.
+Accepted natural standby/real-backup wake evidence is linked from [status](status.md);
+no disk lifespan improvement is claimed.
 
 ## Apply
 
-Prerequisites:
-
-- PVE storage, Docker baseline and restored workloads passed their phase gates.
-- Existing vault UUID matches the audited disk. If configuring a second
-  repository, record its XFS UUID in `pve_backup_offsite_uuid`, never `/dev/sdX`.
-- The guest helper is installed by `playbooks/docker.yml`. Its collector public
-  key allows only prepare/resume and read-only rsync under `/mnt/appdata`, from
-  `10.77.0.1`. It cannot open an unrestricted guest shell.
-- Source collector SSH identity and existing known-host pins are vaulted.
-  Verify the guest ED25519 fingerprint independently before deliberately using
-  `pve_backup_bootstrap_known_hosts=true` once; bootstrap never replaces a pin.
-  Router Tailscale SSH endpoints present different keys from LAN Dropbear.
-  Reconcile a stale pin only after matching the presented key to the authenticated
-  named peer's `sshHostKeys` in `tailscale status --json`; preserve unrelated pins.
-- Vault/restic passwords have a separate offline copy. An encrypted backup of
-  its own password is not sufficient for first recovery.
+The commands below are deliberate cutover/reconciliation actions, not permission
+to reinitialize existing disks. Current bulk data is local and included in native
+VM backups. On a new/rebuilt node, keep schedules and HDD standby disabled
+throughout recovery acceptance and require verified parity before final mounts.
 
 ### Provision without automatic schedules
 
-Provision PBS alone, leaving `pve_pbs_schedules_enabled=false`:
+1. Confirm original data/history remains intact and no backup/collector/native PBS
+   task is active. On a rebuild recover retained configuration and application
+   state before enabling schedules. Historical cold writer-pause/legacy transaction
+   procedures remain in [cutover history](archive/backup-cutover.md#provision-without-automatic-schedules);
+   they are not recurring backup steps.
+2. Verify physical identities, free space and existing XFS against
+   [PBS inventory](../inventory/group_vars/pve/pbs.yml). Keep A/tank identity
+   records with `enabled: false`, B enabled/selected and secondary empty.
+   Preserve all non-PBS directories; do not format either disk.
+3. Provision/reconcile PBS with schedules and standby off:
 
-```bash
-ansible-playbook playbooks/pve.yml --limit great-hornbill --tags pbs -e pve_pbs_enabled=true -e pve_pbs_schedules_enabled=false
-```
+   ```bash
+   ansible-playbook playbooks/pve.yml --limit great-hornbill --tags pbs \
+     -e pve_pbs_enabled=true -e pve_pbs_schedules_enabled=false \
+     -e pve_pbs_hdd_standby_enabled=false
+   ```
 
-The role discovers the official Debian13 LXC template, creates managed CT101,
-uses unprivileged backup UID34 → host100034 and registers TLS-pinned `pbs-tank`.
-Inventory assigns5 GiB for the1 TiB datastore; first creation also requires1 GiB
-available host headroom. This is a sizing guard, not peak-load proof.
-`tank/pbs` must have `atime=on`; its datastore root must belong to host
-UID/GID100034. Only an empty root may be changed, never recursively chown an
-existing store. The root-owner check is not a recursive contents audit:
-native verify/restore must establish existing backup readability.
-The bind datastore is excluded from CT backups and has a fail-closed startup guard.
+   CT101 is Debian13/PBS4,5 GiB RAM, with host-only private API access from
+   `10.77.0.1` to `10.77.0.3`; guest SSH stays masked, administration uses `pct`.
+   Preserve management filtering. The runtime tmpfiles rule recreates
+   `/run/proxmox-backup` as guest `backup:backup`0755 after reboot; a PID-file
+   permission fault is not a reason to recursively chown datastore contents.
+4. On a rebuild, restore the managed local photos/files disks and verify their
+   serials, filesystems, labels and mounts before starting Docker. Enable both
+   disk backups. If migrating new source data, require immutable seed, bounded
+   final writer pause and complete byte/metadata proof with
+   [verify-tree](../scripts/verify-tree.py); never overwrite newer writes with staging.
+5. Create/mount the protected collector dataset and migrate its existing history.
+   Prepare the host pipeline with timers off:
 
-PBS's volatile `/run/proxmox-backup` must be writable by guest `backup`34.
-The role installs `/etc/tmpfiles.d/homelab-pbs.conf` to recreate that directory
-as `backup:backup`0755 on every boot and applies it before starting PBS.
-This is separate from datastore ownership; never recursively chown backup data
-to repair a runtime PID-file error.
+   ```bash
+   ansible-playbook playbooks/pve.yml --limit great-hornbill --tags backup \
+     -e pve_backup_enabled=false
+   ```
 
-PVE's native add hook deletes a password omitted from CLI arguments. Initial
-registration therefore creates disabled storage, writes its root-only native
-password file, then enables it and requires active status. Secrets never enter
-process arguments. Saved token identity and TLS pins are checked on reconciliation.
-Server/datastore are immutable PVE fields: validate them, but do not resend them
-on `pvesm set`.
-
-PBS API access is private host `.1` only; the LAN NIC is for DHCP/outbound updates.
-Guest SSH service/socket are masked; administration uses `pct`/PBS. PVE datacenter
-filtering has default-accept host policy and CT default-drop policy, preserving
-the separate host management restriction. The VM/CT share one hardware failure domain.
-
-With schedules off, PVE's backup job is disabled, PBS prune is disabled,
-verification is manually runnable but unscheduled, and datastore GC is unscheduled.
-Reruns preserve this state. Do not arm schedules merely to provision storage.
-
-Prepare host backup staging/credentials with timers still off:
-
-```bash
-ansible-playbook playbooks/pve.yml --limit great-hornbill --tags backup -e pve_backup_provision=true -e pve_backup_enabled=false
-```
-
-`pve_backup_provision` creates the staging datasets and validates credentials/pins;
-`pve_backup_enabled` alone controls timer activation. Protected installation
-directories remain root0700, but creating mount paths does not chmod/chown a
-mounted retained filesystem. The role writes fstab without mounting/initializing
-the vault. Staging parent permissions never rewrite copied guest-root metadata.
+   The backup role does not create the collector dataset; the storage inventory
+   declares it for the `storage` role. Reuse the existing collector identity and
+   host pins; bootstrap only missing pins after independent identity
+   verification. Never replace a mismatched pin blindly. Do not run the full
+   Docker play casually: its guest backup role retires legacy helpers only after
+   active transactions and manifests are cleared, preserving old SQL/artifacts.
 
 ### Attach the retained vault and run manually
 
-The migration vault starts `ro,norecovery`. XFS cannot remount that state directly
-read-write. After UUID/source verification and confirming no process uses the
-vault, unmount it and mount it fresh using the now-installed fstab entry:
+A disk mounted `ro,norecovery` must be verified idle, **unmounted**, then mounted
+fresh RW using the declared UUID/fstab policy. Do not remount directly from XFS
+`norecovery`. Preserve all migration directories and private restore space;
+require XFS, exact
+UUID, RW and access-time updates. PBS never authorizes formatting/erasing history.
 
-```bash
-findmnt --mountpoint /mnt/vault -o SOURCE,UUID,FSTYPE,OPTIONS
-fuser -m /mnt/vault
-umount /mnt/vault
-mount /mnt/vault
-findmnt --mountpoint /mnt/vault -o SOURCE,UUID,FSTYPE,OPTIONS
-```
-
-Require UUID `6d3f33cb-faaf-4497-8131-2f40f07cfbbd`, XFS, `rw`, no `norecovery`;
-preserve its existing root owner/mode. Keep `/mnt/staging` read-only. This permits
-new repository writes; it does not authorize formatting, initialization or deleting
-the eleven migration/legacy snapshots. Record their IDs before the first run.
-
-With all timers/schedules confirmed off, start the existing service manually:
-
-```bash
-systemctl start homelab-backup.service
-```
-
-It runs durably through SSH loss and retains the failure/resume hooks. A collector
-failure still allows local protection but makes the overall result fail; do not
-disable a source or suppress that result to claim complete collection.
+With schedules off and the local-data cutover complete, create a reviewed native
+`vzdump 100 --storage pbs-vault-b --mode snapshot` acceptance point. Prove actual
+guest-agent freeze/thaw and recovery. Any one-time writer pause for matching
+logical SQL references must end after the snapshot boundary, not after the
+hours-long bulk transfer; it is not recurring backup choreography.
+Run `systemctl start homelab-backup.service` only after fresh upstream archives
+and B readiness, in the same scheduled cycle as a completed VM task. If a long
+initial transfer crosses02:00, take a new native delta in the new cycle before
+completion proof. Native catalog verification and actual B recovery are required.
 
 ### Arm only after recovery proof
 
-After a real current backup, file/dump import and isolated VM restoration pass:
+Review `homelab-backup.timer` and `homelab-backup-freshness.timer` stamps,
+`Persistent=true`, service inactivity and future NEXT times **before** activation.
+The old separate collector/check timers are removed; the07:15 service collects
+itself. Existing stamps can cause immediate catch-up on enable/boot. For a
+deliberate discard of catch-up, stop/disable the timer, ensure its service is
+inactive and clean only that timer's systemd state, never backup receipts.
+PVE uses `repeat-missed=0`; PBS maintenance next-run state is independent.
 
-1. For initial preparation or a deliberate maintenance re-arm, first require no
-   active backup service; use the provisioning commands above with their explicit
-   schedule/timer disable overrides. Current inventory is armed: a normal scoped
-   apply preserves activation. Existing strict pins suffice; do not bootstrap again.
-2. Require no backup/collector/check/freshness service active, no durable guest
-   resume manifest, the retained UUID mounted RW, pinned PBS storage active, and
-   all eleven historical IDs still present. Confirm host and CT timezone/NTP
-   state and inspect the native catalogs and saved recovery results below.
-3. Inspect disabled timer stamps and pending schedules **before** activation:
+After the recovery gates pass, retire only the legacy guest backup automation:
 
-   ```bash
-   systemctl show homelab-backup{,-collect,-check,-freshness}.timer \
-     -p Id -p ActiveState -p UnitFileState -p Persistent -p LastTriggerUSec -p NextElapseUSecRealtime
-   find /var/lib/systemd/timers -maxdepth 1 -name '*homelab-backup*' -printf '%f %TY-%Tm-%TdT%TH:%TM:%TS\n'
-   systemd-analyze calendar --iterations=2 '*-*-* 03:00:00 Asia/Yerevan'
-   pct exec 101 -- proxmox-backup-debug api get /admin/prune --output-format json
-   pct exec 101 -- proxmox-backup-debug api get /admin/verify --output-format json
-   pct exec 101 -- proxmox-backup-debug api get /admin/gc --output-format json
-   ```
+```bash
+ansible-playbook playbooks/docker.yml --limit docker-1 --tags backup
+```
 
-   All four timers use `Persistent=true`: an old stamp can immediately catch up
-   a missed run after activation/boot, including application quiescence. The
-   initial automation preflight found **no stamps**, disabled/inactive timers
-   and empty LAST/NEXT; a first enable creates stamps at the current time and
-   waits for the next calendar event (plus up to5min jitter/1min accuracy).
-   If stamps now exist, review their age; do not blindly start timers while
-   production/DNS work is in progress. To intentionally discard catch-up for a
-   maintenance re-arm, first stop/disable timers, confirm associated services
-   inactive, then use `systemctl clean --what=state UNIT.timer` for each timer.
-   Never erase the backup's own durable state or a guest resume manifest.
-   PVE explicitly sets `repeat-missed=0`. PBS job state is independent: review
-   native `next-run` fields for overdue maintenance, not just systemd NEXT.
-4. The integration owner persists `pve_pbs_enabled: true`,
-   `pve_pbs_schedules_enabled: true` and `pve_backup_enabled: true` in their
-   inventory files **only after readiness review**, then applies:
+The `backup` tag selects the guarded `docker_backup` retirement role, not Compose,
+networking or the rest of the guest baseline. Pending old transactions still
+refuse removal; existing SQL dumps and backup artifacts remain untouched.
 
-   ```bash
-   ansible-playbook playbooks/pve.yml --limit great-hornbill --tags pbs
-   ansible-playbook playbooks/pve.yml --limit great-hornbill --tags backup
-   ```
+After full B VM/archive and filesystem recovery proof, preserved histories and
+readiness review, reconcile `pve_pbs_backup_mode=snapshot`, schedules and
+`pve_backup_enabled=true` through inventory/scoped `pbs`/`backup` applies.
+Extra-vars do not persist; inventory controls subsequent reconciliation.
+Inactive A/tank remain offline with no CT bind/start dependency; their data is
+not deleted. Enable B standby only after those gates and observe real sleep/wake
+including maintenance. Record evidence before describing this temporary
+single-repository setup as accepted; never describe it as two-copy protection.
 
-   Extra-vars are per-run; inventory flags determine later reconciliation.
-   Do not arm restic before PBS recovery configuration can be captured.
-   Verify enabled/waiting timers and **future** NEXT times immediately;
-   do not manually launch heavy jobs just to demonstrate activation.
-
-Initial capacity preflight (2026-11-15 local): vault available6,875,949,281,280
-of9,998,694,297,600 bytes; PBS quota1,099,511,627,776, used54,942,691,328,
-available1,044,568,936,448 bytes. This is ample current headroom, not a guarantee
-that all retention generations fit without deduplication. Monitor native quota,
-free space and task results as new generations accumulate. Keep the staging disk
-unmounted; do not initialize a repository or prune history to manufacture space.
-
-### Observed automation activation — 2026-11-15
-
-The reviewed source was first applied with explicit schedule overrides off, then
-the persistent inventory flags were enabled and scoped PBS/backup applies passed.
-No timer stamps existed before activation, all four services were inactive and
-no guest-resume manifest existed. Native acceptance found all four timers enabled
-and waiting, with future NEXT values and no surprise service start.
-PVE VM100 backup is enabled with `repeat-missed=0` and `keep-all=1`; PBS alone
-owns its prune policy. PBS prune, GC and verify report future native next runs.
-Host and CT both persist Asia/Yerevan, sharing the synchronized host clock.
-
-A read-only retention dry-run preserved all eleven historical IDs among thirteen
-snapshots, outside the automatic selector. One isolated notification-state fixture
-exercised the real ntfy helper: HTTP200 and a message ID were returned; production
-success/failure markers were untouched. Phone receipt was not tested.
-At this activation checkpoint, the first nightly execution was still unobserved.
-The subsequent first-night acceptance below establishes the automatic result.
-
-Evidence: `/root/migration-automation-20261114T195553Z`,
-`activation.guard.json`, `backup-automation.COMPLETE.json`,
-`schedules.after-activation.json` and `notification.acceptance.json`.
-
-### First scheduled night and recovery — 2026-11-15
-
-Observed times use Asia/Yerevan:
-
-| Job | Started–finished | Result |
-| --- | --- | --- |
-| Collector | 01:02:31–01:02:44 | exit0,13s |
-| PBS VM100 | 02:00:01–02:05:12 | native taskOK,5m11s |
-| Restic coordinator | 03:05:09–03:20:09 | exit0,15m |
-
-New PBS volume `vm/100/2026-11-14T22:00:01Z` and the retained original image
-both passed native PBS verification. Scheduled prune, GC and verify reportedOK;
-GC reported no bad chunks. The monthly restic data check is not due until Dec01.
-
-New restic point `53ae0b7ab959` processed884,457 files /1.945 TiB; its scan took
-5m32s, adding2.201 GiB stored through deduplication. Metadata checking found no
-errors across14 snapshots; all eleven historical IDs remain present.
-Production helpers resumed the original containers around03:12, before scanning.
-All34 original container IDs/pinned references match, all are running, configured
-healthchecks are healthy, and restart counts/resume manifests show no pending failure.
-Ordinary Immich, Vaultwarden and local Jellyfin HTTP probes returned200.
-
-Bounded restoration used only these **new automatic** points:
-
-- PBS native file recovery extracted guest OS identity plus Vaultwarden SQLite
-  and its matching WAL. OS hash matched; SQLite `quick_check=ok`,597 ciphers.
-  No full VM was restored or booted.
-- Restic verified the original photo/PDF bytes and UID/GID/mode/mtime/xattrs
-  against matching frozen ZFS sources. All four latest SQL gzip/hash checks passed.
-  One new Immich dump replayed into an isolated pinned-image container: all66
-  table counts matched that dump, including216,918 assets.
-- Recovery helpers, disposable database/container/volume and sensitive fixtures
-  were removed. Production was not stopped for this acceptance exercise.
-  This is not a full2-TB restore, replay of every SQL application or UI sign-in proof.
-
-**Upstream timing warning:** the frozen nightly point contains VPS/HA archives
-dated Nov14, while newer Nov15 archives now exist on those sources. The collector
-at01:00 and the coordinator's embedded collection precede their generation.
-In current timezones, HA's new archive mtime is about04:00 Yerevan, Kuma's daily
-cron runs05:00, and VPN's03:30 Europe/Amsterdam cron runs06:30 Yerevan in CET.
-Successful rsync is not proof of current-generation source archives.
-Align generation/collection and source-freshness expectations before calling this
-same-night remote coverage. This verification changed no schedules or jobs.
-
-Private evidence: `/root/migration-overnight-20261115T075700Z`,
-`night.verdict.json`, `pbs.recovery-result.json`, `restic.sql.json`,
-`legacy-preservation.json`, `upstream.frozen-archive-proof.json` and
-`upstream.archive-generation.json`. Keep raw worker transcripts private.
+Historical capacity measurements, prior timer activation and first scheduled-night
+Restic/PBS recovery results are retained in [cutover history](archive/backup-cutover.md#observed-automation-activation--2026-11-15).
+Monitor actual B free space/native tasks; do not format, prune history or use the
+old 1 TiB tank datastore to manufacture capacity.
 
 ## Verify
 
-On PVE, as root:
+Use native tools and the deployed PBS-only interface as root for status/freshness
+checks (`freshness` can emit alerts and update notification state):
 
 ```bash
-homelab-backup backup
-homelab-backup check-metadata
-homelab-backup check-data
-homelab-backup check-full
 systemctl list-timers 'homelab-backup*'
-pvesm status --storage pbs-tank
-vzdump 100 --storage pbs-tank --mode snapshot
-pct exec 101 -- proxmox-backup-manager verify-job run homelab-verify
+systemctl status homelab-backup.service
+pvesm status --storage pbs-vault-b
+pvesm list pbs-vault-b
+pct exec 101 -- proxmox-backup-manager task list --all true
+pct exec 101 -- proxmox-backup-manager datastore list
+homelab-backup freshness
 ```
 
-`check-metadata` does not read pack contents. `check-data` reads a random10%
-subset; repeated samples do not guarantee complete coverage. `check-full` reads
-all pack data. A successful job or byte verification does not prove that restored
-PostgreSQL/application data is usable: import a dump and open recovered state.
+During an approved manual backup window, use the native snapshot-mode VM backup
+(`vzdump 100 --storage pbs-vault-b --mode snapshot`), then start
+`homelab-backup.service`. Native verification is manually runnable with
+`pct exec 101 -- proxmox-backup-manager verify-job run homelab-verify-vault-b`.
+Verify completion, not merely launch. `homelab-backup backup` runs the same host
+pxar/collection/primary-proof path, plus sync only when a secondary is configured;
+it does not start VM backup or replace native verification. The only operator
+commands on that wrapper are `backup` and `freshness`; old Restic/offsite/check
+commands and resume aliases are not part of the current interface.
 
-Test a failed dump/copy and confirm the original containers resume without a
-success timestamp. Test missing/wrong mounts, reboot ordering and a controlled
-UPS shutdown on the real host. Never simulate a failure against production by
-removing a live disk or corrupting its repository.
+Acceptance must establish all of the following:
 
-### Observed migration recovery — 2026-11-14
+- Enabled B's exact XFS identity and CT startup guard survive reboot without
+  empty fallback; inactive A/tank are not required for appliance startup.
+- Native VM taskOK, matching current B point and all five OS/appdata/EFI/photos/files
+  image indexes; current B host point with both pxar indexes. A future configured
+  secondary additionally needs both exact points/all archives there.
+- Recovery/collector archives actually extracted into a protected destination and
+  inspected, with fresh matching upstream archives, not only catalog entries.
+- Real isolated B VM recovery, current database/application state and
+  representative original photo/file bytes plus ownership, modes, timestamps,
+  ACLs/xattrs and links. Use frozen references and
+  [verify-tree](../scripts/verify-tree.py) for full migration parity.
+- Fault handling rejects wrong/missing mounts, stale/empty/future sources, failed
+  VM/sync and missing indexes without advancing the corresponding success.
+  Use disposable fixtures; do not unplug or corrupt production disks to test.
+- Native maintenance alerts, conservative standby and subsequent backup plus
+  maintenance wake work, with old histories preserved.
 
-- PBS `vm/100/2026-11-14T12:12:35Z` completed in8m47s, including root,
-  appdata and EFI. Actual restoration into isolated VM900 took about5m20s.
-  Debian13 booted with real ext4 appdata: Vaultwarden597 ciphers/SQLite
-  `quick_check=ok`, Paperless PostgreSQL18 cluster files and Minecraft world
-  files were present. Docker/Tailscale stayed masked, NICs down and GPU absent.
-  Expected network/GPU failures made this a degraded isolated boot, not complete
-  application/client recovery. The marker-guarded VM and its four volumes were removed.
-- The first host checkpoint failed before restic at the cross-pool snapshot
-  command; its trap resumed the original workloads. Disposable native datasets
-  reproduced the exact failure and proved separate calls; fixtures were removed.
-- The corrected coordinator created matching read-only snapshots on all three
-  datasets, then resumed the original workload set before the long scan.
-- Separate restic point `f83a130ac874` protects the completed cold-copy four SQL
-  dumps, Vaultwarden and guest recovery configuration. Actual `restore --verify`
-  plus SHA256 comparison passed; recovered Vaultwarden contains597 ciphers.
-  All11 historical snapshots remain. This smaller point precedes the complete
-  current checkpoint below; it is not a substitute for full bulk coverage.
-- Three router failures were endpoint-key mismatches, not Dropbear key rotation:
-  authenticated Tailscale peer keys matched the presented SSH keys, and strict
-  collector-identity authentication passed without an approval challenge.
-  Host-pin proof alone does not establish successful fresh archive collection.
-- Full checkpoint `e752f5a4a909` completed2026-11-14 at16:12:51 UTC, exit0.
-  It processed884,393 files /1.943 TiB in2h40m47s; the complete coordinator,
-  including collection/quiescence, took2h46m55s. Deduplication reused the existing
-  repository, adding1.191 GiB stored. Collection succeeded and metadata checking
-  reported no errors.
-- Actual `restore --verify` from that full snapshot recovered an Immich original
-  photo and a PDF. SHA256, numeric UID/GID, permissions, nanosecond mtime and
-  xattrs matched the frozen inputs, including all three PDF xattrs.
-  Disposable restored files were removed; all11 historical snapshots remain
-  among13 repository snapshots. This is bounded recovery proof, not a full
-  repository pack-data scan or off-site protection.
-
-Evidence: `/root/migration-backups-20261114T120556Z` on PVE, including
-`vm900-recovery.json`, `zfs-crosspool-contract.json`, `proof-backup.result.json`,
-`collector-hostkey-identity-proof.json`, `checkpoint.second-views.json`,
-`restic.full-summary.json` and `full-bulk-restore.result.json`.
-Automatic PVE/PBS jobs, PBS GC and host timers remain disabled/unscheduled.
-
-The populated physical UPS cycle subsequently exposed a proxy startup failure:
-`/run/proxmox-backup` had been recreated as root, denying the `backup` service
-its PID file. The persistent tmpfiles fix passed a native regression probe and
-a CT-only reboot: pinned storage became active, the original VM image remained
-listed and the real PBS sign-in UI rendered. No backup schedules were enabled.
-Evidence: `/root/migration-ups-populated-20261114T174036Z`,
-`pbs-runtime.after-reboot.json` and `ups-physical-populated.COMPLETE.json`.
-
-### Logical SQL recovery — 2026-11-14
-
-The four actual restic-restored dumps were replayed with `ON_ERROR_STOP` into
-fresh volumes using their pinned PostgreSQL14/18 images. Fixtures had no network,
-published ports or production mounts. Every dumped table's row count matched:
-
-| Database | Dumped tables matched | Restored rows |
-| --- | ---: | ---: |
-| Immich | 66 | 1,860,855 |
-| Paperless | 72 | 5,885 |
-| LiteLLM | 78 | 859 |
-| Order-manager | 14 | 51 |
-
-All fixture databases shut down with exit0, no OOM; their containers and volumes
-were removed. Evidence: `sql-recovery.result.json` in the directory above.
-This proves logical recovery, not owner-client sign-ins or off-site availability.
+A successful sync, native chunk verify, receipt or bounded sample alone does not
+prove usable full-stack recovery. Accepted B recovery/standby evidence and remaining
+risks are recorded in [current status](status.md); earlier OS/appdata/Restic and
+logical SQL proofs are [historical](archive/backup-cutover.md#observed-migration-recovery--2026-11-14).
 
 ## Secondary copy and off-site protection
 
-The new10 TB disk stays internal. Prepare plain XFS, without LUKS, for migration
-staging. Keep all staged data until backup and application restore gates pass;
-initializing a restic repository does not erase those files. Later, this disk can
-hold another restic repository if capacity permits. Restic encrypts the repository;
-raw staging files remain unencrypted.
+The owner approved B as the temporary sole active PBS repository after A's
+recurring errors followed it to another SATA port. A successful A data restore
+does not certify its disk/tray/path. Keep A offline for repair/replacement and
+preserve its PBS/Restic history. No second active copy currently exists.
 
-The existing `offsite-*` commands operate the optional second XFS repository
-slot. Using them on this internal disk creates a local replica only. Configure
-`pve_backup_offsite_uuid` with its filesystem UUID when ready; until then, copy
-freshness monitoring is deferred and local backup freshness remains enforced.
-No encryption mapper or unlock step is required. Mount, UUID, XFS, writability
-and distinct-vault identity guards remain mandatory.
+Later, independently prove a healthy secondary before enabling native sync and
+claiming dual-copy protection. Preserve that disk's other migration trees and use
+no delete propagation. Two local disks still share host/site risk; remote PBS is
+separate work after an explicitly reviewed move and recovery test.
 
 Google Drive is **cancelled after account loss**. Do not resume its copy or make
-Google API requests without renewed authorization; the partial upload is not
-usable backup protection. Historical setup used remote `gdrive:`, rclone1.72.0,
-the operator's desktop OAuth client and `drive.file` scope. The initial64 KiB
-transport test passed, but account availability no longer holds.
-
-Credentials are stored at `/mnt/cache/appdata/migration-rclone/rclone.conf`,
-root-owned `0600` inside a `0700` directory on the persistent cache filesystem.
-The workspace is excluded from the cold appdata copy; credentials were captured
-separately in protected recovery `cloud-backup/`, now marked `CANCELLED`. Preserve
-them only as recovery evidence; do not deploy them to PVE as an active cloud target.
-
-No Google access command is provided here: this target is cancelled.
-
-### Encrypted cloud repository
-
-Former repository `rclone:gdrive:homelab-restic` (ID prefix `379416da99`) was
-initialized in format2 with local chunker parameters; initialization copied no
-source snapshots. It used the existing password file
-`/boot/config/restic/password`; that password was privately confirmed against
-`vault_restic_password` in the encrypted Ansible vault. Keep a separate offline
-recovery copy of the password/vault unlock key.
-
-Actual verification backed up a256 KiB synthetic binary plus files, hardlink,
-symlink and empty directory. Cloud `check --read-data` passed; `restore --verify`
-preserved bytes, numeric UID/GID, permissions and links. A wrong password was
-rejected. Only the verification snapshot and its unused packs were removed from
-the new cloud repository; all10 existing local snapshots were preserved.
-
-The real seed exited1 after Google's daily upload limit, having transferred about
-750.535 GiB. The operator subsequently lost access to the account and cancelled
-the target. No cloud process, automatic retry loop or recurring schedule remains.
-Do not infer recoverable snapshots from uploaded packs or the synthetic restore.
-The old local vault remains intact; replace remote protection separately.
-
-### Initial cloud seed
-
-Started2026-11-10 with `restic copy` from `/mnt/vault/restic` into
-`rclone:gdrive:homelab-restic`, capped at25 MiB/s upload (`RCLONE_BWLIMIT=25M:off`).
-Tmux failed before launch, so the copy used `nohup` and survived SSH disconnects.
-It later stopped on Google's upload limit and is now explicitly cancelled after
-account loss. Source retention/prune was never requested.
-
-Protected run files under `/mnt/cache/appdata/migration-rclone/`:
-
-- `cloud-seed-20261110T191924Z.log`: copy output and minute-by-minute rclone stats.
-- `cloud-seed-20261110T191924Z.pid`: source-side supervisor PID,1411011 at launch.
-- `cloud-seed-20261110T191924Z.exit`: created when the command exits;0 means copy
-  completed, nonzero means it stopped/failed. Absence alone does not prove liveness.
-- `cloud-seed-20261110T191924Z.cancelled`: explicit operator cancellation; no resume.
-
-Observe from Unraid:
-
-```bash
-tail -f /mnt/cache/appdata/migration-rclone/cloud-seed-20261110T191924Z.log
-```
-
-The initial pack uploads and synthetic restore were exercised, but the real seed
-failed on `403 userRateLimitExceeded` at13:43+04:00 and must not be resumed now.
-The source-side cancellation marker is also saved as recovery
-`cloud-backup/CANCELLED`. Logs and credentials are retained privately; no attempt
-was made to access or delete objects in the unavailable Google account.
-
-### Secondary internal filesystem repository
-
-After explicitly setting the new disk's filesystem UUID:
-
-```bash
-homelab-backup offsite-attach
-homelab-backup offsite-init EXPECTED_UUID
-homelab-backup offsite-refresh
-homelab-backup offsite-check-full
-```
-
-Run `offsite-init` only once, against an existing verified XFS mount with no
-`restic` directory. It does not partition/format/delete anything. `offsite-refresh`
-uses `restic copy` with compatible chunker parameters, includes historical source
-snapshots, and performs a metadata check. Do not substitute rsync of a live
-repository or prune legacy snapshots implicitly.
-
-Restore into an empty, dedicated mounted test filesystem under `/mnt/restore/`:
-
-```bash
-homelab-backup verify-restore local SNAPSHOT_ID /mnt/restore/local-test
-homelab-backup verify-restore offsite SNAPSHOT_ID /mnt/restore/offsite-test
-homelab-backup offsite-detach
-```
-
-The helper restores and byte-verifies the selected snapshot. It refuses a
-nonempty/unmounted target. Inspect recovered applications/dumps as well.
-`offsite-detach` unmounts the secondary filesystem; it does not establish remote
-protection. Freshness timestamps record copy success, not physical location.
+Google API requests without renewed authorization. The partial seed is not usable
+backup protection. Credentials, measurements and cancellation evidence remain in
+[cloud cutover history](archive/backup-cutover.md#encrypted-cloud-repository).
+The former internal Restic-copy workflow is retired; do not initialize repositories
+or deploy its old helpers. B is the primary, not a replica.
 
 ## Isolated VM restoration
 
-1. List PBS backups using `pvesm list pbs-tank`; restore the selected volume into
-   an unused ID, not VM100:
+1. Select an exact completed VM point from primary **B**, recording its native
+   task, archive list and original VM storage configuration. A is untrusted/offline;
+   never automatically restore from A or treat it as an independent recovery copy.
+   Use an unused VMID, never overwrite VM100. Preserve **per-storage mappings**:
+   root/appdata/EFI originally use `local-zfs`, photos/files use `tank-vm`.
+   Do not restore all disks with `--storage local-zfs`: it would redirect the
+   multi-TB bulk disks onto the SSD. With original storage IDs available, omit
+   the global override; otherwise explicitly map each original storage to a
+   correctly sized isolated destination using the installed native restore UI/API.
+   Verify supported mapping syntax and free capacity before issuing the restore.
+   Sparse provisioning is not a promise that full restored data fits.
+2. Restore the selected listed volume with a new identity and leave it stopped,
+   for example `qmrestore LISTED_BACKUP_VOLUME UNUSED_VM_ID --unique 1`.
+   Before boot, set `onboot=0`, inspect every disk's actual destination and remove
+   all physical passthrough/GPU assignments. Never attach a production physical
+   disk or GPU to two guests. Do not assume `--unique` isolates storage or services.
+3. Budget RAM before starting. This host has32 GiB, production VM18 GiB, PBS5 GiB
+   plus host/ZFS demand; do not boot another18 GiB VM concurrently. Prefer
+   read-only disk inspection first; boot a reduced-memory clone only with measured
+   headroom, or stop production in an approved window for a full-size test.
+4. Disconnect NICs or use an isolated bridge, mask Docker/Tailscale until ready
+   and suppress external webhooks/bots/game traffic. Original filesystem labels
+   and data are expected on the clone; host mount paths and original network
+   identities must not be shared accidentally.
+5. Check OS, local appdata and database recovery, then representative photo/file
+   hashes and metadata against frozen original references. Native VM images
+   protect database files; daily snapshot recovery also requires successful
+   journal/WAL replay. Logical dump import remains a one-time acceptance check,
+   not a recurring dump requirement.
+6. A degraded isolated boot is not full-stack proof. The image excludes media
+   NFS at `/mnt/data`; provide real appropriately isolated media/NFS for a
+   full-stack test. Never point the clone at writable production exports or
+   replace an absent mount with an empty directory. Retain the guard's failure.
+7. Record datastore, exact snapshot, restore destinations, resource isolation,
+   application/data results and recovery time. Remove only marker-identified
+   disposable test resources after recording proof; preserve all source histories.
 
-   ```bash
-   qmrestore LISTED_BACKUP_VOLUME 900 --storage local-zfs --unique 1
-   qm set 900 --onboot 0 --delete hostpci0,hostpci1
-   ```
+## Single backup-disk failure
 
-2. **Do not start the clone yet.** Inspect its configuration, remove/disable every
-   NIC or move them to a disconnected test bridge, and reduce RAM if necessary.
-   Do not attach the production GPU to two guests. `--unique` is not storage
-   isolation and does not remove production NFS endpoints.
-3. Inspect restored disks read-only, or provide isolated copies of bulk data and
-   adjust the clone's mounts before booting it. Keep external bot/webhook/game
-   traffic disabled. Never point a restore test at writable production NFS.
-4. Verify local appdata, PostgreSQL recovery and representative application
-   state. Record the backup ID, restored state and elapsed recovery time.
+Only enabled datastore mounts are mandatory for CT101 startup. In the temporary
+B-only configuration, missing A must not block PBS; missing B must fail closed
+rather than expose an empty fallback. An offline historical store is not a
+current independent copy.
+
+1. Preserve evidence and stop backup/sync/maintenance schedules. Inspect active
+   tasks before stopping the CT; do not force standby during I/O.
+2. Verify any surviving copy by recorded UUID and existing PBS contents. Never
+   format it, substitute an empty directory or recursively change ownership.
+3. Retain identity records, disable failed stores, enable/select only the verified
+   survivor and clear the secondary. Keep original indices, schedules/standby off.
+   Reconciliation retires only exact inactive binds and startup dependencies;
+   mismatched foreign binds require operator recovery, not deletion. Preserve
+   unavailable store configurations/data offline.
+4. Read/restore through the surviving native PBS/PVE storage with pinned TLS and
+   authorized identity. Primary-only completion/freshness still require current
+   VM/file evidence; no replica receipt is forged. Re-arm only after fresh backup
+   and recovery proof for the surviving configuration.
+5. Repair/replace the failed copy. Enable a secondary only after native sync and
+   its own recovery proof; until then report one active local repository.
 
 ## SSD-loss bootstrap
 
-Recover from a host console; do not assume PBS can start from the failed SSD.
+Recover from a host console. CT101 root and host credentials were on the lost SSD;
+do not assume either PBS or its normal backup token survived.
 
-1. Reinstall PVE onto the replacement SSD, configure static node networking and
-   tailnet/IPMI access, and import surviving `tank` without recreating it.
-2. Recreate `local-zfs` on `rpool/data`, the private bridge and host filtering.
-   Obtain the repo and vault/restic passwords from independent offline storage.
-3. Rebuild CT101 using `pve_pbs` against the surviving dataset. Restore PBS's
-   `/etc/proxmox-backup` together with
-   `/root/.config/homelab/pbs-token.json`, not an old host token alone into a
-   newly initialized PBS identity. Alternatively, explicitly move the saved
-   token JSON aside and issue a new token with the same auth ID.
-4. Re-register/verify the datastore and TLS fingerprint, restore VM100, and restore
-   lost bulk data from restic as required. Reconcile mount and startup guards
-   before authorizing Docker.
-5. Recover host configuration selectively from `pve-config.tar.gz` and the
-   pmxcfs SQLite backup. Do not extract all of `/etc/pve` or host SSH/network
-   configuration blindly onto a running replacement. Recover guest Compose
-   environments from `.homelab-recovery/guest-config.tar.gz` if needed.
-6. Validate source credentials and notification destinations before enabling jobs
-   or public ingress. Keep the old repository and recovery artifacts intact.
+1. Obtain independent offline recovery material: repository/vault unlock details,
+   trusted PBS certificate fingerprint or authenticated means to establish the
+   replacement fingerprint, and host/PBS administrative access. The pxar backups
+   hold token/PBS configuration, but requiring that lost token to read the archive
+   containing it would be circular. Use local console/root administration to
+   bootstrap PBS and grant a controlled recovery identity; no insecure TLS bypass.
+2. Reinstall PVE onto the replacement SSD. Restore only reviewed host networking,
+   private bridge/filtering and recovery access. Import surviving `tank` without
+   recreating it if available, and recreate `local-zfs` on the replacement SSD.
+   Backup access itself must not depend on importing the mirror or `/tank/pbs`.
+3. Discover B by its recorded UUID and inspect mounts read-only first; A remains
+   quarantined unless separately diagnosed and explicitly approved for recovery.
+   Preserve contents. For normal PBS service, unmount any
+   `ro,norecovery` inspection mount and mount fresh RW with access-time updates.
+   Never format or create an empty replacement store. Use the existing
+   `pbs` directories and PBS datastore reuse, not initialization of lost history.
+4. Rebuild unprivileged CT101/PBS4 with only verified approved surviving binds and schedules/
+   standby off, or bootstrap compatible PBS under controlled administration.
+   Existing disk data has host UID/GID**100034** for guest `backup`**34**:
+   preserve that unprivileged mapping. A bare-metal PBS expecting host34 cannot
+   blindly use the same ownership. Recreate the compatible mapping/mount design;
+   never recursively chown surviving backup trees to work around the mismatch.
+   Restore the writable runtime tmpfiles rule as well as datastore guards.
+5. Through console/root PBS administration, reuse/register the surviving store,
+   establish/pin trust and authorize controlled read recovery before trying the
+   normal PVE token. Recover `recovery.pxar` and `collector.pxar` into a root-only
+   destination. Restore `/etc/proxmox-backup` and the canonical
+   `/root/.config/homelab/pbs-token.json` as a matched server/host identity, or
+   deliberately issue a replacement token and update the native root-only
+   `/etc/pve/priv/storage/<storage-id>.pw` files. A saved host token alone cannot
+   authenticate to a newly initialized server identity. The role fails closed on
+   token/server mismatch; resolve it explicitly rather than guessing secrets.
+6. Selectively recover `pve-config.tar.gz` and `pmxcfs-config.db`; never extract
+   all `/etc/pve`, SSH or network configuration blindly onto a running new host.
+   Confirm TLS pins, storage identities/ACLs and native datastore readability.
+   Restore the VM with the original per-storage mappings: SSD `local-zfs` for
+   OS/appdata/EFI, HDD `tank-vm` (or an explicitly mapped replacement) for
+   photos/files. If the mirror is also lost, provide sufficient replacement bulk
+   storage first. All four data classes come from PBS, not a required Restic step.
+7. Verify guest disk identities/mount guards before Docker, and restore actual
+   media NFS separately for the full stack. Validate recovered applications/data,
+   collector credentials and notification delivery before enabling schedules or
+   public ingress. Preserve original backup disks, old `/tank/pbs` data and legacy
+   Restic history throughout recovery.
 
-Recovery archives contain private SSH keys, rendered environments, NUT/restic
-credentials and PBS token/certificate material. They are root-only locally and
-inside encrypted restic snapshots. Handle a restored copy as a credential store.
+Recovery archives contain private keys, rendered configuration, pmxcfs secrets
+and PBS token/certificate/notification material. Protect restored files as a
+credential store. The current pxar client explicitly uses `--crypt-mode none`;
+root-only local files and pinned TLS do **not** encrypt the XFS disks at rest.
+Restrict physical/admin access and keep independent offline bootstrap material.

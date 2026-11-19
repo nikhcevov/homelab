@@ -1,0 +1,87 @@
+#!/usr/bin/python3
+# Managed by Ansible. Initialization authorizes only independently proven fresh allocations.
+import argparse
+import json
+import os
+import subprocess
+
+DISKS = {{ docker_vm_data_disks | to_json }}
+
+
+def read_json(*args):
+    return json.loads(subprocess.check_output(list(args), text=True))
+
+
+def inspect(disk, initialize):
+    devices = read_json('lsblk', '--json', '--bytes', '--output',
+                        'PATH,TYPE,SERIAL,SIZE,FSTYPE,LABEL,MOUNTPOINTS', disk['device'])['blockdevices']
+    if len(devices) != 1:
+        raise SystemExit('Ambiguous data disk: ' + disk['device'])
+    device = devices[0]
+    if (device.get('type') != 'disk' or device.get('serial') != disk['serial']
+            or device.get('size') != disk['size_gib'] * 1024 ** 3
+            or device.get('children')):
+        raise SystemExit('Unknown, incorrectly sized or partitioned data disk: ' + disk['device'])
+    signatures = read_json('wipefs', '--json', disk['device'])['signatures']
+    # wipefs probes the actual device; lsblk's udev filesystem cache can lag mkfs.
+    if signatures:
+        if any(signature.get('type') != 'ext4' or signature.get('label') != disk['label']
+               for signature in signatures):
+            raise SystemExit('Existing data disk has a foreign label or signature: ' + disk['device'])
+        return device, False
+    if device.get('fstype'):
+        raise SystemExit('Refusing to replace an existing filesystem: ' + disk['device'])
+    if signatures or any(device.get('mountpoints') or []):
+        raise SystemExit('Refusing a mounted disk or existing signature: ' + disk['device'])
+    if not initialize:
+        raise SystemExit('Uninitialized disk: first prove freshly allocated PVE volume, then explicitly authorize --initialize')
+    return device, True
+
+
+def check_mount(disk, device, required):
+    result = subprocess.run(['findmnt', '--json', '--mountpoint', disk['path'],
+                             '--output', 'SOURCE,FSTYPE,OPTIONS'], capture_output=True, text=True)
+    if result.returncode == 1 and not result.stdout.strip():
+        if required:
+            raise SystemExit('Required local data mount is absent: ' + disk['path'])
+        return
+    if result.returncode != 0:
+        raise SystemExit('Cannot inspect data mount: ' + disk['path'])
+    mounts = json.loads(result.stdout)['filesystems']
+    if len(mounts) != 1:
+        raise SystemExit('Ambiguous data mount: ' + disk['path'])
+    mount = mounts[0]
+    options = set(mount['options'].split(','))
+    if (mount['fstype'] != 'ext4'
+            or os.path.realpath(mount['source']) != os.path.realpath(device['path'])
+            or not {'rw', 'noatime'} <= options or 'ro' in options):
+        raise SystemExit('Foreign, read-only or incorrectly configured data mount; stop Docker and unmount old NFS before cutover: ' + disk['path'])
+
+
+parser = argparse.ArgumentParser(description='Inspect managed guest data disks; never adopt or overwrite existing data')
+mode = parser.add_mutually_exclusive_group()
+mode.add_argument('--initialize', action='store_true', help='Operator has independently proven fresh PVE allocation; initialize only signature-free disks, without changing mounts')
+mode.add_argument('--mounted', action='store_true', help='Require the final local rw,noatime mounts before Docker starts')
+args = parser.parse_args()
+if (len({disk['serial'] for disk in DISKS}) != len(DISKS)
+        or len({disk['device'] for disk in DISKS}) != len(DISKS)
+        or len({disk['path'] for disk in DISKS}) != len(DISKS)):
+    raise SystemExit('Duplicate managed data disk identity or mount path')
+# Inspect both disks before the first write. Signature checks are bounded metadata
+# probes, NOT proof of freshness; the operator supplies that proof out of band.
+inspected = [(disk, *inspect(disk, args.initialize)) for disk in DISKS]
+if len({device['path'] for disk, device, blank in inspected}) != len(DISKS):
+    raise SystemExit('Managed data disks resolve to a shared device')
+if not args.initialize:
+    for disk, device, blank in inspected:
+        check_mount(disk, device, args.mounted)
+changed = False
+for disk, device, blank in inspected:
+    if blank:
+        # No force, relabel, wipe, discard, or whole-device zero scan. Lazy metadata
+        # initialization preserves sparse allocation on the multi-TiB virtual disk.
+        subprocess.check_call(['mkfs.ext4', '-m', '0', '-L', disk['label'], '-E',
+                               'nodiscard,lazy_itable_init=1,lazy_journal_init=1', disk['device']])
+        inspect(disk, False)
+        changed = True
+print('CHANGED' if changed else 'UNCHANGED')

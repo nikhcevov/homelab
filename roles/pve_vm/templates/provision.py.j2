@@ -1,10 +1,15 @@
 #!/usr/bin/python3
 # Managed by Ansible. Only this provisioner's marked VM may be reconciled.
 import json
+import re
+from decimal import Decimal
 import subprocess
 
 VM = {{ pve_vm_id | int }}
 STORAGE = {{ pve_vm_storage | to_json }}
+DATA_STORAGE = {{ pve_vm_data_storage | to_json }}
+DATA_DISKS = {{ pve_vm_data_disks | to_json }}
+DATA_BACKUP = {{ pve_vm_data_backup | bool | int }}
 MARKER = 'homelab-managed-docker-vm'
 changed = False
 
@@ -17,7 +22,30 @@ def mutate(*args):
     changed = True
 
 def config():
-    return dict(line.split(': ', 1) for line in run('qm', 'config', VM).splitlines() if ': ' in line)
+    return dict(line.split(': ', 1) for line in run('qm', 'config', VM, '--current', 1).splitlines() if ': ' in line)
+
+def volumes(storage):
+    return json.loads(run('pvesh', 'get', f'/nodes/localhost/storage/{storage}/content',
+                          '--vmid', VM, '--output-format', 'json'))
+
+def disk_options(value):
+    parts = value.split(',')
+    return parts[0], dict(part.split('=', 1) for part in parts[1:] if '=' in part)
+
+def size_bytes(value):
+    match = re.fullmatch(r'(\d+(?:\.\d+)?)([KMGT])', value)
+    if not match:
+        return None
+    return Decimal(match[1]) * 1024 ** ('KMGT'.index(match[2]) + 1)
+
+slots = [disk['slot'] for disk in DATA_DISKS]
+serials = [disk['serial'] for disk in DATA_DISKS]
+if (len(set(slots)) != len(slots) or len(set(serials)) != len(serials)
+        or any(slot not in ('scsi2', 'scsi3') for slot in slots)
+        or any(not re.fullmatch(r'homelab-(photos|files)', serial) for serial in serials)
+        or any(not isinstance(disk['size_gib'], int) or disk['size_gib'] <= 0 for disk in DATA_DISKS)
+        or DATA_STORAGE == STORAGE):
+    raise SystemExit('Invalid explicitly authorized data disk definitions')
 
 exists = subprocess.run(['qm', 'config', str(VM)], capture_output=True).returncode == 0
 if exists:
@@ -26,8 +54,8 @@ if exists:
         raise SystemExit('Refusing foreign VM: explicit operator inspection/adoption required')
 else:
     # Never adopt orphan volumes from a different/previous VM.
-    volumes = json.loads(run('pvesh', 'get', f'/nodes/localhost/storage/{STORAGE}/content', '--vmid', VM, '--output-format', 'json'))
-    if volumes:
+    orphan_volumes = [volume for storage in {STORAGE, DATA_STORAGE} for volume in volumes(storage)]
+    if orphan_volumes:
         raise SystemExit('VM ID has orphan volumes; inspect them before provisioning')
     mutate('qm', 'create', VM, '--name', {{ pve_vm_name | to_json }}, '--description', MARKER,
            '--onboot', 0, '--memory', {{ pve_vm_memory }}, '--cores', {{ pve_vm_cores }},
@@ -35,7 +63,11 @@ else:
            '--scsihw', 'virtio-scsi-single', '--agent', 'enabled=1', '--serial0', 'socket', '--vga', 'serial0')
 c = config()
 status = run('qm', 'status', VM)
-# Reconcile only a stopped shell. A completed running VM is inspected, never hot-reconfigured.
+if 'running' in status:
+    pending_config = dict(line.split(': ', 1) for line in run('qm', 'config', VM).splitlines() if ': ' in line)
+    if pending_config != c:
+        raise SystemExit('VM has pending changes; stop it and inspect before reconciliation')
+# Existing settings require a stopped VM; only new authorized data disks may hot-add.
 def ensure(key, value):
     global c
     if c.get(key) != str(value):
@@ -46,7 +78,7 @@ def ensure(key, value):
 
 if 'running' not in status:
     ensure('onboot', '0')
-if any(k.startswith('scsi') and k[4:].isdigit() and k not in ('scsi0', 'scsi1') for k in c):
+if any(k.startswith('scsi') and k[4:].isdigit() and k not in ('scsi0', 'scsi1', *slots) for k in c):
     raise SystemExit('Unexpected attached disk; operator inspection required')
 if 'scsi0' in c and any(k.startswith('unused') for k in c):
     raise SystemExit('Unexpected unused disks; operator inspection required')
@@ -60,8 +92,7 @@ ensure('scsihw', 'virtio-scsi-single')
 if 'scsi0' not in c:
     if 'running' in status:
         raise SystemExit('Incomplete VM must be stopped')
-    volumes = json.loads(run('pvesh', 'get', f'/nodes/localhost/storage/{STORAGE}/content', '--vmid', VM, '--output-format', 'json'))
-    candidates = [v['volid'] for v in volumes if 'cloudinit' not in v['volid']]
+    candidates = [v['volid'] for v in volumes(STORAGE) if 'cloudinit' not in v['volid']]
     unused = [v.split(',')[0] for k, v in c.items() if k.startswith('unused')]
     if candidates and (len(candidates) != 1 or candidates[0] not in unused):
         raise SystemExit('Unknown orphan/root disk; inspect before attaching')
@@ -119,6 +150,44 @@ ready = True
 ready = ready and run('readlink', '-f', '/sys/bus/pci/devices/{{ pci.split(",")[0] }}/driver').endswith('/vfio-pci')
 {% endfor %}
 ensure('onboot', '1' if ready else '0')
+
+# Validate every existing data disk before changing any of them. A missing slot
+# is never permission to adopt/reuse an orphan, even on our managed VM.
+attached = {}
+all_volumes = [value.split(',')[0] for key, value in c.items()
+               if re.fullmatch(r'(?:scsi|ide|sata|virtio)\d+|efidisk\d+', key)]
+for disk in DATA_DISKS:
+    slot = disk['slot']
+    if slot not in c:
+        continue
+    volume, options = disk_options(c[slot])
+    if (not re.fullmatch(re.escape(DATA_STORAGE) + rf':vm-{VM}-disk-\d+', volume)
+            or options.get('serial') != disk['serial']
+            or size_bytes(options.get('size', '')) != disk['size_gib'] * 1024 ** 3
+            or all_volumes.count(volume) != 1
+            or options.get('media', 'disk') != 'disk'):
+        raise SystemExit('Unknown data disk; never relabel, resize or replace automatically: ' + slot)
+    attached[slot] = (volume, options)
+known_data_volumes = {volume for volume, options in attached.values()}
+if any(volume['volid'] not in known_data_volumes for volume in volumes(DATA_STORAGE)):
+    raise SystemExit('Unknown orphan data volume; inspect before allocating any disks')
+if 'running' in status and any(options.get('backup', '1') != str(DATA_BACKUP)
+                               for volume, options in attached.values()):
+    raise SystemExit('VM configuration differs; stop it before reconciliation: data disk backup flags')
+for disk in DATA_DISKS:
+    slot = disk['slot']
+    if slot not in c:
+        if 'running' in status and 'disk' not in c.get('hotplug', 'disk,network,usb').split(','):
+            raise SystemExit('Disk hotplug is disabled; stop the VM before allocating: ' + slot)
+        mutate('qm', 'set', VM, '--' + slot,
+               f"{DATA_STORAGE}:{disk['size_gib']},serial={disk['serial']},discard=on,iothread=1,backup={DATA_BACKUP}")
+        c = config()
+    else:
+        volume, options = attached[slot]
+        # Only the backup bit is mutable; preserve volume, size and every other option.
+        if options.get('backup', '1') != str(DATA_BACKUP):
+            options['backup'] = str(DATA_BACKUP)
+            ensure(slot, volume + ',' + ','.join(key + '=' + value for key, value in options.items()))
 if ready and 'running' not in status:
     mutate('qm', 'start', VM)
 print('CHANGED' if changed else 'UNCHANGED')

@@ -1,6 +1,0 @@
----
-# The source identity remains authorized on existing remote collectors. Only
-# helper commands and read-only rsync are authorized with this key on the guest.
-docker_backup_source_address: 10.77.0.1
-docker_backup_appdata: /mnt/appdata
-docker_backup_appdata_label: HOMELAB_APPDATA

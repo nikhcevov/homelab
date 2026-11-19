@@ -1,7 +1,7 @@
 ---
-# Existing CT101 backup/restore gates passed; reconcile it and its schedules.
+# Temporary B-only protection; A remains quarantined and no replica is claimed.
 pve_pbs_enabled: true
-# Native recovery and timezone/catch-up checks passed before activation.
+# Final desired state; override schedules and standby off until B acceptance passes.
 pve_pbs_schedules_enabled: true
 pve_pbs_id: 101
 pve_pbs_hostname: pbs
@@ -10,22 +10,55 @@ pve_pbs_cores: 2
 pve_pbs_root_storage: local-zfs
 pve_pbs_root_size: 16
 pve_pbs_template_storage: local
-pve_pbs_dataset: tank/pbs
-pve_pbs_host_path: /tank/pbs
-pve_pbs_datastore_path: /mnt/datastore/tank
-pve_pbs_datastore: tank
+pve_pbs_datastore: vault-b
+pve_pbs_secondary_datastore: ''
+pve_pbs_sync_job: homelab-vault-b
+# Retain inactive datastore identities, configuration and all existing history.
+# Explicit participation and indices keep retired filesystems out of CT boot.
+pve_pbs_datastores:
+  - name: tank
+    enabled: false
+    mount_index: 0
+    host_path: /tank/pbs
+    guest_path: /mnt/datastore/tank
+    mountpoint: /tank/pbs
+    source: tank/pbs
+    fstype: zfs
+    maintenance: false
+  - name: vault-a
+    enabled: false
+    mount_index: 1
+    host_path: /mnt/vault/pbs
+    guest_path: /mnt/datastore/vault-a
+    mountpoint: /mnt/vault
+    source: UUID=6d3f33cb-faaf-4497-8131-2f40f07cfbbd
+    fstype: xfs
+    maintenance: true
+    device: /dev/disk/by-id/ata-TOSHIBA_MG06ACA10TE_28W0A2QGFKQE
+  - name: vault-b
+    enabled: true
+    mount_index: 2
+    host_path: /mnt/backup-b/pbs
+    guest_path: /mnt/datastore/vault-b
+    mountpoint: /mnt/backup-b
+    source: UUID=d0347cdb-9c3b-41e8-88ce-498367a6f038
+    fstype: xfs
+    maintenance: true
+    device: /dev/disk/by-id/ata-TOSHIBA_MG06ACA10TE_19L0A0EDFHLG
 pve_pbs_lan_bridge: vmbr0
 pve_pbs_private_bridge: vmbr1
 pve_pbs_address: 10.77.0.3
 pve_pbs_host_address: 10.77.0.1
-pve_pbs_storage_id: pbs-tank
+pve_pbs_storage_id: "pbs-{{ pve_pbs_datastore }}"
 pve_pbs_user: pve@pbs
 pve_pbs_token: pve
 # Host-only recovery secret, also collect in the host recovery backup.
 pve_pbs_secret_path: /root/.config/homelab/pbs-token.json
 pve_pbs_backup_vm: 100
 # PVE and PBS schedules use bootstrap_timezone (Asia/Yerevan, UTC+04).
-# Leave the measured ~3h restic window from03:00 clear of PBS maintenance.
+# Keep QEMU dirty bitmaps and avoid nightly VM/GPU restarts; QGA freezes filesystems.
+# The initial cold acceptance backup explicitly overrides mode to stop once.
+pve_pbs_backup_mode: snapshot
 pve_pbs_backup_schedule: '02:00'
 pve_pbs_verify_schedule: 'sun 10:00'
 pve_pbs_prune_schedule: '07:00'
@@ -33,3 +66,7 @@ pve_pbs_gc_schedule: '08:00'
 pve_pbs_keep_daily: 7
 pve_pbs_keep_weekly: 4
 pve_pbs_keep_monthly: 6
+
+# ATA timeout244 means120 minutes idle; never force sleep during active jobs.
+pve_pbs_hdd_standby_enabled: true
+pve_pbs_hdd_standby_timeout: 244
