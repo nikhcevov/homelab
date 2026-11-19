@@ -247,9 +247,12 @@ Required secrets in the GitHub Environment `production`:
 | `TS_OAUTH_CLIENT_ID` | Tailscale OAuth client tagged `tag:ci` |
 | `TS_OAUTH_CLIENT_SECRET` | corresponding OAuth secret |
 
-Create the `production` environment with a required reviewer. The runner joins
-the tailnet as `tag:ci`; the Tailscale policy must allow `tag:ci` to
-`docker-1:22` and MagicDNS. See [Tailscale policy](tailscale.md). Add the public
+Create the `production` environment with a required reviewer. The manual and
+`/deploy` caller jobs attach this environment and use `secrets: inherit`; the
+reusable job itself does not declare an environment. Put the secrets in the
+environment (preferred) or at repository level. The runner joins the tailnet as
+`tag:ci`; the Tailscale policy must allow `tag:ci` to `docker-1:22` and
+MagicDNS. See [Tailscale policy](tailscale.md). Add the public
 half of `SSH_PRIVATE_KEY` to `boss`'s `authorized_keys` through
 `docker_vm_ssh_keys`; the public key is
 [`files/ssh/github-actions.pub`](../files/ssh/github-actions.pub). Generate
