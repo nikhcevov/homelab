@@ -11,8 +11,12 @@ Rotating a machine's key means replacing its file: every consumer references it 
 | Edge, VPN, monitoring VPSes | `root` | `bootstrap_root_ssh_keys` in each group's `bootstrap.yml` |
 | OpenWrt routers | `root` | `ssh_authorized_keys` in `inventory/group_vars/routers/ssh.yml` |
 | Unraid | `root` | `ssh_authorized_keys` in `inventory/group_vars/unraid/ssh.yml` |
+| Docker VM | `boss` | `docker_vm_ssh_keys` in `inventory/group_vars/docker/docker_vm.yml` |
 | Workstations | `boss` | `workstation_ssh_keys` in `inventory/group_vars/workstations/common.yml` |
 | Home Assistant | `boss` | Advanced SSH & Web Terminal add-on's `ssh.authorized_keys` option |
+
+`github-actions.pub` is the GitHub Actions container-deploy key. Only its public
+half belongs here; the private half is the `SSH_PRIVATE_KEY` environment secret.
 
 All inventory groups include `little-raven.pub`. VPSes, workstations, and Unraid add keys without removing existing access; routers render their configured key list authoritatively. Unraid updates both persistent flash and active SSH paths. Home Assistant's options are managed separately from Ansible; retain the backup collector's key when adding the operator key.
 
