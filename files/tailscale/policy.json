@@ -2,7 +2,11 @@
   "tagOwners": {
     "tag:edge": [],
     "tag:home": [],
-    "tag:homeassistant": []
+    "tag:homeassistant": [],
+    "tag:ci": ["autogroup:admin"]
+  },
+  "hosts": {
+    "docker-1": "100.124.158.33"
   },
   "grants": [
     {
@@ -27,6 +31,11 @@
       "src": ["tag:edge"],
       "dst": ["tag:home"],
       "ip": ["tcp:25565", "udp:24454"]
+    },
+    {
+      "src": ["tag:ci"],
+      "dst": ["docker-1"],
+      "ip": ["tcp:22"]
     }
   ],
   "ssh": [
@@ -91,6 +100,12 @@
         "tag:home:445",
         "tag:edge:22"
       ]
+    },
+    {
+      "src": "tag:ci",
+      "proto": "tcp",
+      "accept": ["docker-1:22"],
+      "deny": ["tag:home:22", "tag:homeassistant:22"]
     }
   ]
 }
