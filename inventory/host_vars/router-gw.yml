@@ -1,0 +1,74 @@
+---
+# router-gw — x86-64 OpenWrt VM (VMID 102 on great-hornbill).
+# Per-host overrides. Shared defaults: inventory/group_vars/routers/.
+# Anything defined here wins over group_vars.
+#
+# Not a site router: its only LAN client is the work laptop on the
+# dedicated NIC (great-hornbill nic1), and its whole internet path is the
+# exit-node tunnel to router-srt. Nothing on the laptop, no path from the
+# laptop to the home LAN or the tailnet. Day-0: docs/openwrt.md.
+
+# --- Identity ---
+# Hostname on the device and in the tailnet (default: inventory name).
+# owrt_hostname: router-gw
+# tailscale_hostname: router-gw
+
+# --- Network ---
+# Isolated laptop LAN: one address for the VM, one DHCP lease for the
+# laptop (:2). Keep default eth0/eth1 = virtio net0/net1.
+owrt_lan_ip: 10.99.0.1
+owrt_lan_netmask: "255.255.255.252"
+owrt_lan_bridge_ports:
+  - eth1
+owrt_wan_device: eth0
+
+# --- Location ---
+# Physically at the great-hornbill site; the egress location comes from the
+# exit node, not the clock.
+owrt_timezone_name: Asia/Yerevan
+
+# --- DNS ---
+# Local-only suffix for the DHCP name. Technitium owns home.arpa, so
+# dnsmasq must not claim a subtree of it.
+owrt_dns_domain: gw.lan
+# Resolver of the exit site: dnsmasq on router-srt, reached over the
+# tailnet, so answers match the address the traffic egresses from.
+owrt_dns_servers:
+  - 100.77.53.118 # router-srt
+
+# One lease on a /30 (the group default pool 100/150 is invalid here).
+owrt_dhcp_start: 2
+owrt_dhcp_limit: 1
+
+# --- Tailscale ---
+# Client gateway: the whole laptop LAN rides router-srt. Nothing advertised.
+tailscale_exit_node: router-srt
+# Keep throw routes for the directly connected subnets in table 52, so the
+# VM itself can still reach the laptop and its own WAN.
+tailscale_exit_node_allow_lan_access: true
+# Remote recovery: tailscaled serves port 22 on the tailnet, so management
+# survives a broken tailscale0 or firewall (the `ssh` block exists in
+# files/tailscale/policy.json). Enabling it drops the first Ansible
+# connection and changes the node's SSH host key — see docs/openwrt.md.
+tailscale_ssh: true
+
+# --- Firewall ---
+# Kill switch: no lan -> wan forwarding at all. If tailscaled or the exit
+# node dies, the laptop has no internet — never a silent WAN fallback.
+owrt_firewall_lan_wan_forwarding: false
+
+# The blanket `5270: from all lookup 52` also catches the VM's OWN traffic
+# (apk, NTP, the DNS query to router-srt). Pin the management plane to the
+# direct WAN: it must not depend on the exit node being up. netifd resolves
+# `in` as a UCI *interface* name, not a device name (`in: lo` matches no
+# interface and the rule is dropped without a log line).
+owrt_network_rules:
+  - comment: vm -> tailnet peers (dnsmasq on router-srt) stays in the tunnel
+    priority: 5264
+    in: loopback
+    dest: "100.64.0.0/10"
+    lookup: "52"
+  - comment: vm -> internet direct via WAN (management plane)
+    priority: 5265
+    in: loopback
+    lookup: main

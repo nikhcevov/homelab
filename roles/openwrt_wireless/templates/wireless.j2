@@ -32,7 +32,13 @@ config wifi-iface '{{ iface.name | default('wifinet' ~ ns.i) }}'
 	option hidden '1'
 {% endif %}
 {% for opt, val in (iface.options | default({})).items() %}
+{% if val is iterable and val is not string and val is not mapping %}
+{% for item in val %}
+	list {{ opt }} '{{ item }}'
+{% endfor %}
+{% else %}
 	option {{ opt }} '{{ val }}'
+{% endif %}
 {% endfor %}
 {% endfor %}
 

@@ -1,0 +1,77 @@
+---
+# router-evn — Cudy TR3000 v1 (MT7981, 256 MB), the home router at the
+# great-hornbill site. Formerly router-trvl (travel); reset on 2026-11-15
+# and re-provisioned from this file. Per-host overrides. Shared defaults:
+# inventory/group_vars/routers/. Anything defined here wins over group_vars.
+
+# --- Identity ---
+# Hostname on the device and in the tailnet (default: inventory name).
+# owrt_hostname: router-evn
+# tailscale_hostname: router-evn
+
+# --- Network ---
+# Home LAN. 192.168.100.0/24 is the krm site, 101 is the router-alm reserve
+# image, 103 is router-srt's advertised LAN — do not reuse any of them.
+owrt_lan_ip: 192.168.102.1
+# TR3000 has no DSA switch: two standalone GMACs — eth0 = 2.5G WAN,
+# eth1 = 1G LAN. The ISP router stays in front (bridge mode when it
+# supports it); WAN is DHCP either way.
+owrt_lan_bridge_ports:
+  - eth1
+owrt_wan_device: eth0
+
+# Static leases for the two guests. The PVE host keeps its own static
+# .36, so it needs no reservation.
+owrt_dhcp_hosts:
+  - { name: docker-1, ip: 192.168.102.49, mac: "BC:24:11:36:00:01" }
+  - { name: router-gw, ip: 192.168.102.50, mac: "BC:24:11:72:00:01" }
+
+# --- Location ---
+owrt_timezone_name: Asia/Yerevan
+
+# --- DNS ---
+# Local-only suffix for DHCP names: home.arpa is authoritative in
+# Technitium on docker-1, so dnsmasq must not claim that zone.
+owrt_dns_domain: evn.lan
+# Forward everything to Technitium, which owns home.arpa and forwards the
+# rest. Cost: LAN DNS depends on docker-1 being up.
+owrt_dns_servers:
+  - 192.168.102.49 # docker-1 Technitium
+
+# --- Wi-Fi ---
+# Same MT7981 radios as before the reset. The SSID stays "trvl" so existing
+# clients need no reconfiguration; change it here (and on the clients) if
+# the home AP should be named differently. Regulatory domain must match the
+# site: Armenia, not RU.
+owrt_wireless_country: AM
+owrt_wireless_radios:
+  - name: radio0
+    path: platform/soc/18000000.wifi # 2.4 GHz
+    band: 2g
+    channel: auto
+    htmode: HE20
+    ifaces:
+      - ssid: trvl
+        encryption: sae-mixed
+        key: "{{ vault_wireless_psk }}"
+  - name: radio1
+    path: platform/soc/18000000.wifi+1 # 5 GHz
+    band: 5g
+    channel: auto
+    htmode: HE80
+    ifaces:
+      - ssid: trvl
+        encryption: sae-mixed
+        key: "{{ vault_wireless_psk }}"
+
+# --- Firewall ---
+# MT7981 WED: NAT/forwarding bypasses the CPU. Incompatible with SQM and
+# per-flow netfilter rules (offloaded flows skip them) — we have neither.
+owrt_flow_offloading_hw: true
+
+# --- Tailscale ---
+# Advertise the home LAN to the tailnet (approve the route once). No
+# exit-node advertisement and no exit-node client: this is a plain router.
+# The work laptop's tunnel lives in router-gw.
+tailscale_advertise_routes: "192.168.102.0/24"
+tailscale_ssh: true

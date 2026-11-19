@@ -10,6 +10,10 @@ pve_arc_max_bytes: 4294967296
 
 pve_journal_max_use: 1G
 
+# Dedicated physical port for the router-gw laptop LAN. The bridge carries no
+# host address; the port itself is the bridge's only member.
+pve_host_laptop_bridge_port: nic1
+
 # Mandatory manual prerequisites before management cutover.
 pve_host_ipmi_verified: false
 pve_host_management_filter: true

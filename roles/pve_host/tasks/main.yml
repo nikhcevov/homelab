@@ -99,6 +99,33 @@
   when: _private_bridge.changed
   changed_when: true
 
+# The gateway VM's laptop LAN: one dedicated physical port, no host address,
+# so the host has no L3 path to the work laptop. Same drop-in pattern as the
+# private bridge, so a bootstrap rerun reconciles instead of reverting it.
+- name: Configure the laptop bridge for the gateway VM
+  ansible.builtin.copy:
+    dest: /etc/network/interfaces.d/homelab-laptop
+    content: |
+      auto vmbr2
+      iface vmbr2 inet manual
+          bridge-ports {{ pve_host_laptop_bridge_port }}
+          bridge-stp off
+          bridge-fd 0
+    mode: "0644"
+  register: _laptop_bridge
+
+- name: Activate the laptop bridge without reloading LAN networking
+  ansible.builtin.command: ifup vmbr2
+  when: _laptop_bridge.changed
+  changed_when: true
+
+# `ifup vmbr2` enslaves the port but leaves it administratively down, so the
+# PHY never trains and the laptop link stays dead until a reboot. Bring it up
+# explicitly; idempotent, and it also covers a port left down for any reason.
+- name: Ensure the laptop bridge port is up
+  ansible.builtin.command: ip link set {{ pve_host_laptop_bridge_port }} up
+  changed_when: false
+
 - name: Read authenticated tailnet host addresses and DNS identity
   ansible.builtin.command: tailscale status --json
   register: _host_tailnet

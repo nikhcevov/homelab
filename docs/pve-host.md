@@ -19,7 +19,7 @@ Run controller commands from the repository root.
 
 | Role | Owned configuration |
 | --- | --- |
-| `pve_host` | Apt-source gate, ARC4 GiB ceiling, journald retention, private bridge, dual-family management filter |
+| `pve_host` | Apt-source gate, ARC4 GiB ceiling, journald retention, private and laptop bridges, dual-family management filter |
 | `debian_common`, `ssh`, `tailscale` | Base OS, key-only SSH and tailnet bootstrap |
 | `pve_storage` | Opt-in blank pools, datasets/quotas, private NFSv4.1 exports and shutdown ordering |
 | `pve_gpu` | Explicit opt-in IOMMU/VFIO configuration, both GPU functions; ASPEED remains available |
@@ -82,6 +82,23 @@ The PVE timezone stays `Asia/Yerevan`; no unattended upgrade/reboot is enabled.
 `vmbr1` is a host-only bridge: `10.77.0.1/29`, no physical ports, no default
 gateway. VM100 gets `.2`, PBS CT101 gets `.3`; the guest LAN interfaces remain
 on `vmbr0`. Updating this bridge does not reload the physical LAN bridge.
+
+`vmbr2` is the gateway VM's laptop LAN: `nic1` (`03:00.0`, Intel I210) is its
+only port and the bridge carries no host address, so the host has no L3 path to
+the work laptop. `pve_host` owns it as
+`/etc/network/interfaces.d/homelab-laptop` and brings the bridge and its port
+up without reloading the LAN bridge; a bootstrap rerun reconciles it. Both
+I210s are single-device IOMMU groups (10 and 11), so `nic1` can be passed
+through instead of bridged; the bridge stays the default because virtio NIC
+order inside the guest is deterministic. VMID 102 (`router-gw`) is created
+manually — `pve_vm` owns only VM100 — and its day-0 and rebuild steps live in
+[OpenWrt](openwrt.md#gateway-vm-router-gw).
+
+The home LAN is `192.168.15.0/24` behind the ISP router until the `router-evn`
+cutover ([OpenWrt](openwrt.md#home-router-router-evn)); then this host's static
+address becomes `192.168.102.36/24` with gateway `192.168.102.1`, and VM100
+keeps `.49` through a reservation. Until that cutover, the day-zero address in
+the bootstrap step is current.
 
 ## Pools and exports
 
@@ -155,6 +172,8 @@ The flag authorizes VM provisioning/boot, not application startup or restoration
   evidence: `/root/migration-hardware-20261113T191056Z`.
 - A root mirror remains a later hardware step; start with a second SATA SSD
   unless the board/adapter's NVMe bifurcation support has been established.
+
+VM102 (`router-gw`) is deliberately outside `pve_vm`: it is a manually created OpenWrt gateway VM, and its rebuild procedure is the [OpenWrt day-0](openwrt.md#gateway-vm-router-gw).
 
 VM100 runs on LAN `192.168.15.49`, private `10.77.0.2` and tailnet `100.124.158.33`.
 Guest agent, paired cloud kernel/headers, NVIDIA595.112.07 and Container Toolkit

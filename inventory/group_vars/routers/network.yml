@@ -41,7 +41,7 @@ owrt_packet_steering: true
 # name/number) or action (e.g. unreachable). `in`/`out` take UCI
 # *interface* section names (e.g. `loopback`, `lan`), not device names —
 # netifd drops a rule naming an interface that does not exist, without
-# logging. See inventory/host_vars/router-trvl.yml for the management-plane
+# logging. See inventory/host_vars/router-gw.yml for the management-plane
 # bypass used with a full-tunnel exit node.
 owrt_network_rules: []
 

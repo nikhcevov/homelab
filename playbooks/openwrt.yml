@@ -19,7 +19,7 @@
 
 # Explicit maintenance only; daily checks above remain notify-only.
 # One image-based upgrade path:
-#   ansible-playbook playbooks/openwrt.yml --tags upgrade [--limit router-trvl]
+#   ansible-playbook playbooks/openwrt.yml --tags upgrade [--limit router-evn]
 # owut asks the Attended Sysupgrade server to build a complete image from
 # the installed package manifest, then installs it with sysupgrade: kernel,
 # kmods, base system and packages come from one build. Plain `apk upgrade`
@@ -32,7 +32,7 @@
 # The new image can change netifd/firewall/tailscale behaviour (it did on
 # 25.12.5), so a follow-up configuration run is mandatory:
 #   ansible-playbook playbooks/openwrt.yml --limit <router>
-# Without it the router-trvl LAN is left without internet (kill switch).
+# Without it the router-gw LAN is left without internet (kill switch).
 # `serial: 1` keeps multi-site upgrades from rebooting in step.
 - name: Upgrade OpenWrt routers (ASU image)
   hosts: routers

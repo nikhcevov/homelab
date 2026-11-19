@@ -234,6 +234,12 @@ VM100's `net0` MAC is `BC:24:11:36:00:01`; its observed `192.168.15.49`
 is a dynamic24-hour lease, **not a reservation**. The guest retains cloud-init
 Netplan/systemd-networkd and `ipconfig0=ip=dhcp`; no assumed-free static IP was set.
 
+After the `router-evn` cutover ([OpenWrt](openwrt.md#home-router-router-evn))
+the home LAN is `192.168.102.0/24` with gateway/DHCP `192.168.102.1`; VM100's
+`192.168.102.49` becomes a DHCP reservation and the router forwards DNS to it,
+so clients can return to DHCP. Until that cutover the addresses above are
+current.
+
 On2026-11-15 the owner confirmed no current GPON-router administrator access
 and explicitly chose temporary manual DNS on selected PCs until router replacement.
 Configure those clients with **only `192.168.15.49` as DNS**; do not add the
