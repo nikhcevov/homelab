@@ -27,7 +27,6 @@ jobs:
     with:
       stacks: ${{ inputs.stacks }}
       confirm_restore_gate: ${{ inputs.confirm_restore_gate }}
-    environment: production
     secrets: inherit
     permissions:
       contents: read
