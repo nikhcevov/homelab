@@ -115,8 +115,7 @@ jobs:
           ANSIBLE_VAULT_PASSWORD_FILE: ${{ github.workspace }}/.vault_pass
         run: |
           export ANSIBLE_PRIVATE_KEY_FILE="$HOME/.ssh/id_ed25519"
-          ansible -i inventory/hosts.ini docker -m command \
-            -a 'docker ps --format "table {{.Names}}\t{{.Status}}"'
+          ansible -i inventory/hosts.ini docker -m command -a 'docker ps'
 
       - name: Remove deploy credentials
         if: always()
