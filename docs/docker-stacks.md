@@ -6,6 +6,8 @@ Sources: [compose definitions](../compose/), [guest baseline](../roles/docker_vm
 [deployment role](../roles/compose_stacks/), [GPU role](../roles/nvidia_guest/),
 [Docker variables](../inventory/group_vars/docker/compose.yml),
 [manual deploy workflow](../.github/workflows/deploy-docker.yml),
+[pending deploy issue](../.github/workflows/detect-pending-deploys.yml),
+[deploy command](../.github/workflows/deploy-command.yml),
 [migration runbook](proxmox-migration.md), [backups](backups-proxmox.md).
 
 Guest baseline and authorized production deployment are applied.
@@ -220,9 +222,13 @@ pull without a source change does nothing.
 
 ### Manual GitHub Actions deploy
 
-[`deploy-docker.yml`](../.github/workflows/deploy-docker.yml) runs the same
-Compose reconciliation from a GitHub-hosted runner. It is manual only
-(`workflow_dispatch`), never triggered by a push or a Renovate PR.
+[`deploy-docker.yml`](../.github/workflows/deploy-docker.yml) is the manual
+wrapper. It and [`deploy-command.yml`](../.github/workflows/deploy-command.yml)
+call the shared
+[`deploy-docker-reusable.yml`](../.github/workflows/deploy-docker-reusable.yml).
+The wrapper is `workflow_dispatch` only; the push-triggered
+[`detect-pending-deploys.yml`](../.github/workflows/detect-pending-deploys.yml)
+only creates an issue and never deploys.
 
 Inputs:
 
@@ -257,6 +263,27 @@ above remains the fallback when GitHub or Tailscale is unavailable.
 The repository is public, so the workflow uses a GitHub-hosted runner, not a
 self-hosted runner; secrets are masked in logs. Do not add a self-hosted runner
 for fork PRs.
+
+#### Pending deploy issue and `/deploy`
+
+`detect-pending-deploys.yml` runs on push to `main` for `compose/**`,
+`inventory/group_vars/docker/compose.yml`, and `roles/compose_stacks/**`. It
+creates or updates one rolling issue, **Container deployment pending**, with a
+comment listing the changed stacks and image references. It never deploys.
+
+On that issue, comment `/deploy media,paperless` with the stacks you want. The
+`deploy-command.yml` workflow:
+
+- ignores non-maintainers and bot comments;
+- validates every stack against `compose_stacks`;
+- calls the reusable deploy workflow;
+- requires the `production` environment approval;
+- comments the result and run URL back on the issue.
+
+The command is a comment, not a native checkbox: GitHub issues do not trigger
+Actions from checkboxes without a GitHub App/watcher. The manual **Deploy
+containers** workflow remains available and calls the same reusable workflow.
+Close the issue when the pending changes are deployed.
 
 Manual bump when Renovate is unavailable:
 
