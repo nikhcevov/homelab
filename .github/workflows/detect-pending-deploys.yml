@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   detect:
-    name: Comment pending stacks
+    name: Create pending deploy issues
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -65,14 +65,13 @@ jobs:
             fi
           } > /tmp/deploy-report.md
 
-      - name: Publish pending deploy issue
+      - name: Create pending deploy issue
         env:
           GH_TOKEN: ${{ github.token }}
+          AFTER: ${{ github.sha }}
         run: |
           set -euo pipefail
-          number=$(gh issue list --state open --search 'Container deployment pending in:title' --json number --jq '.[0].number // empty')
-          if [ -z "$number" ]; then
-            gh issue create --title 'Container deployment pending' --body 'This issue tracks container changes merged to main that still need a deployment. Comment `/deploy <stack>` or run the manual **Deploy containers** workflow.' >/dev/null
-            number=$(gh issue list --state open --search 'Container deployment pending in:title' --json number --jq '.[0].number // empty')
-          fi
-          gh issue comment "$number" --body-file /tmp/deploy-report.md
+          issue_url=$(gh issue create \
+            --title "Container deployment pending: ${AFTER:0:12}" \
+            --body-file /tmp/deploy-report.md)
+          echo "Created issue: $issue_url"

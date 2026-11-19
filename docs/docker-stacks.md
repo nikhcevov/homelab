@@ -273,8 +273,9 @@ for fork PRs.
 
 `detect-pending-deploys.yml` runs on push to `main` for `compose/**`,
 `inventory/group_vars/docker/compose.yml`, and `roles/compose_stacks/**`. It
-creates or updates one rolling issue, **Container deployment pending**, with a
-comment listing the changed stacks and image references. It never deploys.
+creates a new issue for every push, titled
+**Container deployment pending: `<short SHA>`**, with the changed stacks and
+image references in the issue body. It never deploys and never reuses an older issue.
 
 On that issue, comment `/deploy media,paperless` with the stacks you want. The
 `deploy-command.yml` workflow:
@@ -288,7 +289,8 @@ On that issue, comment `/deploy media,paperless` with the stacks you want. The
 The command is a comment, not a native checkbox: GitHub issues do not trigger
 Actions from checkboxes without a GitHub App/watcher. The manual **Deploy
 containers** workflow remains available and calls the same reusable workflow.
-Close the issue when the pending changes are deployed.
+Close the issue when the pending changes are deployed. Another push creates
+another issue even if an older issue is still open.
 
 Manual bump when Renovate is unavailable:
 

@@ -16,7 +16,7 @@ concurrency:
 jobs:
   parse:
     name: Parse deploy command
-    if: ${{ github.event.issue.title == 'Container deployment pending' && github.event.comment.user.type != 'Bot' }}
+    if: ${{ startsWith(github.event.issue.title, 'Container deployment pending') && github.event.comment.user.type != 'Bot' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
