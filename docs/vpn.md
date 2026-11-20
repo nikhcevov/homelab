@@ -10,6 +10,18 @@ Independent VPN gateway (`vpn` group): **native 3x-ui + Caddy**, ufw + fail2ban,
 
 Responsibilities: 3x-ui = VPN/clients/subscriptions, Caddy = HTTPS/reverse proxy only (Reality traffic is **not** proxied), `vpn_backup` = backups, `playbooks/vpn.yml --tags restore` = explicit restores. Normal deployment and `--tags all` never restore data.
 
+## RU entry through the edge VPS
+
+The panel/subscription domains and the two Reality ports are reachable through
+the `edge` VPS in Moscow. DNS for `panel.` and `sub.` points to `edge`; edge
+forwards TLS 443 by SNI to `vpn-nl:443` over Tailscale and raw TCP 8443/9443 to
+the same host. TLS termination, the panel database, and Reality keys stay on
+`vpn-nl`; edge only forwards L4 traffic. The Tailscale policy grants
+`tag:edge` -> `vpn-nl` on TCP 443, 8443, and 9443. Both inbounds are VLESS
+Reality/TCP with Vision and `encryption=none` in the share links; do not use
+xhttp with Vision. Edge routes are private in `vars/proxy.yml`; apply with
+`ansible-playbook playbooks/edge.yml --tags security,proxy`.
+
 ```bash
 ansible-playbook playbooks/vpn.yml                                                         # setup/update
 ansible-playbook playbooks/vpn.yml --tags restore -e vpn_restore_archive=/path/to/archive.tar.gz # restore only
@@ -24,7 +36,7 @@ Config in `inventory/group_vars/vpn/vpn.yml`, per-host domains/paths in `invento
 | `xui_purge`                               | `absent` also removes `/etc/x-ui` (the database!)                 |
 | `xui_panel_port` / `xui_sub_port`         | proxied by Caddy via localhost, not exposed in UFW                |
 | `caddy_panel_domain` / `caddy_sub_domain` | from the vault                                                    |
-| `xui_tunnel_ports`                        | tunnel inbounds exposed in UFW (Reality, xhttp) — listen directly |
+| `xui_tunnel_ports`                        | tunnel inbounds exposed in UFW (Reality 1/2) — listen directly    |
 | `vpn_backup_*`                            | backup dir, retention, cron time                                  |
 
 **The database is authoritative.** 3x-ui config (clients, UUIDs, Reality keys, subscriptions) lives only in its SQLite DB. Ansible never rewrites it — it is snapshotted (`sqlite3 .backup`, safe on a live DB) into backups and restored byte-for-byte. Panel/sub ports in `inventory/group_vars/vpn/vpn.yml` must match the DB settings (`webPort`/`subPort`) because Caddy proxies to them.
