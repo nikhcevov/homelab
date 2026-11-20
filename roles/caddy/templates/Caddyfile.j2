@@ -7,6 +7,16 @@
 {% endif %}
 {% for site in caddy_sites %}
 {{ site.domain }} {
+{% if caddy_acme_disable_http_challenge | default(false) %}
+	# HTTP-01 cannot reach this host when DNS points at the edge L4 proxy.
+	# Use TLS-ALPN-01, which traverses the edge by SNI.
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
+
+{% endif %}
 {% if site.healthz | default(false) %}
 	# Health endpoint for external monitoring (no backend involved).
 	respond /healthz 200

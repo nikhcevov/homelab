@@ -32,6 +32,9 @@ xui_tunnel_ports:
 
 # --- Caddy ---
 # HTTPS + Let's Encrypt + reverse proxy only. No Reality traffic here.
+# Panel/sub DNS points at the edge L4 proxy, so HTTP-01 cannot reach Caddy.
+# TLS-ALPN-01 is forwarded by SNI through the edge on 443.
+caddy_acme_disable_http_challenge: true
 caddy_acme_email: "" # optional but recommended (expiry notices)
 caddy_panel_domain: "{{ vault_panel_domain }}"
 caddy_sub_domain: "{{ vault_sub_domain }}"

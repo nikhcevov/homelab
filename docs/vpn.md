@@ -22,6 +22,11 @@ Reality/TCP with Vision and `encryption=none` in the share links; do not use
 xhttp with Vision. Edge routes are private in `vars/proxy.yml`; apply with
 `ansible-playbook playbooks/edge.yml --tags security,proxy`.
 
+Because DNS points at edge, Caddy uses **TLS-ALPN-01** for certificate
+renewal (`caddy_acme_disable_http_challenge: true`); HTTP-01 on port 80 cannot
+traverse the edge. Keep that setting while `panel.`/`sub.` resolve to edge, and
+verify the certificate expiry check after the next renewal window.
+
 ```bash
 ansible-playbook playbooks/vpn.yml                                                         # setup/update
 ansible-playbook playbooks/vpn.yml --tags restore -e vpn_restore_archive=/path/to/archive.tar.gz # restore only
