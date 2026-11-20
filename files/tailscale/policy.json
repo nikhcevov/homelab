@@ -6,7 +6,8 @@
     "tag:ci": ["autogroup:admin"]
   },
   "hosts": {
-    "docker-1": "100.124.158.33"
+    "docker-1": "100.124.158.33",
+    "vpn-nl": "100.100.146.5"
   },
   "grants": [
     {
@@ -33,6 +34,11 @@
       "ip": ["tcp:25565", "udp:24454"]
     },
     {
+      "src": ["tag:edge"],
+      "dst": ["vpn-nl"],
+      "ip": ["tcp:443", "tcp:8443", "tcp:9443"]
+    },
+    {
       "src": ["tag:ci"],
       "dst": ["docker-1"],
       "ip": ["tcp:22"]
@@ -53,7 +59,10 @@
       "accept": [
         "tag:home:443",
         "tag:home:25565",
-        "tag:homeassistant:443"
+        "tag:homeassistant:443",
+        "vpn-nl:443",
+        "vpn-nl:8443",
+        "vpn-nl:9443"
       ],
       "deny": [
         "tag:home:22",
@@ -65,6 +74,10 @@
         "tag:home:24454",
         "tag:homeassistant:22",
         "tag:homeassistant:8123",
+        "vpn-nl:22",
+        "vpn-nl:80",
+        "vpn-nl:2096",
+        "vpn-nl:54321",
         "192.168.100.1:22",
         "192.168.101.1:22",
         "192.168.102.1:22",
