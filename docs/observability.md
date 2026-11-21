@@ -192,6 +192,17 @@ contact points use a title template and a Markdown message template; the
 webhook URL enables Markdown rendering. Alert actions and the Gatus/Grafana
 overlap policy are in [Monitoring runbooks](runbooks/monitoring.md).
 
+The log volume alert is a Loki query, not a Prometheus metric. It compares each
+container's `count_over_time` for the last 5 minutes with the same window one
+hour earlier, requires at least 1500 lines in 5 minutes, and fires above 10x.
+The absolute floor keeps low-volume containers from alerting on a handful of
+extra lines; the hourly baseline ignores steady traffic and daily volume. The
+baseline is deliberately short: a sustained flood that plateaus for more than an
+hour no longer looks like a spike, so pair it with the memory and container
+health rules when diagnosing. Grafana datasource UIDs are pinned in
+`grafana-datasources.yml.j2` because provisioned rules and dashboards embed
+them.
+
 Configured rules:
 
 | Rule | For | Severity |
@@ -211,6 +222,8 @@ Configured rules:
 | Docker container unhealthy | 5m | warning |
 | Docker container restart loop | 10m | warning |
 | Docker container OOM kill | 1m | critical |
+| Container log volume spike | 5m | warning |
+| Container memory above 90% of limit | 10m | warning |
 | NTP not synchronized | 5m | warning |
 | NTP offset above 250ms | 10m | warning |
 | UPS battery charge below 50% | 5m | warning |
@@ -242,6 +255,12 @@ Do not delete data until the retention and backup decision is recorded.
 - Loki indexes labels, not every word; queries scan chunks.
 - cAdvisor is privileged because it reads Docker/cgroup data; keep it pinned and
   loopback-only.
+- `container_oom_events_total` stays `0` on this cgroup v2 host even when Docker
+  reports `OOMKilled=true`, and `container_start_time_seconds` is absent while a
+  container is restarting. The explicit OOM-kill and restart-loop rules
+  therefore miss that failure mode; memory pressure and log volume are the
+  working signals. Do not remove the explicit rules without replacing them with
+  a Docker API/event source.
 - The stack shares the PVE failure domain with `docker-1`; external Gatus remains
   the only off-host alert path.
 - The current 4C/8T host is the next bottleneck after memory; adding more

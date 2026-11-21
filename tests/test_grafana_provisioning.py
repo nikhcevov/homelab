@@ -16,7 +16,7 @@ class GrafanaProvisioningTest(unittest.TestCase):
 
         group = rules["groups"][0]
         self.assertEqual(group["folder"], "Homelab Alerts")
-        self.assertEqual(len(group["rules"]), 18)
+        self.assertEqual(len(group["rules"]), 20)
         self.assertTrue(
             all(
                 rule["labels"]["severity"] in {"critical", "warning"}

@@ -116,6 +116,27 @@ Use the alert's `component`, `severity`, and `instance` labels to pick the host.
 3. Raise the limit only after measuring actual peak usage.
 4. Check for a leak or an unbounded query.
 
+## Container log volume spike
+
+1. Identify `container` and `compose_project`.
+2. Read the burst: `docker logs --since 15m <container>`.
+3. Check whether a companion container is restarting:
+   `docker inspect <container> --format '{{.RestartCount}} {{.State.OOMKilled}}'`.
+4. For Immich, check `immich_redis` memory and the running job in the UI; an
+   integrity or missing-file scan queues one job per asset.
+5. Fix the source. Do not raise the log threshold to silence a crash loop.
+
+## Container memory above 90% of limit
+
+1. Identify `name` and `compose_project`.
+2. Measure the peak: `docker stats --no-stream` and cgroup `memory.peak`.
+3. Check the Compose limit and whether page cache or a fork (Redis/Valkey save,
+   PostgreSQL maintenance) is counted in the same cgroup.
+4. Raise the cap only with measured headroom on the VM; otherwise fix the
+   unbounded work.
+5. Verify `docker inspect <container> --format '{{.State.OOMKilled}}'` after the
+   change.
+
 ## NTP not synchronized
 
 1. Identify the host.

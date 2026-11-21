@@ -1157,3 +1157,132 @@ groups:
       group_wait: 10s
       group_interval: 5m
       repeat_interval: 2h
+  - uid: container-log-spike
+    title: Container log volume spike
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: P8E80F9AEF21F6940
+      model:
+        expr: (sum by (container) (count_over_time({source="docker"}[5m])) > 1500) and on(container) (sum by (container) (count_over_time({source="docker"}[5m])) > 10 * sum by (container) (count_over_time({source="docker"}[5m] offset 1h)))
+        queryType: instant
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 5m
+    annotations:
+      summary: A container is logging at more than 10x its hourly baseline
+      description: '{{ $labels.container }} emitted more than 1500 lines in 5 minutes and at least 10 times its count from one hour earlier. Check for a crash, restart loop, or runaway job.'
+      runbook_url: docs/runbooks/monitoring.md#container-log-volume-spike
+    labels:
+      component: Docker
+      severity: warning
+    isPaused: false
+    notification_settings:
+      receiver: ntfy-alerts
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+  - uid: container-memory-near-limit
+    title: Container memory above 90% of limit
+    condition: B
+    data:
+    - refId: A
+      queryType: ''
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: PBFA97CFB590B2093
+      model:
+        expr: max by (name, compose_project) (container_memory_rss / (container_spec_memory_limit_bytes > 0)) > 0.9
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: A
+    - refId: B
+      queryType: ''
+      relativeTimeRange:
+        from: 0
+        to: 0
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        hide: false
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: B
+        type: classic_conditions
+    noDataState: OK
+    executionErrorState: Error
+    for: 10m
+    annotations:
+      summary: A Docker container is using more than 90% of its memory limit
+      description: Container {{ $labels.name }} ({{ $labels.compose_project }}) is close to its Compose memory cap and can be OOM-killed. Measure its peak and raise the cap or fix the workload.
+      runbook_url: docs/runbooks/monitoring.md#container-memory-above-90-of-limit
+    labels:
+      component: Docker
+      severity: warning
+    isPaused: false
+    notification_settings:
+      receiver: ntfy-alerts
+      group_by:
+      - grafana_folder
+      - alertname
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h

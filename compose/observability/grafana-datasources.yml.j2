@@ -1,13 +1,17 @@
 apiVersion: 1
 
 datasources:
+  # UIDs are referenced by provisioned alert rules and dashboards, so they must
+  # stay stable across a fresh Grafana database or restored stack.
   - name: Prometheus
+    uid: PBFA97CFB590B2093
     type: prometheus
     access: proxy
     url: http://prometheus:9090
     isDefault: true
 
   - name: Loki
+    uid: P8E80F9AEF21F6940
     type: loki
     access: proxy
     url: http://loki:3100

@@ -21,7 +21,8 @@ Gatus intentionally has no per-application checks for the Docker VM. The app
 routes are `home.arpa` only and `mon-1` does not resolve that zone; adding them
 would either show false failures or send one alert per container when `docker-1`
 is down. The public Immich endpoint is the single Docker-VM availability signal;
-Grafana owns per-container health, restart and OOM alerts.
+Grafana owns per-container health, restart, OOM, memory-pressure and
+log-volume alerts.
 
 ## Internal checks
 

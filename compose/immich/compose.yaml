@@ -56,7 +56,11 @@ services:
     healthcheck:
       test: redis-cli ping || exit 1
     restart: always
-    mem_limit: 128m
+    # The queue/checksum workload holds hundreds of thousands of Bull jobs and
+    # rewrites a ~70 MB RDB. Under cgroup v2, page cache counts against the cap,
+    # so 128m OOM-killed Redis during integrity scans. 512m leaves room for the
+    # dataset, the fork/COW copy and the page cache.
+    mem_limit: 512m
     logging: *logging
 
   database:

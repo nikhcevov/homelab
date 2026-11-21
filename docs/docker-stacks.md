@@ -158,7 +158,11 @@ Each stack has a static `compose.yaml` and vaulted `.env.j2`. Container memory
 ceilings are set per service. They are hard caps, not reservations; the host can
 still overcommit. The current values were chosen from cgroup `memory.peak` with
 headroom; re-measure with `docker stats` before tightening. Peak-sensitive
-services are Paperless, FlareSolverr, Immich ML, Jellyfin and Minecraft. Source
+services are Paperless, FlareSolverr, Immich ML, Jellyfin and Minecraft. Immich
+Redis keeps 512m: its integrity and missing-file scans queue hundreds of
+thousands of Bull jobs and rewrite a ~70 MB RDB, and cgroup v2 counts that page
+cache against the cap. At 128m Redis was OOM-killed during a scan and entered a
+restart loop while `immich-server` logged DNS failures. Source
 application images are pinned to audited digests, including Paperless2.20.15 and Immich3.1.0;
 PostgreSQL14/18 majors and their data-directory layouts are preserved. An OS/
 driver transition does not authorize an application/database-major upgrade.
