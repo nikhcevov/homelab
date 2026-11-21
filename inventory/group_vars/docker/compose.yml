@@ -93,6 +93,12 @@ compose_extra_files:
   - stack: observability
     src: dashboards/proxmox-via-prometheus.json
     dest: "{{ compose_appdata }}/observability/grafana/provisioning/dashboards/proxmox-via-prometheus.json"
+  - stack: observability
+    src: alerting/policies.yml
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/alerting/policies.yml"
+  - stack: observability
+    src: alerting/rules.yml
+    dest: "{{ compose_appdata }}/observability/grafana/provisioning/alerting/rules.yml"
 
 compose_config_templates:
   - stack: caddy-cloudflare
@@ -123,12 +129,4 @@ compose_config_templates:
   - stack: observability
     src: ../compose/observability/alerting/contact-points.yml.j2
     dest: "{{ compose_appdata }}/observability/grafana/provisioning/alerting/contact-points.yml"
-    mode: "0644"
-  - stack: observability
-    src: ../compose/observability/alerting/policies.yml
-    dest: "{{ compose_appdata }}/observability/grafana/provisioning/alerting/policies.yml"
-    mode: "0644"
-  - stack: observability
-    src: ../compose/observability/alerting/rules.yml
-    dest: "{{ compose_appdata }}/observability/grafana/provisioning/alerting/rules.yml"
     mode: "0644"
