@@ -127,10 +127,11 @@ refuses empty underlying directories if a dataset is not mounted. NFSv2/v3 and
 other v4 minor versions are disabled. No appdata/database export exists.
 
 Photos/files exports retain original migration data, not the active guest
-storage model. Production photos3072 GiB `scsi2` and files64 GiB `scsi3`
+storage model. Production photos3072 GiB `scsi2` and files256 GiB `scsi3`
 are managed ext4 VM disks on `tank/vm`, registered as
-`tank-vm` (sparse ZFS,64K blocks); no raw HDD passthrough. SSD `local-zfs`
-continues to hold root/appdata/EFI. Only replaceable media stays external NFS
+`tank-vm` (sparse ZFS,64K blocks); no raw HDD passthrough. See
+[growing a managed data disk](docker-stacks.md#growing-a-managed-data-disk).
+SSD `local-zfs` continues to hold root/appdata/EFI. Only replaceable media stays external NFS
 and excluded from PBS. Dataset/export authority is
 [storage inventory](../inventory/group_vars/pve/storage.yml).
 

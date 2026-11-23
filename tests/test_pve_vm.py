@@ -124,7 +124,7 @@ class ManagedVMResume(unittest.TestCase):
     def test_new_data_disks_use_dedicated_storage_and_are_backed_up(self):
         self.execute()
         for slot, size, serial in (("scsi2", "3072G", "homelab-photos"),
-                                   ("scsi3", "64G", "homelab-files")):
+                                   ("scsi3", "256G", "homelab-files")):
             self.assertEqual(self.configuration[slot],
                              f"tank-vm:vm-100-disk-{slot[4:]},serial={serial},discard=on,iothread=1,backup=1,size={size}")
 

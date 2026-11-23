@@ -40,10 +40,12 @@ archives remain preserved and are not current protection. Re-enable it only
 after the intended device is reachable and its SSH identity is verified.
 
 VM root160 GiB and appdata128 GiB remain on SSD-backed `local-zfs`. Photos
-3072 GiB (`scsi2`, serial `homelab-photos`) and files64 GiB (`scsi3`,
+3072 GiB (`scsi2`, serial `homelab-photos`) and files256 GiB (`scsi3`,
 `homelab-files`) are managed sparse volumes on the existing HDD ZFS mirror via
 `tank-vm`. Guest ext4 labels are `HOMELAB_PHOTOS`/`HOMELAB_FILES`; paths stay
 `/mnt/photos` and `/mnt/files`. Both are enabled for native image backup.
+On 2026-11-23 the files disk was grown online from 64 to 256 GiB; earlier
+snapshots remain valid and the next VM snapshot captures the larger geometry.
 The guest guard checks the actual device, serial, size, filesystem, label and
 mount; neither an empty directory nor a stale NFS view may substitute for a disk.
 

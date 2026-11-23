@@ -38,5 +38,5 @@ pve_vm_data_disks:
     size_gib: 3072
     serial: homelab-photos
   - slot: scsi3
-    size_gib: 64
+    size_gib: 256
     serial: homelab-files

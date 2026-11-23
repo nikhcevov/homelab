@@ -21,7 +21,7 @@ Run controller commands from the repository root.
 | `/var/lib/docker` | Guest root disk160G, `local-zfs` on host SSD |
 | `/mnt/appdata` | Guest-local ext4 disk128G on SSD, serial `homelab-appdata` |
 | `/mnt/photos` | Managed3072 GiB ext4 `scsi2`, `tank/vm` via `tank-vm` |
-| `/mnt/files` | Managed64 GiB ext4 `scsi3`, `tank/vm` via `tank-vm` |
+| `/mnt/files` | Managed256 GiB ext4 `scsi3`, `tank/vm` via `tank-vm` |
 | `/mnt/data` | External/private NFSv4.1, host `media/data`; excluded from backup |
 
 This storage boundary is now deployed: all34 original containers resumed after
@@ -63,6 +63,41 @@ Do not run the untagged target baseline during the live seed.
 `/mnt/data/torrents` and `/mnt/data/media` remain one dataset, preserving Arr
 hardlinks and atomic renames. Preserve numeric ownership during restoration;
 `99:100` applies to selected applications, not every database or Minecraft tree.
+
+### Growing a managed data disk
+
+The PVE reconciler validates the exact configured size and refuses to resize an
+existing data disk automatically. Growing `/mnt/files` is a manual,
+backup-gated operation; the online path does not stop Docker or SMB. Use an
+absolute target size; `qm resize` refuses to shrink.
+
+1. Confirm a recent PBS VM snapshot exists.
+2. On the PVE host, grow the sparse zvol and VM config:
+
+   ```bash
+   qm resize 100 scsi3 256G
+   ```
+
+3. If the guest did not see the new capacity, rescan the SCSI device, then grow
+   the whole-disk ext4 filesystem (there is no partition table):
+
+   ```bash
+   sudo sh -c 'for f in /sys/class/scsi_device/*/device/rescan; do echo 1 > "$f"; done'
+   sudo resize2fs /dev/sdd
+   ```
+
+4. Update both `size_gib` values for serial `homelab-files`:
+   [PVE VM inventory](../inventory/group_vars/pve/vm.yml) and
+   [guest data inventory](../inventory/group_vars/docker/docker_vm.yml).
+5. Reconcile the validators:
+
+   ```bash
+   ansible-playbook playbooks/pve.yml --limit great-hornbill --tags vm
+   ansible-playbook playbooks/docker.yml --limit docker-1 --tags docker_vm_data_prepare
+   ```
+
+6. Verify `df -h /mnt/files` and the SMB share. The next PBS snapshot captures
+   the new geometry; earlier snapshots remain valid.
 
 ## Public SMB file share
 

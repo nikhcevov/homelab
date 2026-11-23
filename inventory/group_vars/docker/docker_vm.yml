@@ -21,7 +21,7 @@ docker_vm_data_disks:
     path: /mnt/photos
   - device: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi3
     serial: homelab-files
-    size_gib: 64
+    size_gib: 256
     label: HOMELAB_FILES
     path: /mnt/files
 docker_vm_nfs_mounts:

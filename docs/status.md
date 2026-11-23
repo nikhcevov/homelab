@@ -34,6 +34,8 @@ On 2026-11-23 the LAN-only guest SMB share `files` was restored on `docker-1`
 NetBIOS/139 and the PVE host's SMB ports remain closed. Allowed clients are
 `192.168.15.0/24` and the planned `192.168.102.0/24`. Guest write, read, delete
 and the root-only `homelab-backups` denial were verified from `starling`.
+The files disk was also grown online from 64 to 256 GiB (252 GiB visible to
+ext4) without stopping Docker or SMB.
 
 ## Backup coverage and schedules
 
