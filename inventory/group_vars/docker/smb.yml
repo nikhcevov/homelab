@@ -1,0 +1,15 @@
+---
+# LAN-only public SMB share for the active files disk (role: samba_files).
+# The decommissioned Unraid [files] share is replaced on docker-1; the PVE
+# host keeps no SMB service. See docs/docker-stacks.md#public-smb-file-share.
+
+samba_files_share_name: files
+samba_files_path: /mnt/files
+samba_files_comment: Public file exchange
+samba_files_server_string: "docker-1 files"
+samba_files_interface: eth0
+samba_files_allowed_networks:
+  - 192.168.15.0/24
+  - 192.168.102.0/24
+samba_files_force_user: "{{ docker_vm_user }}"
+samba_files_force_group: users

@@ -64,6 +64,55 @@ Do not run the untagged target baseline during the live seed.
 hardlinks and atomic renames. Preserve numeric ownership during restoration;
 `99:100` applies to selected applications, not every database or Minecraft tree.
 
+## Public SMB file share
+
+The active `files` disk (`/mnt/files`) is published as an unauthenticated
+read-write SMB share on the Docker VM's LAN interface. This replaces the old
+Unraid `[files]` share; the PVE host itself keeps no SMB service.
+Authoritative settings: [SMB group variables](../inventory/group_vars/docker/smb.yml)
+and the [Samba role](../roles/samba_files/).
+
+| Property | Value |
+| --- | --- |
+| Server | `docker-1`, `192.168.15.49` |
+| Share | `files` (`smb://192.168.15.49/files`) |
+| Path | `/mnt/files` |
+| Authentication | guest, no password |
+| Allowed clients | `192.168.15.0/24` (current LAN), `192.168.102.0/24` (planned LAN), loopback |
+| Protocol | SMB2/SMB3 on TCP 445 only; NetBIOS and port 139 disabled |
+
+Connect from the LAN:
+
+- Linux: `smbclient -s /dev/null //192.168.15.49/files -N`
+- macOS: Finder → Go → Connect to Server → `smb://192.168.15.49/files`, as Guest
+- Windows: `\\192.168.15.49\files`. Windows 10/11 block insecure guest logons by
+  default; either change that policy deliberately or use a client that permits
+  anonymous SMB.
+- iOS/Android: any SMB client, host `192.168.15.49`, share `files`, guest.
+
+Everyone on the allowed networks can read, create, and delete files. Do not put
+secrets or anything that must stay immutable in this share. Root-only
+directories such as `homelab-backups` remain inaccessible to the guest account.
+The share is on the managed files disk, so PBS VM backups include it.
+
+Apply or reconcile only the SMB role:
+
+```bash
+ansible-playbook playbooks/docker.yml --limit docker-1 --tags smb
+```
+
+The full `playbooks/docker.yml` run also applies it. Verify from a LAN client:
+
+```bash
+smbclient -s /dev/null -L //192.168.15.49 -N
+smbclient -s /dev/null //192.168.15.49/files -N -c 'ls'
+```
+
+The service is `smbd`; its systemd drop-in requires `/mnt/files` to be mounted
+before start. To remove the share, remove the `samba_files` role from
+`playbooks/docker.yml`, stop and disable `smbd`, and remove
+`/etc/systemd/system/smbd.service.d/10-mounts.conf`.
+
 ## Baseline and authorization
 
 `playbooks/docker.yml` configures base packages, operator/root keys, local and

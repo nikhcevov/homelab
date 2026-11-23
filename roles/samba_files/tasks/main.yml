@@ -1,0 +1,86 @@
+---
+# Publish the managed files disk as a LAN-only guest SMB share. The service
+# belongs on the Docker VM, never the PVE host; see docs/docker-stacks.md.
+
+- name: Require the managed files disk to be mounted
+  ansible.builtin.command:
+    argv: [mountpoint, --quiet, "{{ samba_files_path }}"]
+  changed_when: false
+
+- name: Install the Samba server
+  ansible.builtin.apt:
+    name: samba
+    state: present
+    update_cache: true
+    dpkg_options: force-confdef,force-confold
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  register: _samba_install
+
+- name: Collect Samba service state
+  ansible.builtin.service_facts:
+
+# Debian's package post-install starts smbd with its default homes/printers
+# configuration. Stop it after a fresh install before replacing that file.
+- name: Stop the packaged Samba daemon after a fresh install
+  ansible.builtin.systemd:
+    name: smbd
+    state: stopped
+  when:
+    - not ansible_check_mode
+    - _samba_install.changed
+    - "'smbd.service' in ansible_facts.services"
+
+- name: Stop and disable NetBIOS and winbind services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - nmbd.service
+    - winbind.service
+  when:
+    - not ansible_check_mode
+    - item in ansible_facts.services
+
+- name: Deploy the public files share configuration
+  ansible.builtin.template:
+    src: smb.conf.j2
+    dest: /etc/samba/smb.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: testparm -s %s
+  notify: Restart smbd
+  when: not ansible_check_mode
+
+- name: Create the smbd unit drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/smbd.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Require the files mount before smbd starts
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/smbd.service.d/10-mounts.conf
+    content: |
+      [Unit]
+      RequiresMountsFor={{ samba_files_path }}
+      After=local-fs.target
+
+      [Service]
+      ExecStartPre=/usr/bin/mountpoint -q {{ samba_files_path }}
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Enable and start Samba
+  ansible.builtin.systemd:
+    name: smbd
+    state: started
+    enabled: true
+    daemon_reload: true
+  when: not ansible_check_mode

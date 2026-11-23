@@ -29,6 +29,12 @@ The current LAN remains `192.168.15.x`; VM100's DHCP lease is not reserved.
 The future home-network/router cutover is separate deferred work, not an
 already-applied address change.
 
+On 2026-11-23 the LAN-only guest SMB share `files` was restored on `docker-1`
+(`/mnt/files`, `smb://192.168.15.49/files`). SMB2/SMB3 listens on TCP445 only;
+NetBIOS/139 and the PVE host's SMB ports remain closed. Allowed clients are
+`192.168.15.0/24` and the planned `192.168.102.0/24`. Guest write, read, delete
+and the root-only `homelab-backups` denial were verified from `starling`.
+
 ## Backup coverage and schedules
 
 **One active local B repository is temporarily accepted. There is no healthy

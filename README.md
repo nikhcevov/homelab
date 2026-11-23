@@ -13,7 +13,7 @@ Playbooks target inventory groups. Active hosts and connection settings live in 
 | `mon` | [playbooks/mon.yml](playbooks/mon.yml) | Native Gatus + Caddy, declarative external watcher |
 | `routers` | [playbooks/openwrt.yml](playbooks/openwrt.yml) | OpenWrt configuration, Tailscale exit nodes and the gateway VM; explicit upgrade tag |
 | `pve` | [playbooks/pve.yml](playbooks/pve.yml) | Proxmox: ZFS managed disks, private media NFS, VM/GPU/UPS, native PBS backups |
-| `docker` | [playbooks/docker.yml](playbooks/docker.yml) | Debian VM: local appdata/photos/files, private media mount, NVIDIA, restore-gated stacks |
+| `docker` | [playbooks/docker.yml](playbooks/docker.yml) | Debian VM: local appdata/photos/files, private media mount, LAN SMB share, NVIDIA, restore-gated stacks |
 | `workstations` | [playbooks/workstation.yml](playbooks/workstation.yml) | Arch/CachyOS development environment |
 
 Each host type has one setup/update playbook. Normal runs reconcile configuration;

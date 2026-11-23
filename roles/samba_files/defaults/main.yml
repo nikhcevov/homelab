@@ -1,0 +1,16 @@
+---
+# LAN-only public SMB share for the managed files disk (role: samba_files).
+# Host-specific values live in inventory/group_vars/docker/smb.yml.
+
+samba_files_share_name: files
+samba_files_path: /mnt/files
+samba_files_comment: Public file exchange
+samba_files_workgroup: WORKGROUP
+samba_files_server_string: docker-1 files
+samba_files_interface: eth0
+# Fail closed: an empty allow list leaves only loopback access in smb.conf.
+samba_files_allowed_networks: []
+samba_files_force_user: boss
+samba_files_force_group: users
+samba_files_create_mask: "0664"
+samba_files_directory_mask: "0775"

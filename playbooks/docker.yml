@@ -19,6 +19,8 @@
   roles:
     - debian_common
     - docker_vm
+    - role: samba_files
+      tags: [smb]
     - role: docker_backup
       tags: [backup]
     - ssh
