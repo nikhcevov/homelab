@@ -7,7 +7,7 @@ x-logging: &logging
 services:
   broker:
     container_name: paperless-broker
-    image: redis:8.10.3@sha256:1f88291b4c57bdf249f02eb085a8669889b2d2954e91d4de5118a5da6b78dd53
+    image: redis:8.12.0@sha256:56a1737794e36c3ebe8a4544a8ab421af3ab1a6488fb2238aec228c404933fed
     restart: unless-stopped
     mem_limit: 128m
     logging: *logging
@@ -21,7 +21,7 @@ services:
 
   db:
     container_name: paperless-db
-    image: postgres:18.7@sha256:eb63372c1e05c755f55fa30cbd07aecc443676fc6c0fa90b9002d01537841e1a
+    image: postgres:18.7@sha256:64c8b0d31e4ab6ea665e8426ea406a94bf52de3c05b3a4a8bf713704eefa9328
     restart: unless-stopped
     mem_limit: 256m
     logging: *logging
