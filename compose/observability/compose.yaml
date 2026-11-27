@@ -10,7 +10,7 @@ x-logging: &logging
 
 services:
   grafana:
-    image: grafana/grafana:13.3.1@sha256:1c88285f1dd391a62232c010e6c224846e6a73bdc583b3365be2eba614b7919e
+    image: grafana/grafana:13.3.2@sha256:1b8b4d34bde1e7c95dd639523a0dab6481f4d4e4b9727022c66f28cf3c708060
     container_name: observability-grafana
     restart: unless-stopped
     mem_limit: 512m
@@ -58,7 +58,7 @@ services:
       retries: 5
 
   loki:
-    image: grafana/loki:3.7.10@sha256:6d789ab9a603ee4429d0fdc4d11512bf2423e8a8c5fc898a9e5aa2d8471ce459
+    image: grafana/loki:3.7.11@sha256:a553c31d41ebd82bc676c87835bbfd6d7625b5382d1884fe124fc81de01c3461
     container_name: observability-loki
     restart: unless-stopped
     mem_limit: 512m
